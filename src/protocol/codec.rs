@@ -39,7 +39,7 @@ impl<'a> SmtpCodec<'a> {
         msg
     }
     fn parse_err(&self, e: &Debug, text: &str) {
-        let msg = format!("parse error: {:?}", e);
+        let msg = format!("parse error: {:?}, text: {:?}", e, text);
         self.err(&msg);
     }
     fn eof_err(&self) {
