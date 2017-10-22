@@ -1,10 +1,9 @@
 extern crate samotop;
 extern crate tokio_proto;
 
-use std::io;
 use tokio_proto::TcpServer;
 use samotop::service::SmtpService;
-use samotop::protocol::simple::SmtpProto;
+use samotop::protocol::transport::SmtpProto;
 
 fn main() {
 
