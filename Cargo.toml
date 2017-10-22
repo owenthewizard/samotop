@@ -5,7 +5,9 @@ authors = ["Robert Cutajar <github-commit@robajz.info>"]
 build = "src/peg.rs"
 
 [dependencies]
-peg = "0.5.2"
+log = "0.3"
+env_logger = "0.4"
+peg = "0.5"
 bytes = "0.4"
 futures = "0.1"
 tokio-io = "0.1"

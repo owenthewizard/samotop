@@ -1,3 +1,4 @@
+extern crate env_logger;
 extern crate samotop;
 extern crate tokio_proto;
 
@@ -5,7 +6,11 @@ use tokio_proto::TcpServer;
 use samotop::service::SmtpService;
 use samotop::protocol::transport::SmtpProto;
 
+// try: RUST_LOG=samotop=trace cargo run
+
 fn main() {
+
+    env_logger::init().unwrap();
 
     // Specify the localhost address
     let addr = "0.0.0.0:12345".parse().unwrap();

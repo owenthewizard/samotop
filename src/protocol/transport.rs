@@ -22,7 +22,7 @@ impl<TIO: NetSocket + 'static> ServerProto<TIO> for SmtpProto {
     type ResponseBody = ();
     type Transport = SmtpConnectTransport<Framed<TIO, SmtpCodec<'static>>>;
     type BindTransport = io::Result<Self::Transport>;
-
+    // TODO: Make it into a Future to free the listener loop sooner
     fn bind_transport(&self, io: TIO) -> Self::BindTransport {
         // save local and remote socket address so we can use it as the first frame
         let initframe = Frame::Message {
@@ -66,7 +66,7 @@ where
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
         match self.initframe.take() {
             Some(frame) => {
-                println!("transport initializing");
+                trace!("transport initializing");
                 Ok(Async::Ready(Some(frame)))
             }
             None => self.upstream.poll(),

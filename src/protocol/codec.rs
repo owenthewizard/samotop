@@ -30,24 +30,20 @@ impl<'a> SmtpCodec<'a> {
         }
     }
 
-
-    fn log(&self, info: &Debug) -> String {
-        let msg = format!("{:?}", info);
-        println!("{}", msg);
-        msg
+    fn err(&self, err: &str) {
+        warn!("{}", err)
     }
     fn input_err(&self, e: &Debug, bytes: &[u8]) -> String {
         let msg = format!("input error: {:?}, bytes: {:?}", e, bytes);
-        self.log(&msg);
+        self.err(&msg);
         msg
     }
-    fn parse_err(&self, e: &Debug, text: &str) -> String {
+    fn parse_err(&self, e: &Debug, text: &str) {
         let msg = format!("parse error: {:?}", e);
-        self.log(&msg);
-        format!("{}", text)
+        self.err(&msg);
     }
     fn eof_err(&self) {
-        self.log(&format!("unexpected EOF"));
+        self.err(&format!("unexpected EOF"));
     }
 }
 
@@ -77,7 +73,7 @@ impl<'a> Decoder for SmtpCodec<'a> {
         }
     }
     fn decode(&mut self, buf: &mut BytesMut) -> Result {
-        println!("attempting to decode a frame");
+        trace!("attempting to decode a frame");
 
         if !buf.is_empty() {
 
@@ -85,7 +81,7 @@ impl<'a> Decoder for SmtpCodec<'a> {
 
             let text = str::from_utf8(bytes);
 
-            println!("text ({}): {:?}", bytes.len(), text);
+            trace!("text ({}): {:?}", bytes.len(), text);
 
             match text {
                 Err(e) => {
@@ -135,7 +131,7 @@ impl<'a> Decoder for SmtpCodec<'a> {
                             // return tail to the input buffer
                             buf.extend_from_slice(&bytes[pos..]);
 
-                            println!("last position {}, tail {:?}", pos, str::from_utf8(buf));
+                            trace!("last position {}, tail {:?}", pos, str::from_utf8(buf));
                         }
                     }
                 }
