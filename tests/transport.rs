@@ -9,7 +9,7 @@ use futures::{Sink, Stream, Async};
 use tokio_proto::streaming::pipeline::Frame;
 use samotop::protocol::transport::SmtpConnectTransport;
 use samotop::model::request::SmtpCommand;
-use mocks::MockTransport;
+use mocks::transport::MockTransport;
 use samotop::model::response::SmtpReply;
 
 type Sut = SmtpConnectTransport<MockTransport>;

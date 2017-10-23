@@ -7,16 +7,18 @@ pub script -> Vec<SmtpInput>
 	= input +
 
 pub input -> SmtpInput
-	= inp_none / inp_command / inp_incomplete
+	= inp_none / inp_command / inp_invalid
 pub inp_command -> SmtpInput
 	= b:#position c:command e:#position
 	{ SmtpInput::Command(b, e - b, c) }
 pub inp_none -> SmtpInput
 	= b:#position s:$(NL / WS* NL) e:#position
 	{ SmtpInput::None(b, e - b, s.to_string()) }
-pub inp_incomplete -> SmtpInput
-	= b:#position s:$( [^\r\n]+ ) e:#position
-	{ SmtpInput::Incomplete(b, e - b, s.to_string()) }
+pub inp_invalid -> SmtpInput
+	= b:#position s:$( str_invalid ) e:#position
+	{ SmtpInput::Invalid(b, e - b, s.to_string()) }
+
+str_invalid = #quiet< "\n" / [^\n]+ "\n" / .+ > / #expected("invalid input")
 
 pub command -> SmtpCommand
 	= cmd_helo /
@@ -33,12 +35,7 @@ pub command -> SmtpCommand
 	  cmd_turn /
 	  cmd_vrfy /
 	  cmd_expn /
-	  cmd_help /
-	  cmd_unknown
-
-pub cmd_unknown -> SmtpCommand
-	= s:$( [^\r\n]+ NL )
-	{ SmtpCommand::Unknown(s.to_string()) }
+	  cmd_help 
 
 pub cmd_quit -> SmtpCommand
 	= "quit"i NL

@@ -16,11 +16,7 @@ mod tests {
         assert_eq!(
             result,
             vec![
-                SmtpInput::Command(
-                    0,
-                    20,
-                    SmtpCommand::Unknown("sOmE other command\r\n".to_string())
-                ),
+                SmtpInput::Invalid(0, 20, "sOmE other command\r\n".to_string()),
             ]
         );
     }
@@ -57,6 +53,48 @@ mod tests {
             result,
             vec![
                 SmtpInput::Command(0, 17, Helo(Domain("domain.com".to_string()))),
+            ]
+        );
+    }
+
+    #[test]
+    fn session_parses_data() {
+        let result = session("DATA\r\n ěšě\r\nš\nčš").unwrap();
+
+        assert_eq!(
+            result,
+            vec![
+                SmtpInput::Command(0, 6, Data),
+                SmtpInput::Invalid(6, 9, " ěšě\r\n".to_string()),
+                SmtpInput::Invalid(15, 3, "š\n".to_string()),
+                SmtpInput::Invalid(18, 4, "čš".to_string()),
+            ]
+        );
+    }
+
+    #[test]
+    fn session_parses_wrong_newline() {
+        let result = session("QUIT\nQUIT\r\nquit\r\n").unwrap();
+
+        assert_eq!(
+            result,
+            vec![
+                SmtpInput::Invalid(0, 5, "QUIT\n".to_string()),
+                SmtpInput::Command(5, 6, Quit),
+                SmtpInput::Command(11, 6, Quit),
+            ]
+        );
+    }
+
+    #[test]
+    fn session_parses_incomplete_command() {
+        let result = session("QUIT\r\nQUI").unwrap();
+
+        assert_eq!(
+            result,
+            vec![
+                SmtpInput::Command(0, 6, Quit),
+                SmtpInput::Invalid(6, 3, "QUI".to_string()),
             ]
         );
     }

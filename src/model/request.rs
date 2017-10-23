@@ -4,14 +4,13 @@ use std::net::{SocketAddr, Ipv4Addr, Ipv6Addr};
 pub enum SmtpInput {
     Command(usize, usize, SmtpCommand),
     Data(usize, usize, Vec<u8>),
-    Incomplete(usize, usize, String),
+    Invalid(usize, usize, String),
     None(usize, usize, String),
 }
 
 #[derive(Eq, PartialEq, Debug)]
 pub enum SmtpCommand {
     Unknown(String),
-    Invalid(String),
     Connect {
         local_addr: Option<SocketAddr>,
         peer_addr: Option<SocketAddr>,

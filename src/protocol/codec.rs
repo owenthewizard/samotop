@@ -88,7 +88,8 @@ impl<'a> Decoder for SmtpCodec<'a> {
                     let s = self.input_err(&e, bytes);
                     let f = Frame::Message {
                         body: false,
-                        message: SmtpCommand::Invalid(s),
+                        //TODO: Pass bytes
+                        message: SmtpCommand::Unknown(s),
                     };
                     self.requests.push(f);
                 }
@@ -98,7 +99,8 @@ impl<'a> Decoder for SmtpCodec<'a> {
                             self.parse_err(&e, s);
                             let f = Frame::Message {
                                 body: false,
-                                message: SmtpCommand::Invalid(s.to_string()),
+                                //TODO: Pass bytes
+                                message: SmtpCommand::Unknown(s.to_string()),
                             };
                             self.requests.push(f);
                         }
@@ -121,9 +123,23 @@ impl<'a> Decoder for SmtpCodec<'a> {
                                         // ToDo handle data properly
                                         pos = b + l;
                                     }
-                                    SmtpInput::Incomplete(b, _, _) => {
-                                        // data will be returned to the input buffer
-                                        pos = b;
+                                    SmtpInput::Invalid(b, l, s) => {
+                                        match s.ends_with("\n") {
+                                            true => {
+                                                pos = b + l;
+                                                let f = Frame::Message {
+                                                    body: false,
+                                                    message: SmtpCommand::Unknown(s),
+                                                };
+                                                self.requests.push(f);
+                                            }
+                                            false => {
+                                                // data will be returned to the input buffer
+                                                // to be used as a tail for next time round
+                                                pos = b;
+                                            }
+                                        }
+
                                     }
                                 };
                             }
