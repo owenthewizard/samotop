@@ -1,15 +1,9 @@
-extern crate samotop;
-extern crate tokio_proto;
-extern crate futures;
-extern crate bytes;
-
-mod mocks;
 //use std::io;
 use futures::{Sink, Stream, Async};
 use tokio_proto::streaming::pipeline::Frame;
 use samotop::protocol::transport::SmtpConnectTransport;
 use samotop::model::request::SmtpCommand;
-use mocks::transport::MockTransport;
+use units::mocks::transport::MockTransport;
 use samotop::model::response::SmtpReply;
 
 type Sut = SmtpConnectTransport<MockTransport>;
