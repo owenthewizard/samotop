@@ -16,6 +16,7 @@ pub enum SmtpCommand {
         peer_addr: Option<SocketAddr>,
     },
     Disconnect,
+    Stream,
 
     Ehlo(SmtpHost),
     Helo(SmtpHost),

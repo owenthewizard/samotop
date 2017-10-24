@@ -16,7 +16,7 @@ pub struct SmtpCodec<'a> {
     requests: Vec<CmdFrame>,
     parser: &'a SmtpSessionParser,
     serializer: &'a SmtpAnswerSerializer,
-    decoding_data: bool,
+    streaming_data: bool,
     closed: bool,
     dot_regex: Regex,
 }
@@ -27,7 +27,7 @@ impl<'a> SmtpCodec<'a> {
             requests: vec![],
             serializer,
             parser,
-            decoding_data: false,
+            streaming_data: false,
             closed: false,
             dot_regex: Regex::new(r"\r\n\.\r\n").unwrap(),
         }
@@ -82,7 +82,7 @@ impl<'a> Decoder for SmtpCodec<'a> {
 
         if !buf.is_empty() {
 
-            if self.decoding_data {
+            if self.streaming_data {
 
                 // remove all bytes from buffer to avoid ownership issues
                 let bytes = buf.take();
@@ -91,7 +91,7 @@ impl<'a> Decoder for SmtpCodec<'a> {
                 if let Some(dot) = self.dot_regex.find(&bytes[..]) {
 
                     // dot found so we'll finish streaming
-                    self.decoding_data = false;
+                    self.streaming_data = false;
 
                     trace!("Got DATA, dot found {} - {}", dot.start(), dot.end());
 
@@ -124,23 +124,21 @@ impl<'a> Decoder for SmtpCodec<'a> {
                 match text {
                     Err(e) => {
                         let s = self.input_err(&e, bytes);
-                        let f = Frame::Message {
+                        self.requests.push(Frame::Message {
                             body: false,
                             //TODO: Pass bytes
                             message: SmtpCommand::Unknown(s),
-                        };
-                        self.requests.push(f);
+                        });
                     }
                     Ok(s) => {
                         match self.parser.session(s) {
                             Err(e) => {
                                 self.parse_err(&e, s);
-                                let f = Frame::Message {
+                                self.requests.push(Frame::Message {
                                     body: false,
                                     //TODO: Pass bytes
                                     message: SmtpCommand::Unknown(s.to_string()),
-                                };
-                                self.requests.push(f);
+                                });
                             }
                             Ok(inputs) => {
                                 let mut pos = 0;
@@ -148,21 +146,23 @@ impl<'a> Decoder for SmtpCodec<'a> {
                                     match inp {
                                         SmtpInput::Command(b, l, c @ SmtpCommand::Data) => {
                                             pos = b + l;
-                                            let f = Frame::Message {
-                                                body: true,
+                                            self.requests.push(Frame::Message {
+                                                body: false,
                                                 message: c,
-                                            };
-                                            self.requests.push(f);
-                                            self.decoding_data = true;
+                                            });
+                                            self.requests.push(Frame::Message {
+                                                body: true,
+                                                message: SmtpCommand::Stream,
+                                            });
+                                            self.streaming_data = true;
                                             break;
                                         }
                                         SmtpInput::Command(b, l, c) => {
                                             pos = b + l;
-                                            let f = Frame::Message {
+                                            self.requests.push(Frame::Message {
                                                 body: false,
                                                 message: c,
-                                            };
-                                            self.requests.push(f);
+                                            });
                                         }
                                         SmtpInput::None(b, l, _) => {
                                             pos = b + l;
@@ -175,11 +175,10 @@ impl<'a> Decoder for SmtpCodec<'a> {
                                             match s.ends_with("\n") {
                                                 true => {
                                                     pos = b + l;
-                                                    let f = Frame::Message {
+                                                    self.requests.push(Frame::Message {
                                                         body: false,
                                                         message: SmtpCommand::Unknown(s),
-                                                    };
-                                                    self.requests.push(f);
+                                                    });
                                                 }
                                                 false => {
                                                     // data will be returned to the input buffer

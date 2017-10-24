@@ -54,6 +54,8 @@
       action.
 */
 
+use model::response::SmtpReply::*;
+
 #[derive(Eq, PartialEq, Debug)]
 pub enum SmtpReply {
     // I'm using a suffix to make names sound english:
@@ -61,9 +63,6 @@ pub enum SmtpReply {
     // 3xx => ...Challenge
     // 4xx => ...Error
     // 5xx => ...Failure
-
-    // other custom replies
-    Custom(SmtpReplyClass, SmtpReplyCategory, SmtpReplyDigit, String, Vec<String>),
 
     /*500*/
     CommandSyntaxFailure,
@@ -91,7 +90,9 @@ pub enum SmtpReply {
     MailNotAcceptedByHostFailure,
 
     // 250 first line is either Ok or specific message, use Vec<String> for subsequent items
-    OkInfo(String, Vec<String>),
+    OkInfo,
+    OkMessageInfo(String),
+    OkResultsInfo(String, Vec<String>),
     // 251 will forward to <forward-path> (See Section 3.4)
     UserNotLocalInfo(String),
     // 252 but will accept message and attempt delivery (See Section 3.5.3)
@@ -122,6 +123,167 @@ pub enum SmtpReply {
     UnknownMailParametersFailure,
     // 556 RFC 7504
     MailNotAcceptedByDomainFailure,
+}
+
+impl SmtpReply {
+    pub fn code(&self) -> u16 {
+        match self {
+            /* &Custom(ref class, ref category, ref digit, _, _) => {
+                *class as u16 + *category as u16 + *digit as u16
+            }*/
+            &CommandSyntaxFailure => 500,
+            &ParameterSyntaxFailure => 501,
+            &CommandNotImplementedFailure => 502,
+            &CommandSequenceFailure => 503,
+            &UnexpectedParameterFailure => 504,
+
+            &StatusInfo(_) => 211,
+            &HelpInfo(_) => 214,
+
+            // <domain> Service ready
+            &ServiceReadyInfo(_) => 220,
+            // <domain> Service closing transmission channel
+            &ClosingConnectionInfo(_) => 221,
+            // <domain> Service not available, closing transmission channel
+            &ServiceNotAvailableError(_) => 421,
+            // RFC 7504
+            &MailNotAcceptedByHostFailure => 521,
+
+            // first line is either Ok or specific message, use Vec<String> for subsequent items
+            &OkInfo => 250,
+            &OkMessageInfo(_) => 250,
+            &OkResultsInfo(_, _) => 250,
+            // will forward to <forward-path> (See Section 3.4)
+            &UserNotLocalInfo(_) => 251,
+            //, but will accept message and attempt delivery (See Section 3.5.3)
+            &CannotVerifyUserInfo => 252,
+            // end with <CRLF>.<CRLF>
+            &StartMailInputChallenge => 354,
+            // Requested mail action not taken (e.g., mailbox busy
+            // or temporarily blocked for policy reasons)
+            &MailboxNotAvailableError => 450,
+            // Requested action aborted
+            &ProcesingError => 451,
+            // Requested action not taken
+            &StorageError => 452,
+            // right now the parameters given cannot be accomodated
+            &ParametersNotAccommodatedError => 455,
+            // Requested action not taken: mailbox unavailable (e.g.,
+            // mailbox not found, no access, or command rejected for policy reasons)
+            &MailboxNotAvailableFailure => 550,
+            // please try <forward-path> (See Section 3.4)
+            &UserNotLocalFailure(_) => 551,
+            // Requested mail action aborted: exceeded storage allocation
+            &StorageFailure => 552,
+            // Requested action not taken: mailbox name not allowed (e.g., mailbox syntax incorrect)
+            &MailboxNameInvalidFailure => 553,
+            // (Or, in the case of a connection-opening response, "No SMTP service here")
+            &TransactionFailure => 554,
+            // MAIL FROM/RCPT TO parameters not recognized or not implemented
+            &UnknownMailParametersFailure => 555,
+            // RFC 7504
+            &MailNotAcceptedByDomainFailure => 556,
+        }
+    }
+
+    pub fn text(&self) -> String {
+        match self {
+
+            &CommandSyntaxFailure => "Syntax error, command unrecognized".to_owned(),
+            &ParameterSyntaxFailure => "Syntax error in parameters or arguments".to_owned(),
+            &CommandNotImplementedFailure => "Command not implemented".to_owned(),
+            &CommandSequenceFailure => "Bad sequence of commands".to_owned(),
+            &UnexpectedParameterFailure => "Command parameter not implemented".to_owned(),
+
+            &StatusInfo(ref text) => format!("{}", text),
+            &HelpInfo(ref text) => format!("{}", text),
+
+            &ServiceReadyInfo(ref domain) => format!("{} Service ready", domain),
+            &ClosingConnectionInfo(ref domain) => {
+                format!("{} Service closing transmission channel", domain)
+            }
+            &ServiceNotAvailableError(ref domain) => {
+                format!(
+                    "{} Service not available, closing transmission channel",
+                    domain
+                )
+            }
+            &MailNotAcceptedByHostFailure => "Host does not accept mail".to_owned(),
+
+            &OkInfo => "Ok".to_owned(),
+            &OkMessageInfo(ref text) => format!("{}", text),
+            &OkResultsInfo(ref text, _) => format!("{}", text),
+
+            &UserNotLocalInfo(ref forward_path) => {
+                format!("User not local, will forward to {}", forward_path)
+            }
+            &CannotVerifyUserInfo => {
+                "Cannot VFRY user, but will accept message and attempt delivery".to_owned()
+            }
+            &StartMailInputChallenge => "Start mail input, end with <CRLF>.<CRLF>".to_owned(),
+            &MailboxNotAvailableError => {
+                "Requested mail action not taken: mailbox unavailable".to_owned()
+            }
+            &ProcesingError => "Requested action aborted: error in processing".to_owned(),
+            &StorageError => "Requested action not taken: insufficient system storage".to_owned(),
+            &ParametersNotAccommodatedError => "Server unable to accommodate parameters".to_owned(),
+            &MailboxNotAvailableFailure => {
+                "Requested action not taken: mailbox unavailable".to_owned()
+            }
+            &UserNotLocalFailure(ref forward_path) => {
+                format!("User not local; please try {}", forward_path)
+            }
+            &StorageFailure => {
+                "Requested mail action aborted: exceeded storage allocation".to_owned()
+            }
+            &MailboxNameInvalidFailure => {
+                "Requested action not taken: mailbox name not allowed".to_owned()
+            }
+            &TransactionFailure => "Transaction failed".to_owned(),
+            &UnknownMailParametersFailure => {
+                "MAIL FROM/RCPT TO parameters not recognized or not implemented".to_owned()
+            }
+            &MailNotAcceptedByDomainFailure => "Domain does not accept mail".to_owned(),
+        }
+    }
+    pub fn items(self) -> Vec<String> {
+        match self {
+            OkResultsInfo(_, items) => items,
+            _ => vec![],
+        }
+    }
+    pub fn class(&self) -> SmtpReplyClass {
+        match self.code() {
+            0...299 => SmtpReplyClass::Info,
+            300...399 => SmtpReplyClass::Challenge,
+            400...499 => SmtpReplyClass::Error,
+            _ => SmtpReplyClass::Failure,
+        }
+    }
+    pub fn category(&self) -> SmtpReplyCategory {
+        match self.code() % 100 {
+            0...9 => SmtpReplyCategory::Syntax,
+            10...19 => SmtpReplyCategory::Information,
+            20...29 => SmtpReplyCategory::Connections,
+            30...39 => SmtpReplyCategory::Reserved3,
+            40...49 => SmtpReplyCategory::Reserved4,
+            _ => SmtpReplyCategory::System,
+        }
+    }
+    pub fn digit(&self) -> SmtpReplyDigit {
+        match self.code() % 10 {
+            0 => SmtpReplyDigit::D0,
+            1 => SmtpReplyDigit::D1,
+            2 => SmtpReplyDigit::D2,
+            3 => SmtpReplyDigit::D3,
+            4 => SmtpReplyDigit::D4,
+            5 => SmtpReplyDigit::D5,
+            6 => SmtpReplyDigit::D6,
+            7 => SmtpReplyDigit::D7,
+            8 => SmtpReplyDigit::D8,
+            _ => SmtpReplyDigit::D9,
+        }
+    }
 }
 
 #[derive(Eq, PartialEq, Debug, Copy, Clone)]

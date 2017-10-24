@@ -13,4 +13,4 @@ use model::response::SmtpReply;
 
 pub type Error = io::Error;
 pub type CmdFrame = Frame<SmtpCommand, Bytes, Error>;
-pub type RplFrame = Frame<SmtpReply, (), Error>;
+pub type RplFrame = Frame<SmtpReply, SmtpReply, Error>;

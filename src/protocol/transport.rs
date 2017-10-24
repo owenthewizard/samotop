@@ -19,7 +19,7 @@ impl<TIO: NetSocket + 'static> ServerProto<TIO> for SmtpProto {
     type Request = SmtpCommand;
     type RequestBody = Bytes;
     type Response = SmtpReply;
-    type ResponseBody = ();
+    type ResponseBody = SmtpReply;
     type Transport = SmtpConnectTransport<Framed<TIO, SmtpCodec<'static>>>;
     type BindTransport = io::Result<Self::Transport>;
     // TODO: Make it into a Future to free the listener loop sooner
