@@ -99,6 +99,11 @@ impl<'a> Decoder for SmtpCodec<'a> {
                     self.requests.push(Frame::Body {
                         chunk: Some(Bytes::from(&bytes[..dot.start()])),
                     });
+                    // this will end the body streaming
+                    self.requests.push(Frame::Message {
+                        body: false,
+                        message: SmtpCommand::EndOfStream,
+                    });
 
                     // return remaining bytes to buffer
                     buf.extend_from_slice(&bytes[dot.end()..]);

@@ -32,5 +32,5 @@ fn main() {
 
     // We provide a way to *instantiate* the service for each new
     // connection; here, we just immediately return a new instance.
-    server.serve(|| Ok(SmtpService));
+    server.serve(|| Ok(SmtpService::new()));
 }

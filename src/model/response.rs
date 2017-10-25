@@ -64,6 +64,9 @@ pub enum SmtpReply {
     // 4xx => ...Error
     // 5xx => ...Failure
 
+    /* no response should be given */
+    None,
+
     /*500*/
     CommandSyntaxFailure,
     /*501*/
@@ -131,6 +134,7 @@ impl SmtpReply {
             /* &Custom(ref class, ref category, ref digit, _, _) => {
                 *class as u16 + *category as u16 + *digit as u16
             }*/
+            &None => 0,
             &CommandSyntaxFailure => 500,
             &ParameterSyntaxFailure => 501,
             &CommandNotImplementedFailure => 502,
@@ -188,7 +192,7 @@ impl SmtpReply {
 
     pub fn text(&self) -> String {
         match self {
-
+            &None => "".to_owned(),
             &CommandSyntaxFailure => "Syntax error, command unrecognized".to_owned(),
             &ParameterSyntaxFailure => "Syntax error in parameters or arguments".to_owned(),
             &CommandNotImplementedFailure => "Command not implemented".to_owned(),

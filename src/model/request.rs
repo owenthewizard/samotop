@@ -17,6 +17,7 @@ pub enum SmtpCommand {
     },
     Disconnect,
     Stream,
+    EndOfStream,
 
     Ehlo(SmtpHost),
     Helo(SmtpHost),

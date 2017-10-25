@@ -18,23 +18,28 @@ impl SmtpSerializer {
     }
 
     fn write_reply(&self, mut buf: &mut Write, reply: SmtpReply) -> Result {
-        let code = reply.code();
-        let text = reply.text();
-        let items = reply.items();
+        match reply {
+            SmtpReply::None => Ok(()),
+            _ => {
+                let code = reply.code();
+                let text = reply.text();
+                let items = reply.items();
 
-        if items.is_empty() {
-            try!(self.write_reply_end(&mut buf, code, &text));
-        } else {
-            try!(self.write_reply_continued(&mut buf, code, &text));
-            for i in 0..items.len() {
-                if i == items.len() - 1 {
-                    try!(self.write_reply_end(&mut buf, code, &items[i]));
+                if items.is_empty() {
+                    try!(self.write_reply_end(&mut buf, code, &text));
                 } else {
-                    try!(self.write_reply_continued(&mut buf, code, &items[i]));
+                    try!(self.write_reply_continued(&mut buf, code, &text));
+                    for i in 0..items.len() {
+                        if i == items.len() - 1 {
+                            try!(self.write_reply_end(&mut buf, code, &items[i]));
+                        } else {
+                            try!(self.write_reply_continued(&mut buf, code, &items[i]));
+                        }
+                    }
                 }
+                buf.write_all(b"\r\n")
             }
         }
-        buf.write_all(b"\r\n")
     }
 
     fn write_reply_end(&self, buf: &mut Write, code: u16, text: &str) -> Result {
