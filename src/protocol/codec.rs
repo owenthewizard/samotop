@@ -149,6 +149,8 @@ impl<'a> Decoder for SmtpCodec<'a> {
                                 let mut pos = 0;
                                 for inp in inputs {
                                     match inp {
+                                        i @ SmtpInput::Connect(_) => panic!(),
+                                        i @ SmtpInput::Disconnect => panic!(),
                                         SmtpInput::Command(b, l, c @ SmtpCommand::Data) => {
                                             pos = b + l;
                                             self.requests.push(Frame::Message {
@@ -172,7 +174,9 @@ impl<'a> Decoder for SmtpCodec<'a> {
                                         SmtpInput::None(b, l, _) => {
                                             pos = b + l;
                                         }
-                                        SmtpInput::Data(b, l, _) => {
+                                        SmtpInput::StreamStart(b) => (),
+                                        SmtpInput::StreamEnd(b) => (),
+                                        SmtpInput::StreamData(b, l, _) => {
                                             // ToDo handle data properly if it comes
                                             pos = b + l;
                                         }
@@ -191,7 +195,26 @@ impl<'a> Decoder for SmtpCodec<'a> {
                                                     pos = b;
                                                 }
                                             }
-
+                                        }
+                                        SmtpInput::InvalidBytes(b, l, d) => {
+                                            match d.ends_with(b"\n") {
+                                                true => {
+                                                    pos = b + l;
+                                                    self.requests.push(Frame::Message {
+                                                        body: false,
+                                                        message: SmtpCommand::Unknown(
+                                                            str::from_utf8(&d[..])
+                                                                .unwrap()
+                                                                .to_owned(),
+                                                        ),
+                                                    });
+                                                }
+                                                false => {
+                                                    // data will be returned to the input buffer
+                                                    // to be used as a tail for next time round
+                                                    pos = b;
+                                                }
+                                            }
                                         }
                                     };
                                 }

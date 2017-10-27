@@ -2,7 +2,7 @@ use std::io;
 use std::str;
 use bytes::Bytes;
 use model::response::SmtpReply;
-use model::request::SmtpCommand;
+use model::request::{SmtpCommand, SmtpConnection};
 use protocol::socket::NetSocket;
 use protocol::codec::SmtpCodec;
 use tokio_proto::streaming::pipeline::{Frame, Transport, ServerProto};
@@ -27,10 +27,10 @@ impl<TIO: NetSocket + 'static> ServerProto<TIO> for SmtpProto {
         // save local and remote socket address so we can use it as the first frame
         let initframe = Frame::Message {
             body: false,
-            message: SmtpCommand::Connect {
+            message: SmtpCommand::Connect(SmtpConnection {
                 local_addr: io.local_addr().ok(),
                 peer_addr: io.peer_addr().ok(),
-            },
+            }),
         };
         let codec = SmtpCodec::new(
             SmtpParser::session_parser(),

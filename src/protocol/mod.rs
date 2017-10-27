@@ -1,4 +1,5 @@
 pub mod codec;
+pub mod smtp_codec;
 pub mod parser;
 pub mod writer;
 pub mod socket;

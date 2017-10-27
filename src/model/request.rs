@@ -1,27 +1,31 @@
+use bytes::Bytes;
 use std::net::{SocketAddr, Ipv4Addr, Ipv6Addr};
 
 #[derive(Eq, PartialEq, Debug)]
 pub enum SmtpInput {
     Command(usize, usize, SmtpCommand),
-    Data(usize, usize, Vec<u8>),
     Invalid(usize, usize, String),
+    InvalidBytes(usize, usize, Bytes),
     None(usize, usize, String),
+
+    Connect(SmtpConnection),
+    Disconnect,
+
+    StreamStart(usize),
+    StreamEnd(usize),
+    StreamData(usize, usize, Bytes),
 }
 
 #[derive(Eq, PartialEq, Debug)]
 pub enum SmtpCommand {
     Unknown(String),
-    Connect {
-        local_addr: Option<SocketAddr>,
-        peer_addr: Option<SocketAddr>,
-    },
+    Connect(SmtpConnection),
     Disconnect,
     Stream,
     EndOfStream,
 
-    Ehlo(SmtpHost),
-    Helo(SmtpHost),
-    Mail(SmtpDelivery, SmtpPath),
+    Helo(SmtpHelo),
+    Mail(SmtpMail),
     Rcpt(SmtpPath),
     Expn(String),
     Vrfy(String),
@@ -31,14 +35,6 @@ pub enum SmtpCommand {
     Rset,
     Data,
     Turn,
-}
-
-#[derive(Eq, PartialEq, Debug)]
-pub enum SmtpDelivery {
-    Mail,
-    Send,
-    Saml,
-    Soml,
 }
 
 #[derive(Eq, PartialEq, Debug)]
@@ -61,4 +57,24 @@ pub enum SmtpPath {
 #[derive(Eq, PartialEq, Debug)]
 pub enum SmtpAddress {
     Mailbox(String, SmtpHost),
+}
+
+#[derive(Eq, PartialEq, Debug)]
+pub enum SmtpHelo {
+    Helo(SmtpHost),
+    Ehlo(SmtpHost),
+}
+
+#[derive(Eq, PartialEq, Debug)]
+pub struct SmtpConnection {
+    pub local_addr: Option<SocketAddr>,
+    pub peer_addr: Option<SocketAddr>,
+}
+
+#[derive(Eq, PartialEq, Debug)]
+pub enum SmtpMail {
+    Mail(SmtpPath),
+    Send(SmtpPath),
+    Saml(SmtpPath),
+    Soml(SmtpPath),
 }

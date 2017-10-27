@@ -55,16 +55,16 @@ pub cmd_turn -> SmtpCommand
 
 pub cmd_mail -> SmtpCommand
 	= "mail from:"i p:path_reverse NL
-	{ SmtpCommand::Mail(SmtpDelivery::Mail, p) }
+	{ SmtpCommand::Mail(SmtpMail::Mail(p)) }
 pub cmd_send -> SmtpCommand
         = "send from:"i p:path_reverse NL
-        { SmtpCommand::Mail(SmtpDelivery::Send, p) }
+        { SmtpCommand::Mail(SmtpMail::Send(p)) }
 pub cmd_soml -> SmtpCommand
         = "soml from:"i p:path_reverse NL
-        { SmtpCommand::Mail(SmtpDelivery::Soml, p) }
+        { SmtpCommand::Mail(SmtpMail::Soml(p)) }
 pub cmd_saml -> SmtpCommand
         = "saml from:"i p:path_reverse NL
-        { SmtpCommand::Mail(SmtpDelivery::Saml, p) }
+        { SmtpCommand::Mail(SmtpMail::Saml(p)) }
 
 pub cmd_rcpt -> SmtpCommand
         = "rcpt to:"i p:path_forward NL
@@ -72,11 +72,11 @@ pub cmd_rcpt -> SmtpCommand
 
 pub cmd_helo -> SmtpCommand
 	= "helo"i SP h:host NL
-	{ SmtpCommand::Helo(h) }
+	{ SmtpCommand::Helo(SmtpHelo::Helo(h)) }
 
 pub cmd_ehlo -> SmtpCommand
 	= "ehlo"i SP h:host NL
-	{ SmtpCommand::Ehlo(h) }
+	{ SmtpCommand::Helo(SmtpHelo::Ehlo(h)) }
 
 pub cmd_vrfy -> SmtpCommand
         = "vrfy"i s:strparam NL

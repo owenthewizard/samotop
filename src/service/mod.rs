@@ -1,17 +1,13 @@
 use std::io;
 use bytes::Bytes;
-use std::net::SocketAddr;
 use tokio_service::Service;
 use tokio_proto::streaming::{Message, Body};
 use futures::{future, Future, Stream};
 //use futures::sync::oneshot;
-use model::request::SmtpCommand;
+use model::request::{SmtpCommand, SmtpConnection};
 use model::response::SmtpReply;
 
-pub struct SmtpService {
-    peer_addr: Option<SocketAddr>,
-    local_addr: Option<SocketAddr>,
-}
+pub struct SmtpService {}
 
 type Er = io::Error;
 type Req = Message<SmtpCommand, Body<Bytes, Er>>;
@@ -20,10 +16,7 @@ type Fut = Box<Future<Item = Rsp, Error = Er>>;
 
 impl SmtpService {
     pub fn new() -> Self {
-        Self {
-            peer_addr: None,
-            local_addr: None,
-        }
+        Self {}
     }
 
     fn write_data(&self, body: Body<Bytes, io::Error>) -> Fut {
@@ -35,10 +28,10 @@ impl SmtpService {
             .map(|_| Message::WithoutBody(SmtpReply::OkInfo)),
         )
     }
-    fn connect(&self, peer_addr: Option<SocketAddr>, _local_addr: Option<SocketAddr>) -> SmtpReply {
+    fn connect(&self, connection: SmtpConnection) -> SmtpReply {
         //self.peer_addr = peer_addr;
         //self.local_addr = local_addr;
-        match peer_addr {
+        match connection.peer_addr {
             Some(ref a) => SmtpReply::ServiceReadyInfo(format!("Hi {}!", a)),
             _ => SmtpReply::ServiceReadyInfo(format!("Hi there!")),
         }
@@ -66,11 +59,8 @@ impl Service for SmtpService {
                 SmtpReply::CommandNotImplementedFailure,
             ))),
             Message::WithoutBody(cmd) => Box::new(future::ok(Message::WithoutBody(match cmd {
-                SmtpCommand::Connect {
-                    peer_addr,
-                    local_addr,
-                } => self.connect(peer_addr, local_addr),
-                SmtpCommand::Mail(_delivery, _path) => SmtpReply::OkInfo,
+                SmtpCommand::Connect(c) => self.connect(c),
+                SmtpCommand::Mail(_mail) => SmtpReply::OkInfo,
                 SmtpCommand::Rcpt(_path) => SmtpReply::OkInfo,
                 SmtpCommand::Data => SmtpReply::StartMailInputChallenge,
                 SmtpCommand::EndOfStream => SmtpReply::None,
