@@ -1,5 +1,6 @@
 use std::str::FromStr;
 use std::net::{Ipv4Addr, Ipv6Addr};
+use bytes::Bytes;
 use model::request::*;
 
 include!(concat!(env!("OUT_DIR"), "/grammar.rs"));

@@ -128,11 +128,10 @@ impl<'a> Decoder for SmtpCodec<'a> {
 
                 match text {
                     Err(e) => {
-                        let s = self.input_err(&e, bytes);
+                        self.input_err(&e, bytes);
                         self.requests.push(Frame::Message {
                             body: false,
-                            //TODO: Pass bytes
-                            message: SmtpCommand::Unknown(s),
+                            message: SmtpCommand::Unknown(Bytes::from(bytes)),
                         });
                     }
                     Ok(s) => {
@@ -141,16 +140,15 @@ impl<'a> Decoder for SmtpCodec<'a> {
                                 self.parse_err(&e, s);
                                 self.requests.push(Frame::Message {
                                     body: false,
-                                    //TODO: Pass bytes
-                                    message: SmtpCommand::Unknown(s.to_string()),
+                                    message: SmtpCommand::Unknown(Bytes::from(bytes)),
                                 });
                             }
                             Ok(inputs) => {
                                 let mut pos = 0;
                                 for inp in inputs {
                                     match inp {
-                                        i @ SmtpInput::Connect(_) => panic!(),
-                                        i @ SmtpInput::Disconnect => panic!(),
+                                        SmtpInput::Connect(_) => panic!(),
+                                        SmtpInput::Disconnect => panic!(),
                                         SmtpInput::Command(b, l, c @ SmtpCommand::Data) => {
                                             pos = b + l;
                                             self.requests.push(Frame::Message {
@@ -174,47 +172,23 @@ impl<'a> Decoder for SmtpCodec<'a> {
                                         SmtpInput::None(b, l, _) => {
                                             pos = b + l;
                                         }
-                                        SmtpInput::StreamStart(b) => (),
-                                        SmtpInput::StreamEnd(b) => (),
+                                        SmtpInput::StreamStart(_) => (),
+                                        SmtpInput::StreamEnd(_) => (),
                                         SmtpInput::StreamData(b, l, _) => {
                                             // ToDo handle data properly if it comes
                                             pos = b + l;
                                         }
                                         SmtpInput::Invalid(b, l, s) => {
-                                            match s.ends_with("\n") {
-                                                true => {
-                                                    pos = b + l;
-                                                    self.requests.push(Frame::Message {
-                                                        body: false,
-                                                        message: SmtpCommand::Unknown(s),
-                                                    });
-                                                }
-                                                false => {
-                                                    // data will be returned to the input buffer
-                                                    // to be used as a tail for next time round
-                                                    pos = b;
-                                                }
-                                            }
+                                            pos = b + l;
+                                            self.requests.push(Frame::Message {
+                                                body: false,
+                                                message: SmtpCommand::Unknown(s),
+                                            });
                                         }
-                                        SmtpInput::InvalidBytes(b, l, d) => {
-                                            match d.ends_with(b"\n") {
-                                                true => {
-                                                    pos = b + l;
-                                                    self.requests.push(Frame::Message {
-                                                        body: false,
-                                                        message: SmtpCommand::Unknown(
-                                                            str::from_utf8(&d[..])
-                                                                .unwrap()
-                                                                .to_owned(),
-                                                        ),
-                                                    });
-                                                }
-                                                false => {
-                                                    // data will be returned to the input buffer
-                                                    // to be used as a tail for next time round
-                                                    pos = b;
-                                                }
-                                            }
+                                        SmtpInput::Incomplete(b, _, _) => {
+                                            // data will be returned to the input buffer
+                                            // to be used as a tail for next time round
+                                            pos = b;
                                         }
                                     };
                                 }

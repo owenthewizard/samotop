@@ -1,7 +1,7 @@
 
 pub session -> Vec<SmtpInput>
 	= WS* i:script
-	{ i } 
+	{ i }
 
 pub script -> Vec<SmtpInput>
 	= input +
@@ -16,9 +16,13 @@ pub inp_none -> SmtpInput
 	{ SmtpInput::None(b, e - b, s.to_string()) }
 pub inp_invalid -> SmtpInput
 	= b:#position s:$( str_invalid ) e:#position
-	{ SmtpInput::Invalid(b, e - b, s.to_string()) }
+	{ SmtpInput::Invalid(b, e - b, Bytes::from(s)) }
+pub inp_incomplete -> SmtpInput
+	= b:#position s:$( str_incomplete ) e:#position
+	{ SmtpInput::Incomplete(b, e - b, Bytes::from(s)) }
 
-str_invalid = #quiet< "\n" / [^\n]+ "\n" / .+ > / #expected("invalid input")
+str_invalid = #quiet< "\n" / [^\n]+ "\n" > / #expected("invalid input")
+str_incomplete = #quiet< .+ > / #expected("incomplete input")
 
 pub command -> SmtpCommand
 	= cmd_helo /
@@ -35,7 +39,7 @@ pub command -> SmtpCommand
 	  cmd_turn /
 	  cmd_vrfy /
 	  cmd_expn /
-	  cmd_help 
+	  cmd_help
 
 pub cmd_quit -> SmtpCommand
 	= "quit"i NL
