@@ -4,7 +4,7 @@ extern crate tokio_proto;
 
 use tokio_proto::TcpServer;
 use samotop::service::dummy::SmtpService;
-use samotop::protocol::simple::proto::SmtpBaseProto;
+use samotop::protocol::simple::SmtpBaseProto;
 
 /*
    For debug log try:

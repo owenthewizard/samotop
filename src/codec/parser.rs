@@ -1,9 +1,9 @@
 /*
     Aim: wrap generated parser fns in struct and abstract with a trait for DI
 */
-pub use protocol::grammar::{ParseResult, ParseError};
+pub use super::grammar::{ParseResult, ParseError};
 use model::request::SmtpInput;
-use protocol::grammar::session;
+use super::grammar::session;
 
 static PARSER: SmtpParser = SmtpParser;
 

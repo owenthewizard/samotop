@@ -1,12 +1,10 @@
 use std::io;
 use tokio_io::codec::Framed;
 use tokio_proto::pipeline::ServerProto;
-use protocol::codec::SmtpCodec;
-use protocol::parser::SmtpParser;
-use protocol::writer::SmtpSerializer;
+use codec::{SmtpCodec, SmtpParser, SmtpWriter};
 use model::request::{SmtpInput, SmtpConnection};
 use model::response::SmtpReply;
-use protocol::socket::NetSocket;
+use io::NetSocket;
 use protocol::simple::transport::InitFrameTransport;
 
 
@@ -27,10 +25,7 @@ where
             local_addr: io.local_addr().ok(),
             peer_addr: io.peer_addr().ok(),
         });
-        let codec = SmtpCodec::new(
-            SmtpParser::session_parser(),
-            SmtpSerializer::answer_serializer(),
-        );
+        let codec = SmtpCodec::new(SmtpParser::session_parser(), SmtpWriter::answer_writer());
         let upstream = io.framed(codec);
         let transport = InitFrameTransport::new(upstream, initframe);
         Ok(transport)

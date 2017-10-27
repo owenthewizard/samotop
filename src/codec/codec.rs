@@ -3,13 +3,13 @@ use std::str;
 use bytes::{BytesMut, BufMut, Bytes};
 use regex::bytes::Regex;
 use tokio_io::codec::{Encoder, Decoder};
-use protocol::parser::SmtpSessionParser;
-use protocol::writer::SmtpAnswerSerializer;
+use super::parser::SmtpSessionParser;
+use super::writer::SmtpAnswerWriter;
 use model::request::{SmtpInput, SmtpCommand};
 use model::response::SmtpReply;
-use protocol::Error;
 
 type Result = io::Result<Option<SmtpInput>>;
+type Error = io::Error;
 
 enum InputFlow {
     Stop,
@@ -19,7 +19,7 @@ enum InputFlow {
 pub struct SmtpCodec<'a> {
     requests: Vec<SmtpInput>,
     parser: &'a SmtpSessionParser,
-    serializer: &'a SmtpAnswerSerializer,
+    writer: &'a SmtpAnswerWriter,
     streaming_data: bool,
     stream_pos: usize,
     closed: bool,
@@ -27,10 +27,10 @@ pub struct SmtpCodec<'a> {
 }
 
 impl<'a> SmtpCodec<'a> {
-    pub fn new(parser: &'a SmtpSessionParser, serializer: &'a SmtpAnswerSerializer) -> Self {
+    pub fn new(parser: &'a SmtpSessionParser, writer: &'a SmtpAnswerWriter) -> Self {
         Self {
             requests: vec![],
-            serializer,
+            writer,
             parser,
             streaming_data: false,
             stream_pos: 0,
@@ -39,7 +39,16 @@ impl<'a> SmtpCodec<'a> {
         }
     }
 
-    fn queue(&mut self, inp: SmtpInput) -> InputFlow {
+    fn dequeue_input(&mut self) -> Result {
+        // ToDo: self.requests.remove_item()
+        if self.requests.is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some(self.requests.remove(0)))
+        }
+    }
+
+    fn queue_input(&mut self, inp: SmtpInput) -> InputFlow {
         let inp = inp.pos(self.stream_pos);
         self.stream_pos += inp.len();
         self.requests.push(inp);
@@ -47,12 +56,21 @@ impl<'a> SmtpCodec<'a> {
     }
 
     fn process_input(&mut self, inp: SmtpInput) -> InputFlow {
+
+        if self.closed {
+            panic!("connection has been closed already")
+        }
+
+        // TODO: handle ordering situations:
+        // * non-Stream... input comes while streaming_data
+        // * StreamData or StreamEnd comes while not streaming_data
+
         match inp {
             SmtpInput::Command(_, _, SmtpCommand::Data) => {
-                self.queue(inp);
+                self.queue_input(inp);
                 if !self.streaming_data {
                     // make sure there is StreamStart after Data
-                    self.queue(SmtpInput::StreamStart(0));
+                    self.queue_input(SmtpInput::StreamStart(0));
                     self.streaming_data = true;
                 }
                 InputFlow::Stop
@@ -63,19 +81,24 @@ impl<'a> SmtpCodec<'a> {
                     InputFlow::Continue
                 } else {
                     self.streaming_data = true;
-                    self.queue(inp)
+                    self.queue_input(inp)
                 }
             }
             SmtpInput::StreamEnd(_) => {
                 self.streaming_data = false;
-                self.queue(inp)
+                self.queue_input(inp)
+            }
+            SmtpInput::Disconnect => {
+                self.streaming_data = false;
+                self.closed = true;
+                self.queue_input(inp)
             }
             SmtpInput::Incomplete(_, _, _) => {
                 // data will be returned to the input buffer
                 // to be used as a tail for next time round
                 InputFlow::Stop
             }
-            _ => self.queue(inp),
+            _ => self.queue_input(inp),
         }
     }
 
@@ -178,9 +201,9 @@ impl<'a> Decoder for SmtpCodec<'a> {
                     )),
                     (true, true) => Ok(None),
                     (true, false) => {
-                        self.closed = true;
                         warn!("unexpected EOF");
-                        Ok(Some(SmtpInput::Disconnect))
+                        self.process_input(SmtpInput::Disconnect);
+                        self.dequeue_input()
                     }
                 }
             }
@@ -195,11 +218,7 @@ impl<'a> Decoder for SmtpCodec<'a> {
             self.decode_buffer(buf);
         }
 
-        // ToDo: self.requests.remove_item()
-        match self.requests.is_empty() {
-            true => Ok(None),
-            false => Ok(Some(self.requests.remove(0))),
-        }
+        self.dequeue_input()
     }
 }
 
@@ -208,6 +227,6 @@ impl<'a> Encoder for SmtpCodec<'a> {
     type Error = Error;
 
     fn encode(&mut self, reply: Self::Item, buf: &mut BytesMut) -> io::Result<()> {
-        self.serializer.write(&mut buf.writer(), reply)
+        self.writer.write(&mut buf.writer(), reply)
     }
 }

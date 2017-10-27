@@ -9,6 +9,8 @@ extern crate tokio_io;
 extern crate tokio_proto;
 extern crate tokio_service;
 
+pub mod io;
+pub mod codec;
 pub mod model;
 pub mod protocol;
 pub mod service;

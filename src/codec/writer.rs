@@ -2,18 +2,18 @@ use std::io;
 use std::io::Write;
 use model::response::SmtpReply;
 
-static SERIALIZER: SmtpSerializer = SmtpSerializer;
+static SERIALIZER: SmtpWriter = SmtpWriter;
 
 type Result = io::Result<()>;
 
-pub trait SmtpAnswerSerializer {
+pub trait SmtpAnswerWriter {
     fn write(&self, buf: &mut Write, answer: SmtpReply) -> Result;
 }
 
-pub struct SmtpSerializer;
+pub struct SmtpWriter;
 
-impl SmtpSerializer {
-    pub fn answer_serializer<'a>() -> &'a SmtpAnswerSerializer {
+impl SmtpWriter {
+    pub fn answer_writer<'a>() -> &'a SmtpAnswerWriter {
         &SERIALIZER
     }
 
@@ -50,7 +50,7 @@ impl SmtpSerializer {
     }
 }
 
-impl SmtpAnswerSerializer for SmtpSerializer {
+impl SmtpAnswerWriter for SmtpWriter {
     fn write(&self, mut buf: &mut Write, reply: SmtpReply) -> Result {
         self.write_reply(&mut buf, reply)
     }
