@@ -7,7 +7,7 @@ pub script -> Vec<SmtpInput>
 	= input +
 
 pub input -> SmtpInput
-	= inp_none / inp_command / inp_invalid
+	= inp_none / inp_command / inp_invalid / inp_incomplete
 pub inp_command -> SmtpInput
 	= b:#position c:command e:#position
 	{ SmtpInput::Command(b, e - b, c) }

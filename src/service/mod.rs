@@ -1,3 +1,5 @@
+pub mod dummy;
+
 use std::io;
 use bytes::Bytes;
 use tokio_service::Service;

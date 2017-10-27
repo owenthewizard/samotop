@@ -1,22 +1,27 @@
 use std::io;
 use std::str;
-use std::fmt::Debug;
 use bytes::{BytesMut, BufMut, Bytes};
 use regex::bytes::Regex;
 use tokio_io::codec::{Encoder, Decoder};
-use tokio_proto::streaming::pipeline::Frame;
 use protocol::parser::SmtpSessionParser;
 use protocol::writer::SmtpAnswerSerializer;
 use model::request::{SmtpInput, SmtpCommand};
-use protocol::{CmdFrame, RplFrame, Error};
+use model::response::SmtpReply;
+use protocol::Error;
 
-type Result = io::Result<Option<CmdFrame>>;
+type Result = io::Result<Option<SmtpInput>>;
+
+enum InputFlow {
+    Stop,
+    Continue,
+}
 
 pub struct SmtpCodec<'a> {
-    requests: Vec<CmdFrame>,
+    requests: Vec<SmtpInput>,
     parser: &'a SmtpSessionParser,
     serializer: &'a SmtpAnswerSerializer,
     streaming_data: bool,
+    stream_pos: usize,
     closed: bool,
     dot_regex: Regex,
 }
@@ -28,48 +33,154 @@ impl<'a> SmtpCodec<'a> {
             serializer,
             parser,
             streaming_data: false,
+            stream_pos: 0,
             closed: false,
             dot_regex: Regex::new(r"\r\n\.\r\n").unwrap(),
         }
     }
 
-    fn err(&self, err: &str) {
-        warn!("{}", err)
+    fn queue(&mut self, inp: SmtpInput) -> InputFlow {
+        let inp = inp.pos(self.stream_pos);
+        self.stream_pos += inp.len();
+        self.requests.push(inp);
+        InputFlow::Continue
     }
-    fn input_err(&self, e: &Debug, bytes: &[u8]) -> String {
-        let msg = format!("input error: {:?}, bytes: {:?}", e, bytes);
-        self.err(&msg);
-        msg
+
+    fn process_input(&mut self, inp: SmtpInput) -> InputFlow {
+        match inp {
+            SmtpInput::Command(_, _, SmtpCommand::Data) => {
+                self.queue(inp);
+                if !self.streaming_data {
+                    // make sure there is StreamStart after Data
+                    self.queue(SmtpInput::StreamStart(0));
+                    self.streaming_data = true;
+                }
+                InputFlow::Stop
+            }
+            SmtpInput::StreamStart(_) => {
+                if self.streaming_data {
+                    // make sure we don't send StreamStart twice
+                    InputFlow::Continue
+                } else {
+                    self.streaming_data = true;
+                    self.queue(inp)
+                }
+            }
+            SmtpInput::StreamEnd(_) => {
+                self.streaming_data = false;
+                self.queue(inp)
+            }
+            SmtpInput::Incomplete(_, _, _) => {
+                // data will be returned to the input buffer
+                // to be used as a tail for next time round
+                InputFlow::Stop
+            }
+            _ => self.queue(inp),
+        }
     }
-    fn parse_err(&self, e: &Debug, text: &str) {
-        let msg = format!("parse error: {:?}, text: {:?}", e, text);
-        self.err(&msg);
-    }
-    fn eof_err(&self) {
-        self.err(&format!("unexpected EOF"));
+
+    fn decode_buffer(&mut self, buf: &mut BytesMut) {
+
+        if self.streaming_data {
+
+            // remove all bytes from buffer to avoid ownership issues
+            let bytes = buf.take();
+
+            // find the lone dot
+            if let Some(dot) = self.dot_regex.find(&bytes[..]) {
+
+                trace!("Got DATA, dot found {} - {}", dot.start(), dot.end());
+
+                // extract the chunk until the lone dot
+                self.process_input(SmtpInput::StreamData(
+                    0,
+                    dot.start(),
+                    Bytes::from(&bytes[..dot.start()]),
+                ));
+
+                // this will end the body streaming
+                self.process_input(SmtpInput::StreamEnd(0));
+
+                // return remaining bytes to buffer
+                buf.extend_from_slice(&bytes[dot.end()..]);
+
+            } else {
+
+                trace!("Got DATA, no dot");
+
+                // no dot so all the buffer is a chunk
+                self.process_input(SmtpInput::StreamData(
+                    0,
+                    bytes.len(),
+                    Bytes::from(&bytes[..]),
+                ));
+            }
+
+        } else {
+            // not streaming
+
+            let bytes = &buf.take()[..];
+
+            let text = str::from_utf8(bytes);
+
+            trace!("text ({}): {:?}", bytes.len(), text);
+
+            match text {
+                Err(e) => {
+                    warn!("input error: {:?}, bytes: {:?}", e, bytes);
+                    self.process_input(SmtpInput::Invalid(0, bytes.len(), Bytes::from(bytes)));
+                }
+                Ok(s) => {
+                    match self.parser.session(s) {
+                        Err(e) => {
+                            warn!("parse error: {:?}, text: {:?}", e, text);
+                            self.process_input(
+                                SmtpInput::Invalid(0, bytes.len(), Bytes::from(bytes)),
+                            );
+                        }
+                        Ok(inputs) => {
+                            let parser_offset = self.stream_pos;
+
+                            for inp in inputs {
+                                match self.process_input(inp) {
+                                    InputFlow::Stop => break,
+                                    _ => (),
+                                }
+                            }
+
+                            // return leftover tail to the input buffer
+                            buf.extend_from_slice(&bytes[self.stream_pos - parser_offset..]);
+
+                            trace!(
+                                "last position {}, tail {:?}",
+                                self.stream_pos,
+                                str::from_utf8(buf)
+                            );
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
 impl<'a> Decoder for SmtpCodec<'a> {
-    type Item = CmdFrame;
+    type Item = SmtpInput;
     type Error = Error;
     fn decode_eof(&mut self, buf: &mut BytesMut) -> Result {
         match try!(self.decode(buf)) {
-            Some(frame) => Ok(Some(frame)),
+            Some(input) => Ok(Some(input)),
             None => {
                 match (buf.is_empty(), self.closed) {
-                    (false, _) => Err(
-                        Error::new(io::ErrorKind::Other, "bytes remaining on stream")
-                            .into(),
-                    ),
+                    (false, _) => Err(Error::new(
+                        io::ErrorKind::Other,
+                        "bytes remaining on stream",
+                    )),
                     (true, true) => Ok(None),
                     (true, false) => {
                         self.closed = true;
-                        self.eof_err();
-                        Ok(Some(Frame::Message {
-                            body: false,
-                            message: SmtpCommand::Disconnect,
-                        }))
+                        warn!("unexpected EOF");
+                        Ok(Some(SmtpInput::Disconnect))
                     }
                 }
             }
@@ -81,127 +192,7 @@ impl<'a> Decoder for SmtpCodec<'a> {
         // TODO: Check buffer work efficiency, reduce copies if possible
 
         if !buf.is_empty() {
-
-            if self.streaming_data {
-
-                // remove all bytes from buffer to avoid ownership issues
-                let bytes = buf.take();
-
-                // find the lone dot
-                if let Some(dot) = self.dot_regex.find(&bytes[..]) {
-
-                    // dot found so we'll finish streaming
-                    self.streaming_data = false;
-
-                    trace!("Got DATA, dot found {} - {}", dot.start(), dot.end());
-
-                    // extract the chunk until the lone dot
-                    self.requests.push(Frame::Body {
-                        chunk: Some(Bytes::from(&bytes[..dot.start()])),
-                    });
-                    // this will end the body streaming
-                    self.requests.push(Frame::Message {
-                        body: false,
-                        message: SmtpCommand::EndOfStream,
-                    });
-
-                    // return remaining bytes to buffer
-                    buf.extend_from_slice(&bytes[dot.end()..]);
-
-                } else {
-
-                    trace!("Got DATA, no dot");
-
-                    // no dot so all the buffer is a chunk
-                    self.requests.push(Frame::Body {
-                        chunk: Some(Bytes::from(&bytes[..])),
-                    });
-                }
-
-            } else {
-
-                let bytes = &buf.take()[..];
-
-                let text = str::from_utf8(bytes);
-
-                trace!("text ({}): {:?}", bytes.len(), text);
-
-                match text {
-                    Err(e) => {
-                        self.input_err(&e, bytes);
-                        self.requests.push(Frame::Message {
-                            body: false,
-                            message: SmtpCommand::Unknown(Bytes::from(bytes)),
-                        });
-                    }
-                    Ok(s) => {
-                        match self.parser.session(s) {
-                            Err(e) => {
-                                self.parse_err(&e, s);
-                                self.requests.push(Frame::Message {
-                                    body: false,
-                                    message: SmtpCommand::Unknown(Bytes::from(bytes)),
-                                });
-                            }
-                            Ok(inputs) => {
-                                let mut pos = 0;
-                                for inp in inputs {
-                                    match inp {
-                                        SmtpInput::Connect(_) => panic!(),
-                                        SmtpInput::Disconnect => panic!(),
-                                        SmtpInput::Command(b, l, c @ SmtpCommand::Data) => {
-                                            pos = b + l;
-                                            self.requests.push(Frame::Message {
-                                                body: false,
-                                                message: c,
-                                            });
-                                            self.requests.push(Frame::Message {
-                                                body: true,
-                                                message: SmtpCommand::Stream,
-                                            });
-                                            self.streaming_data = true;
-                                            break;
-                                        }
-                                        SmtpInput::Command(b, l, c) => {
-                                            pos = b + l;
-                                            self.requests.push(Frame::Message {
-                                                body: false,
-                                                message: c,
-                                            });
-                                        }
-                                        SmtpInput::None(b, l, _) => {
-                                            pos = b + l;
-                                        }
-                                        SmtpInput::StreamStart(_) => (),
-                                        SmtpInput::StreamEnd(_) => (),
-                                        SmtpInput::StreamData(b, l, _) => {
-                                            // ToDo handle data properly if it comes
-                                            pos = b + l;
-                                        }
-                                        SmtpInput::Invalid(b, l, s) => {
-                                            pos = b + l;
-                                            self.requests.push(Frame::Message {
-                                                body: false,
-                                                message: SmtpCommand::Unknown(s),
-                                            });
-                                        }
-                                        SmtpInput::Incomplete(b, _, _) => {
-                                            // data will be returned to the input buffer
-                                            // to be used as a tail for next time round
-                                            pos = b;
-                                        }
-                                    };
-                                }
-
-                                // return tail to the input buffer
-                                buf.extend_from_slice(&bytes[pos..]);
-
-                                trace!("last position {}, tail {:?}", pos, str::from_utf8(buf));
-                            }
-                        }
-                    }
-                }
-            };
+            self.decode_buffer(buf);
         }
 
         // ToDo: self.requests.remove_item()
@@ -213,23 +204,10 @@ impl<'a> Decoder for SmtpCodec<'a> {
 }
 
 impl<'a> Encoder for SmtpCodec<'a> {
-    type Item = RplFrame;
+    type Item = SmtpReply;
     type Error = Error;
 
-    fn encode(&mut self, frame: Self::Item, buf: &mut BytesMut) -> io::Result<()> {
-        match frame {
-            Frame::Message {
-                message: reply,
-                body: _,
-            } => self.serializer.write(&mut buf.writer(), reply),
-            Frame::Body { .. } => Err(io::Error::new(
-                io::ErrorKind::Other,
-                "streaming reply not supported",
-            )),
-            e @ Frame::Error { .. } => Err(io::Error::new(
-                io::ErrorKind::Other,
-                format!("error frame: {:?}", e),
-            )),
-        }
+    fn encode(&mut self, reply: Self::Item, buf: &mut BytesMut) -> io::Result<()> {
+        self.serializer.write(&mut buf.writer(), reply)
     }
 }
