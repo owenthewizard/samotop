@@ -3,6 +3,7 @@
 extern crate log;
 extern crate bytes;
 extern crate regex;
+#[macro_use]
 extern crate futures;
 extern crate tokio_core;
 extern crate tokio_io;
@@ -14,3 +15,7 @@ pub mod codec;
 pub mod model;
 pub mod protocol;
 pub mod service;
+
+
+#[cfg(test)]
+extern crate env_logger;

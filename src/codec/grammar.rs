@@ -7,9 +7,11 @@ include!(concat!(env!("OUT_DIR"), "/grammar.rs"));
 
 #[cfg(test)]
 mod tests {
-    use protocol::grammar::*;
+    use codec::grammar::*;
     use model::request::SmtpHost::*;
     use model::request::SmtpCommand::*;
+    use model::request::SmtpInput::*;
+    use model::request::SmtpInput::Invalid;
 
     #[test]
     fn script_parses_unknown_command() {
@@ -17,7 +19,7 @@ mod tests {
         assert_eq!(
             result,
             vec![
-                SmtpInput::Invalid(0, 20, "sOmE other command\r\n".to_string()),
+                SmtpInput::Invalid(0, 20, Bytes::from("sOmE other command\r\n")),
             ]
         );
     }
@@ -53,7 +55,11 @@ mod tests {
         assert_eq!(
             result,
             vec![
-                SmtpInput::Command(0, 17, Helo(Domain("domain.com".to_string()))),
+                Command(
+                    0,
+                    17,
+                    Helo(SmtpHelo::Helo(Domain("domain.com".to_string())))
+                ),
             ]
         );
     }
@@ -65,10 +71,10 @@ mod tests {
         assert_eq!(
             result,
             vec![
-                SmtpInput::Command(0, 6, Data),
-                SmtpInput::Invalid(6, 9, " ěšě\r\n".to_string()),
-                SmtpInput::Invalid(15, 3, "š\n".to_string()),
-                SmtpInput::Invalid(18, 4, "čš".to_string()),
+                Command(0, 6, Data),
+                Invalid(6, 9, Bytes::from(" ěšě\r\n")),
+                Invalid(15, 3, Bytes::from("š\n")),
+                Incomplete(18, 4, Bytes::from("čš")),
             ]
         );
     }
@@ -80,9 +86,9 @@ mod tests {
         assert_eq!(
             result,
             vec![
-                SmtpInput::Invalid(0, 5, "QUIT\n".to_string()),
-                SmtpInput::Command(5, 6, Quit),
-                SmtpInput::Command(11, 6, Quit),
+                Invalid(0, 5, Bytes::from("QUIT\n")),
+                Command(5, 6, Quit),
+                Command(11, 6, Quit),
             ]
         );
     }
@@ -93,10 +99,7 @@ mod tests {
 
         assert_eq!(
             result,
-            vec![
-                SmtpInput::Command(0, 6, Quit),
-                SmtpInput::Invalid(6, 3, "QUI".to_string()),
-            ]
+            vec![Command(0, 6, Quit), Incomplete(6, 3, Bytes::from("QUI"))]
         );
     }
 
@@ -112,30 +115,31 @@ mod tests {
         assert_eq!(
             result,
             vec![
-                SmtpInput::Command(0, 17, Helo(Domain("domain.com".to_string()))),
-                SmtpInput::Command(
+                Command(
+                    0,
+                    17,
+                    Helo(SmtpHelo::Helo(Domain("domain.com".to_string())))
+                ),
+                Command(
                     17,
                     26,
-                    Mail(
-                        SmtpDelivery::Mail,
-                        SmtpPath::Direct(SmtpAddress::Mailbox(
-                            "me".to_string(),
-                            SmtpHost::Domain("there.net".to_string()),
-                        )),
-                    )
+                    Mail(SmtpMail::Mail(SmtpPath::Direct(SmtpAddress::Mailbox(
+                        "me".to_string(),
+                        Domain("there.net".to_string()),
+                    ))))
                 ),
-                SmtpInput::Command(
+                Command(
                     43,
                     44,
                     Rcpt(SmtpPath::Relay(
                         vec![Domain("relay.net".to_string())],
                         SmtpAddress::Mailbox(
                             "him".to_string(),
-                            SmtpHost::Domain("unreachable.local".to_string()),
+                            Domain("unreachable.local".to_string()),
                         ),
                     ))
                 ),
-                SmtpInput::Command(87, 6, Quit),
+                Command(87, 6, Quit),
             ]
         );
     }

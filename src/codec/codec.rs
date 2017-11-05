@@ -103,7 +103,6 @@ impl<'a> SmtpCodec<'a> {
     }
 
     fn decode_buffer(&mut self, buf: &mut BytesMut) {
-
         if self.streaming_data {
 
             // remove all bytes from buffer to avoid ownership issues
@@ -191,6 +190,7 @@ impl<'a> Decoder for SmtpCodec<'a> {
     type Item = SmtpInput;
     type Error = Error;
     fn decode_eof(&mut self, buf: &mut BytesMut) -> Result {
+        trace!("EOF");
         match try!(self.decode(buf)) {
             Some(input) => Ok(Some(input)),
             None => {
@@ -210,7 +210,7 @@ impl<'a> Decoder for SmtpCodec<'a> {
         }
     }
     fn decode(&mut self, buf: &mut BytesMut) -> Result {
-        trace!("attempting to decode a frame");
+        trace!("attempting to decode a frame, buffer length {}", buf.len());
 
         // TODO: Check buffer work efficiency, reduce copies if possible
 

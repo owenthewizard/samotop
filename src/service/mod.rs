@@ -1,11 +1,11 @@
 pub mod dummy;
+pub mod dummyact;
 
 use std::io;
 use bytes::Bytes;
 use tokio_service::Service;
 use tokio_proto::streaming::{Message, Body};
 use futures::{future, Future, Stream};
-//use futures::sync::oneshot;
 use model::request::{SmtpCommand, SmtpConnection};
 use model::response::SmtpReply;
 
@@ -22,6 +22,7 @@ impl SmtpService {
     }
 
     fn write_data(&self, body: Body<Bytes, io::Error>) -> Fut {
+        // TODO: SmtpCommand::Data => SmtpReply::StartMailInputChallenge,
         // TODO: .map_err(|_| Message::WithoutBody(SmtpReply::TransactionFailure))
         Box::new(
             body
@@ -56,16 +57,13 @@ impl Service for SmtpService {
         info!("Received {:?}", command);
 
         match command {
-            Message::WithBody(SmtpCommand::Stream, cmd_body) => self.write_data(cmd_body),
+            Message::WithBody(SmtpCommand::Data, cmd_body) => self.write_data(cmd_body),
             Message::WithBody(_, _) => Box::new(future::ok(Message::WithoutBody(
                 SmtpReply::CommandNotImplementedFailure,
             ))),
             Message::WithoutBody(cmd) => Box::new(future::ok(Message::WithoutBody(match cmd {
-                SmtpCommand::Connect(c) => self.connect(c),
                 SmtpCommand::Mail(_mail) => SmtpReply::OkInfo,
                 SmtpCommand::Rcpt(_path) => SmtpReply::OkInfo,
-                SmtpCommand::Data => SmtpReply::StartMailInputChallenge,
-                SmtpCommand::EndOfStream => SmtpReply::None,
                 SmtpCommand::Noop(_text) => SmtpReply::OkInfo,
                 SmtpCommand::Rset => SmtpReply::OkInfo,
                 SmtpCommand::Quit => SmtpReply::ClosingConnectionInfo(format!("Bye!")),

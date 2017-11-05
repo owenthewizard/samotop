@@ -53,12 +53,6 @@ impl SmtpInput {
 
 #[derive(Eq, PartialEq, Debug)]
 pub enum SmtpCommand {
-    Unknown(Bytes),
-    Connect(SmtpConnection),
-    Disconnect,
-    Stream,
-    EndOfStream,
-
     Helo(SmtpHelo),
     Mail(SmtpMail),
     Rcpt(SmtpPath),
@@ -72,7 +66,7 @@ pub enum SmtpCommand {
     Turn,
 }
 
-#[derive(Eq, PartialEq, Debug)]
+#[derive(Eq, PartialEq, Debug, Clone)]
 pub enum SmtpHost {
     Domain(String),
     Ipv4(Ipv4Addr),
@@ -94,13 +88,13 @@ pub enum SmtpAddress {
     Mailbox(String, SmtpHost),
 }
 
-#[derive(Eq, PartialEq, Debug)]
+#[derive(Eq, PartialEq, Debug, Clone)]
 pub enum SmtpHelo {
     Helo(SmtpHost),
     Ehlo(SmtpHost),
 }
 
-#[derive(Eq, PartialEq, Debug)]
+#[derive(Eq, PartialEq, Debug, Clone)]
 pub struct SmtpConnection {
     pub local_addr: Option<SocketAddr>,
     pub peer_addr: Option<SocketAddr>,

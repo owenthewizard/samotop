@@ -1,4 +1,4 @@
-use samotop::protocol::codec::SmtpCodec;
+use samotop::codec::SmtpCodec;
 use units::mocks::codec::{MockParser, MockWriter};
 type Sut = SmtpCodec<'static>;
 

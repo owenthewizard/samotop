@@ -36,12 +36,10 @@ impl Service for SmtpService {
             SmtpInput::Connect(_c) => SmtpReply::ServiceReadyInfo(format!("Hi!")),
             SmtpInput::Command(_, _, cmd) => {
                 match cmd {
-                    SmtpCommand::Connect(_c) => SmtpReply::ServiceReadyInfo(format!("Hi!")),
                     SmtpCommand::Helo(_) => SmtpReply::OkInfo,
                     SmtpCommand::Mail(_mail) => SmtpReply::OkInfo,
                     SmtpCommand::Rcpt(_path) => SmtpReply::OkInfo,
                     SmtpCommand::Data => SmtpReply::StartMailInputChallenge,
-                    SmtpCommand::EndOfStream => SmtpReply::None,
                     SmtpCommand::Noop(_text) => SmtpReply::OkInfo,
                     SmtpCommand::Rset => SmtpReply::OkInfo,
                     SmtpCommand::Quit => SmtpReply::ClosingConnectionInfo(format!("Bye!")),

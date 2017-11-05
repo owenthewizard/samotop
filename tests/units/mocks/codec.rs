@@ -1,8 +1,8 @@
 use std::io;
 use std::sync::mpsc::{Sender, Receiver, channel};
-use samotop::protocol::writer::SmtpAnswerSerializer;
-use samotop::protocol::parser::SmtpSessionParser;
-use samotop::protocol::parser::ParseResult;
+use samotop::codec::SmtpAnswerWriter;
+use samotop::codec::SmtpSessionParser;
+use samotop::codec::ParseResult;
 use samotop::model::request::SmtpInput;
 use samotop::model::response::SmtpReply;
 
@@ -29,7 +29,7 @@ impl SmtpSessionParser for MockParser {
 
 pub struct MockWriter;
 
-impl SmtpAnswerSerializer for MockWriter {
+impl SmtpAnswerWriter for MockWriter {
     fn write(&self, _buf: &mut io::Write, _answer: SmtpReply) -> Result<(), io::Error> {
         Ok(())
     }

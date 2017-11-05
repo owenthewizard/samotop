@@ -1,22 +1,23 @@
 use std::io;
-use tokio_io::codec::Framed;
 use tokio_proto::pipeline::ServerProto;
 use codec::{SmtpCodec, SmtpParser, SmtpWriter};
 use model::request::{SmtpInput, SmtpConnection};
-use model::response::SmtpReply;
 use io::NetSocket;
-use protocol::simple::transport::InitFrameTransport;
+use super::transport::ActTransport;
+use protocol::basic::SmtpTransport as BasicSmtpTransport;
+use model::act::{Act, ActResult};
 
+pub type SmtpTransport<TIO> = ActTransport<BasicSmtpTransport<TIO>>;
 
-pub struct SmtpBaseProto;
+pub struct SmtpProto;
 
-impl<TIO> ServerProto<TIO> for SmtpBaseProto
+impl<TIO> ServerProto<TIO> for SmtpProto
 where
     TIO: 'static + NetSocket,
 {
-    type Request = SmtpInput;
-    type Response = SmtpReply;
-    type Transport = InitFrameTransport<Framed<TIO, SmtpCodec<'static>>, SmtpInput>;
+    type Request = Act;
+    type Response = ActResult;
+    type Transport = SmtpTransport<TIO>;
     type BindTransport = io::Result<Self::Transport>;
     // TODO: Make it into a Future to free the listener loop sooner
     fn bind_transport(&self, io: TIO) -> Self::BindTransport {
@@ -27,7 +28,8 @@ where
         });
         let codec = SmtpCodec::new(SmtpParser::session_parser(), SmtpWriter::answer_writer());
         let upstream = io.framed(codec);
-        let transport = InitFrameTransport::new(upstream, initframe);
+        let simple = BasicSmtpTransport::new(upstream, initframe);
+        let transport = ActTransport::new(simple);
         Ok(transport)
     }
 }
