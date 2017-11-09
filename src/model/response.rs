@@ -53,7 +53,7 @@
       mail system vis-a-vis the requested transfer or other mail system
       action.
 */
-
+use std::fmt;
 use model::response::SmtpReply::*;
 
 #[derive(Eq, PartialEq, Debug)]
@@ -95,7 +95,12 @@ pub enum SmtpReply {
     // 250 first line is either Ok or specific message, use Vec<String> for subsequent items
     OkInfo,
     OkMessageInfo(String),
-    OkResultsInfo(String, Vec<String>),
+    OkHeloInfo { local: String, remote: String },
+    OkEhloInfo {
+        local: String,
+        remote: String,
+        extensions: Vec<SmtpExtension>,
+    },
     // 251 will forward to <forward-path> (See Section 3.4)
     UserNotLocalInfo(String),
     // 252 but will accept message and attempt delivery (See Section 3.5.3)
@@ -156,7 +161,8 @@ impl SmtpReply {
             // first line is either Ok or specific message, use Vec<String> for subsequent items
             &OkInfo => 250,
             &OkMessageInfo(_) => 250,
-            &OkResultsInfo(_, _) => 250,
+            &OkHeloInfo { .. } => 250,
+            &OkEhloInfo { .. } => 250,
             // will forward to <forward-path> (See Section 3.4)
             &UserNotLocalInfo(_) => 251,
             //, but will accept message and attempt delivery (See Section 3.5.3)
@@ -216,7 +222,16 @@ impl SmtpReply {
 
             &OkInfo => "Ok".to_owned(),
             &OkMessageInfo(ref text) => format!("{}", text),
-            &OkResultsInfo(ref text, _) => format!("{}", text),
+            &OkHeloInfo {
+                ref local,
+                ref remote,
+                ..
+            } => format!("{} greets {}", local, remote),
+            &OkEhloInfo {
+                ref local,
+                ref remote,
+                ..
+            } => format!("{} greets {}", local, remote),
 
             &UserNotLocalInfo(ref forward_path) => {
                 format!("User not local, will forward to {}", forward_path)
@@ -250,9 +265,11 @@ impl SmtpReply {
             &MailNotAcceptedByDomainFailure => "Domain does not accept mail".to_owned(),
         }
     }
-    pub fn items(self) -> Vec<String> {
+    pub fn items(&self) -> Vec<String> {
         match self {
-            OkResultsInfo(_, items) => items,
+            &OkEhloInfo { ref extensions, .. } => {
+                extensions.iter().map(|e| format!("{}", e)).collect()
+            }
             _ => vec![],
         }
     }
@@ -286,6 +303,56 @@ impl SmtpReply {
             7 => SmtpReplyDigit::D7,
             8 => SmtpReplyDigit::D8,
             _ => SmtpReplyDigit::D9,
+        }
+    }
+}
+
+impl fmt::Display for SmtpReply {
+    fn fmt<'a>(&self, mut buf: &'a mut fmt::Formatter) -> Result<(), fmt::Error> {
+        let code = self.code();
+        let text = self.text();
+        let items = self.items();
+
+        if items.is_empty() {
+            try!(write_reply_end(&mut buf, code, &text));
+        } else {
+            try!(write_reply_continued(&mut buf, code, &text));
+            for i in 0..items.len() {
+                if i == items.len() - 1 {
+                    try!(write_reply_end(&mut buf, code, &items[i]));
+                } else {
+                    try!(write_reply_continued(&mut buf, code, &items[i]));
+                }
+            }
+        }
+        Ok(())
+    }
+}
+fn write_reply_end(buf: &mut fmt::Write, code: u16, text: &str) -> Result<(), fmt::Error> {
+    write!(buf, "{} {}", code, text)
+}
+fn write_reply_continued(buf: &mut fmt::Write, code: u16, text: &str) -> Result<(), fmt::Error> {
+    write!(buf, "{}-{}\r\n", code, text)
+}
+
+#[derive(Eq, PartialEq, Debug, Copy, Clone)]
+pub enum SmtpExtension {
+    EightBitMime,
+    Size(usize),
+}
+
+impl fmt::Display for SmtpExtension {
+    fn fmt<'a>(&self, fmt: &'a mut fmt::Formatter) -> Result<(), fmt::Error> {
+        use self::SmtpExtension::*;
+        match self {
+            &EightBitMime => fmt.write_str("8BITMIME"),
+            &Size(s) => {
+                if s == 0 {
+                    fmt.write_str("SIZE")
+                } else {
+                    fmt.write_fmt(format_args!("SIZE {}", s))
+                }
+            }
         }
     }
 }

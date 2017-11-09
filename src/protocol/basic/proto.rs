@@ -23,6 +23,7 @@ where
     fn bind_transport(&self, io: TIO) -> Self::BindTransport {
         // save local and remote socket address so we can use it as the first frame
         let initframe = SmtpInput::Connect(SmtpConnection {
+            local_name: "samotop".to_string(),
             local_addr: io.local_addr().ok(),
             peer_addr: io.peer_addr().ok(),
         });

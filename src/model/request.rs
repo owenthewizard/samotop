@@ -94,8 +94,35 @@ pub enum SmtpHelo {
     Ehlo(SmtpHost),
 }
 
+impl SmtpHelo {
+    pub fn host<'a>(&'a self) -> &'a SmtpHost {
+        use self::SmtpHelo::*;
+        match self {
+            &Helo(ref host) => host,
+            &Ehlo(ref host) => host,
+        }
+    }
+    pub fn name(&self) -> String {
+        use self::SmtpHost::*;
+        match self.host() {
+            &Domain(ref h) => format!("{}", h),
+            &Ipv4(ref h) => format!("{}", h),
+            &Ipv6(ref h) => format!("{}", h),
+            &Invalid {
+                ref label,
+                ref literal,
+            } => format!("{}:{}", label, literal),
+            &Other {
+                ref label,
+                ref literal,
+            } => format!("{}:{}", label, literal),
+        }
+    }
+}
+
 #[derive(Eq, PartialEq, Debug, Clone)]
 pub struct SmtpConnection {
+    pub local_name: String,
     pub local_addr: Option<SocketAddr>,
     pub peer_addr: Option<SocketAddr>,
 }
