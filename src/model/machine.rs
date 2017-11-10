@@ -1,8 +1,11 @@
+use std::fmt;
 use std::io::{Read, Write, Error};
-use futures::{Sink, AsyncSink, Poll, Async, Future};
+use futures::{Stream, Sink, AsyncSink, Poll, Async, Future};
+use tokio_proto::streaming::Body;
 use model::request::*;
 use model::response::{SmtpReply, SmtpExtension};
 use super::state::*;
+use super::act;
 
 const EXTENSIONS: &'static [SmtpExtension] = &[];
 
@@ -15,7 +18,6 @@ pub fn start<D>(dispatch: D) -> SmtpMachine<Session, D> {
     }
 }
 
-#[derive(Debug)]
 pub struct SmtpMachine<S, D> {
     state: S,
     dispatch: D,
@@ -45,6 +47,9 @@ impl<S, D> SmtpMachine<S, D> {
     pub fn vrfy(self, _: String) -> SmtpMachine<S, D> {
         self.step(SmtpReply::CommandNotImplementedFailure, |s| s)
     }
+    pub fn unexpected(self, _: SmtpInput) -> SmtpMachine<S, D> {
+        self.step(SmtpReply::CommandSequenceFailure, |s| s)
+    }
     fn step<R, F: FnOnce(S) -> R>(self, reply: SmtpReply, next: F) -> SmtpMachine<R, D> {
         let SmtpMachine {
             state,
@@ -59,7 +64,6 @@ impl<S, D> SmtpMachine<S, D> {
         }
     }
     fn helo_reply(&self, conn: &SmtpConnection, helo: &SmtpHelo) -> SmtpReply {
-        let greeting = format!("{} greets {}", conn.local_name, helo.name());
         use self::SmtpHelo::*;
         match helo {
             &Helo(_) => SmtpReply::OkHeloInfo {
@@ -175,37 +179,86 @@ impl<D> SmtpMachine<Rcpt, D> {
     }
     pub fn data(self, write: Box<Write>, read: Box<Read>) -> SmtpMachine<Data, D> {
         self.step(SmtpReply::StartMailInputChallenge, |s| {
+            let (tx, body) = Body::pair();
             Data {
                 rcpt: s.rcpt,
                 mail: s.mail,
                 helo: s.helo,
                 conn: s.conn,
-                write,
-                read,
+                body,
+                tx,
+            }
+        })
+    }
+}
+impl<D> SmtpMachine<Data, D> {
+    pub fn done(self) -> SmtpMachine<act::Mail, D> {
+        self.step(SmtpReply::OkInfo, |s| {
+            act::new_mail(s.conn, s.helo, s.mail, s.rcpt)
+        })
+    }
+}
+impl<D> SmtpMachine<act::Mail, D> {
+    pub fn ok(self) -> SmtpMachine<Helo, D> {
+        self.step(SmtpReply::OkInfo, |s| {
+            Helo {
+                helo: s.helo,
+                conn: s.conn,
+            }
+        })
+    }
+    pub fn failed(self) -> SmtpMachine<Helo, D> {
+        self.step(SmtpReply::TransactionFailure, |s| {
+            Helo {
+                helo: s.helo,
+                conn: s.conn,
             }
         })
     }
 }
 
-impl<S, D> Future for SmtpMachine<S, D>
+impl<S, D> Stream for SmtpMachine<S, D>
 where
     D: Sink<SinkItem = SmtpReply, SinkError = Error>,
+    D: Stream<Item = SmtpInput, Error = Error>,
 {
-    type Item = ();
+    type Item = SmtpInput;
     type Error = Error;
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        if self.replies.is_empty() {
-            self.dispatch.poll_complete()
-        } else {
-            match self.dispatch.start_send(self.replies.remove(0)) {
-                Err(e) => Err(e),
-                Ok(AsyncSink::Ready) => Ok(Async::NotReady),
-                Ok(AsyncSink::NotReady(reply)) => {
-                    self.replies.insert(0, reply);
+    fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
+        // first pull from stream
+        match self.dispatch.poll() {
+            Err(e) => Err(e),
+            item @ Ok(Async::Ready(_)) => item,
+            Ok(Async::NotReady) => {
+                // if empty, send to sink
+                if self.replies.is_empty() {
+                    try_ready!(self.dispatch.poll_complete());
                     Ok(Async::NotReady)
+                } else {
+                    match self.dispatch.start_send(self.replies.remove(0)) {
+                        Err(e) => Err(e),
+                        Ok(AsyncSink::Ready) => Ok(Async::NotReady),
+                        Ok(AsyncSink::NotReady(reply)) => {
+                            self.replies.insert(0, reply);
+                            Ok(Async::NotReady)
+                        }
+                    }
                 }
             }
         }
+    }
+}
+
+impl<S, D> fmt::Debug for SmtpMachine<S, D>
+where
+    S: fmt::Debug,
+{
+    fn fmt<'a>(&self, fmt: &mut fmt::Formatter<'a>) -> Result<(), fmt::Error> {
+        fmt.write_fmt(format_args!(
+            "StateMachine{{ state: {:?}, replies: {:?}}}",
+            self.state,
+            self.replies
+        ))
     }
 }
 
@@ -230,6 +283,13 @@ mod tests {
         fn poll_complete(&mut self) -> Poll<(), Self::SinkError> {
             trace!("Poll complete");
             Ok(Async::Ready(()))
+        }
+    }
+    impl Stream for DebugSink {
+        type Item = SmtpInput;
+        type Error = Error;
+        fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
+            Ok(Async::Ready(None))
         }
     }
 

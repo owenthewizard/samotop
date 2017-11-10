@@ -1,5 +1,8 @@
 use std::fmt;
-use std::io::{Read, Write};
+use std::io::{Read, Write, Error};
+use bytes::Bytes;
+use futures::sync::mpsc::Sender;
+use tokio_proto::streaming::Body;
 use model::request::*;
 
 #[derive(Debug)]
@@ -31,14 +34,13 @@ pub struct Rcpt {
     pub rcpt: Vec<SmtpPath>,
 }
 
-
 pub struct Data {
     pub conn: SmtpConnection,
     pub helo: SmtpHelo,
     pub mail: SmtpMail,
     pub rcpt: Vec<SmtpPath>,
-    pub write: Box<Write>,
-    pub read: Box<Read>,
+    pub body: Body<Bytes, Error>,
+    pub tx: Sender<Result<Bytes, Error>>,
 }
 
 impl fmt::Debug for Data {
@@ -51,14 +53,6 @@ impl fmt::Debug for Data {
             self.rcpt
         ))
     }
-}
-
-#[derive(Debug)]
-pub struct Done {
-    pub conn: SmtpConnection,
-    pub helo: SmtpHelo,
-    pub mail: SmtpMail,
-    pub rcpt: Vec<SmtpPath>,
 }
 
 #[derive(Debug)]

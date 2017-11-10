@@ -19,7 +19,7 @@ impl SmtpWriter {
 }
 
 impl SmtpAnswerWriter for SmtpWriter {
-    fn write(&self, mut buf: &mut Write, reply: SmtpReply) -> Result {
+    fn write(&self, buf: &mut Write, reply: SmtpReply) -> Result {
         // take default display implementation
         write!(buf, "{}", reply)
     }

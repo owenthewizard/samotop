@@ -4,6 +4,22 @@ use futures::{Stream, Poll};
 use tokio_proto::streaming::Body;
 use super::request::*;
 
+pub fn new_mail(
+    conn: SmtpConnection,
+    helo: SmtpHelo,
+    mail: SmtpMail,
+    rcpt: Vec<SmtpPath>,
+    //data: R,
+) -> Mail {
+    Mail {
+        conn,
+        helo,
+        mail,
+        rcpt,
+        //data: Data { inner: Body::from(Bytes::from(data)) },
+    }
+}
+
 #[derive(Debug)]
 pub enum Act {
     Mail(Mail),
@@ -11,11 +27,11 @@ pub enum Act {
 
 #[derive(Debug)]
 pub struct Mail {
-    pub helo: SmtpHelo,
     pub conn: SmtpConnection,
-    pub from: SmtpPath,
+    pub helo: SmtpHelo,
     pub mail: SmtpMail,
-    pub data: Data,
+    pub rcpt: Vec<SmtpPath>,
+    //pub data: Data,
 }
 
 #[derive(Debug)]
