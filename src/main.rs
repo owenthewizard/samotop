@@ -1,36 +1,106 @@
+#[macro_use]
+extern crate log;
 extern crate env_logger;
 extern crate samotop;
 extern crate tokio_proto;
+#[macro_use]
+extern crate structopt;
 
-use tokio_proto::TcpServer;
 use samotop::service::dummyact::SmtpService;
 use samotop::protocol::stateful::SmtpProto;
+use std::io::{Read, Write};
+use std::net::TcpStream;
+use std::str::FromStr;
+use structopt::StructOpt;
+use tokio_proto::TcpServer;
 
-/*
-   For debug log try:
-     RUST_LOG=samotop=trace cargo run
+#[derive(StructOpt, Debug)]
+#[structopt(name = "samotop")]
+struct Opt {
+    /// SMTP server address
+    #[structopt(short = "s", long = "server", default_value = "0.0.0.0:12345")]
+    mailserver: String,
 
-   To simulate hopped smtp input:
-     (sleep 2;
-        echo -en "helo";
-        sleep 3;
-        echo -en " there\r";
-        sleep 5;
-        echo -en "\n"
-        ) | nc localhost 12345
-*/
+    /// Mode of operation (server or test)
+    #[structopt(short = "m", long = "mode", default_value = "server")]
+    mode: Mode,
+}
+
+#[derive(Debug)]
+enum Mode {
+    Test,
+    Server,
+    Tokio
+}
+
+impl FromStr for Mode {
+    type Err = String;
+    fn from_str(str: &str) -> Result<Self, Self::Err> {
+        match str.to_lowercase().as_ref() {
+            "test" => Ok(Mode::Test),
+            "server" => Ok(Mode::Server),
+            "tokio" => Ok(Mode::Tokio),
+            _ => Err(format!("Invalid mode: {}", str)),
+        }
+    }
+}
 
 fn main() {
+    env_logger::init();
 
-    env_logger::init().unwrap();
+    let opt = Opt::from_args();
+    trace!("{:?}", opt);
 
-    // Specify the localhost address
-    let addr = "0.0.0.0:12345".parse().unwrap();
+    match opt.mode {
+        Mode::Tokio => {
 
-    // The builder requires a protocol and an address
-    let server = TcpServer::new(SmtpProto, addr);
+        }
+        Mode::Server => {
+            // Specify the localhost address
+            let addr = opt.mailserver.parse().unwrap();
 
-    // We provide a way to *instantiate* the service for each new
-    // connection; here, we just immediately return a new instance.
-    server.serve(|| Ok(SmtpService::new()));
+            // The builder requires a protocol and an address
+            let server = TcpServer::new(SmtpProto, addr);
+
+            // We provide a way to *instantiate* the service for each new
+            // connection; here, we just immediately return a new instance.
+            server.serve(|| Ok(SmtpService::new()));
+        }
+        Mode::Test => {
+            let mut stream =
+                TcpStream::connect(opt.mailserver).expect("failed to connect to server");
+            stream
+                .set_nonblocking(true)
+                .expect("set_nonblocking call failed");
+
+            let mut input = std::io::stdin();
+
+            let buf = &mut [0u8; 1024];
+
+            loop {
+                if let Ok(n) = input.read(&mut buf[..]) {
+                    let pass = match &buf[..n] {
+                        &[b'#', b'\n'] => {
+                            println!("#!");
+                            vec![]
+                        },
+                        _ => {
+                            let mut v = vec![];
+                            v.extend_from_slice(&buf[..n - 1]);
+                            v.extend_from_slice(&b"\r\n"[..]);
+                            v
+                        }
+                    };
+                    stream.write_all(&pass).expect("could not write to stream");
+                }
+
+                while let Ok(n) = stream.read(&mut buf[..]) {
+                    print!(
+                        "{}",
+                        String::from_utf8(buf[..n].to_vec()).expect("invalid utf-8")
+                    );
+                }
+            }
+        }
+    }
 }

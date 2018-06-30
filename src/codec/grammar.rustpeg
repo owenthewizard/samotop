@@ -193,6 +193,6 @@ char_regular -> &'input str
 char_special -> &'input str
 	= "\\" s:$(#quiet<.> / #expected("special character"))
 	{ s }
-NL	= #quiet<"\r\n"> / #expected("{NL}")
+NL	= #quiet<"\r\n"> / #quiet<"\n"> / #expected("{NL}")
 SP	= #quiet<" "> / #expected("{SP}")
 WS	= #quiet<SP / "\t"> / #expected("{WS}")
