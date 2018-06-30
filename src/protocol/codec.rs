@@ -1,13 +1,14 @@
-use std::io;
-use std::str;
-use std::fmt::{Display, Debug};
-use bytes::{BytesMut, BufMut};
-use std::net::SocketAddr;
-use tokio_io::codec::{Encoder, Decoder};
+use bytes::{BufMut, BytesMut};
+use model::request::{SmtpCommand, SmtpInput};
+use model::response::SmtpReply;
 use protocol::parser::SmtpSessionParser;
 use protocol::writer::SmtpAnswerSerializer;
-use model::request::{SmtpInput, SmtpCommand};
-use model::response::SmtpReply;
+use std::fmt::{Debug, Display};
+use std::io;
+use std::net::SocketAddr;
+use std::str;
+use std::time::SystemTime;
+use tokio_io::codec::{Decoder, Encoder};
 
 type Result = io::Result<Option<SmtpCommand>>;
 
@@ -17,6 +18,7 @@ pub struct SmtpCodec<'a> {
     serializer: &'a SmtpAnswerSerializer,
     local_addr: Option<SocketAddr>,
     peer_addr: Option<SocketAddr>,
+    established: SystemTime,
     initialized: bool,
     closed: bool,
 }
@@ -27,6 +29,7 @@ impl<'a> SmtpCodec<'a> {
         serializer: &'a SmtpAnswerSerializer,
         local_addr: Option<SocketAddr>,
         peer_addr: Option<SocketAddr>,
+        established: SystemTime,
     ) -> Self {
         Self {
             requests: vec![],
@@ -34,6 +37,7 @@ impl<'a> SmtpCodec<'a> {
             parser,
             local_addr,
             peer_addr,
+            established,
             initialized: false,
             closed: false,
         }
@@ -41,9 +45,7 @@ impl<'a> SmtpCodec<'a> {
     fn log(&self, info: &Display) -> String {
         let msg = format!(
             "{}\nLocal: {:?}\nRemote: {:?}",
-            info,
-            self.local_addr,
-            self.peer_addr
+            info, self.local_addr, self.peer_addr
         );
         println!("{}", msg);
         msg
@@ -69,27 +71,24 @@ impl<'a> Decoder for SmtpCodec<'a> {
     fn decode_eof(&mut self, buf: &mut BytesMut) -> Result {
         match try!(self.decode(buf)) {
             Some(frame) => Ok(Some(frame)),
-            None => {
-                match (buf.is_empty(), self.closed) {
-                    (false, _) => Err(
-                        io::Error::new(io::ErrorKind::Other, "bytes remaining on stream")
-                            .into(),
-                    ),
-                    (true, true) => Ok(None),
-                    (true, false) => {
-                        self.closed = true;
-                        self.eof_err();
-                        Ok(Some(SmtpCommand::Disconnect))
-                    }
+            None => match (buf.is_empty(), self.closed) {
+                (false, _) => {
+                    Err(io::Error::new(io::ErrorKind::Other, "bytes remaining on stream").into())
                 }
-            }
+                (true, true) => Ok(None),
+                (true, false) => {
+                    self.closed = true;
+                    self.eof_err();
+                    Ok(Some(SmtpCommand::Disconnect))
+                }
+            },
         }
     }
     fn decode(&mut self, buf: &mut BytesMut) -> Result {
-        println!("attempting to decode a frame");
+        trace!("attempting to decode a frame");
 
         if !self.initialized {
-            println!(
+            trace!(
                 "new connection from {:?} to {:?}",
                 self.peer_addr,
                 self.local_addr
@@ -103,57 +102,55 @@ impl<'a> Decoder for SmtpCodec<'a> {
             self.initialized = true;
         }
 
-        if buf.is_empty() {
-            return Ok(self.requests.pop());
-        }
+        if !buf.is_empty() {
+            let bytes = &buf.take()[..];
 
-        let bytes = &buf.take()[..];
+            let text = str::from_utf8(bytes);
 
-        let text = str::from_utf8(bytes);
+            trace!("text ({}): {:?}", bytes.len(), text);
 
-        println!("text ({}): {:?}", bytes.len(), text);
-
-        match text {
-            Err(e) => {
-                let s = self.input_err(&e, bytes);
-                self.requests.push(SmtpCommand::Invalid(s));
-            }
-            Ok(s) => {
-                match self.parser.session(s) {
-                    Err(e) => {
-                        self.parse_err(&e, s);
-                        self.requests.push(SmtpCommand::Invalid(s.to_string()));
-                    }
-                    Ok(inputs) => {
-                        let mut pos = 0;
-                        for inp in inputs {
-                            match inp {
-                                SmtpInput::Command(b, l, c) => {
-                                    pos = b + l;
-                                    self.requests.push(c);
-                                }
-                                SmtpInput::None(b, l, _) => {
-                                    pos = b + l;
-                                }
-                                SmtpInput::Data(b, l, _) => {
-                                    // ToDo handle data properly
-                                    pos = b + l;
-                                }
-                                SmtpInput::Incomplete(b, _, _) => {
-                                    // data will be returned to the input buffer
-                                    pos = b;
-                                }
-                            };
+            match text {
+                Err(e) => {
+                    let s = self.input_err(&e, bytes);
+                    self.requests.push(SmtpCommand::Invalid(s));
+                }
+                Ok(s) => {
+                    match self.parser.session(s) {
+                        Err(e) => {
+                            self.parse_err(&e, s);
+                            self.requests.push(SmtpCommand::Invalid(s.to_string()));
                         }
+                        Ok(inputs) => {
+                            let mut pos = 0;
+                            for inp in inputs {
+                                match inp {
+                                    SmtpInput::Command(b, l, c) => {
+                                        pos = b + l;
+                                        self.requests.push(c);
+                                    }
+                                    SmtpInput::None(b, l, _) => {
+                                        pos = b + l;
+                                    }
+                                    SmtpInput::Data(b, l, _) => {
+                                        // ToDo handle data properly
+                                        pos = b + l;
+                                    }
+                                    SmtpInput::Incomplete(b, _, _) => {
+                                        // data will be returned to the input buffer
+                                        pos = b;
+                                    }
+                                };
+                            }
 
-                        // return tail to the input buffer
-                        buf.extend_from_slice(&bytes[pos..]);
+                            // return tail to the input buffer
+                            buf.extend_from_slice(&bytes[pos..]);
 
-                        println!("last position {}, tail {:?}", pos, str::from_utf8(buf));
+                            trace!("last position {}, tail {:?}", pos, str::from_utf8(buf));
+                        }
                     }
                 }
-            }
-        };
+            };
+        }
 
         // ToDo: self.requests.remove_item()
         match self.requests.is_empty() {
@@ -167,7 +164,7 @@ impl<'a> Encoder for SmtpCodec<'a> {
     type Item = SmtpReply;
     type Error = io::Error;
 
-    fn encode(&mut self, reply: Self::Item, mut buf: &mut BytesMut) -> io::Result<()> {
+    fn encode(&mut self, reply: Self::Item, buf: &mut BytesMut) -> io::Result<()> {
         self.serializer.write(&mut buf.writer(), reply)
     }
 }
