@@ -1,26 +1,30 @@
-use std::str::FromStr;
-use std::net::{Ipv4Addr, Ipv6Addr};
 use bytes::Bytes;
-use model::request::*;
+use model::command::*;
+use std::net::{Ipv4Addr, Ipv6Addr};
+use std::str::FromStr;
 
-include!(concat!(env!("OUT_DIR"), "/grammar.rs"));
+include!(concat!(env!("OUT_DIR"), "/smtp.rs"));
 
 #[cfg(test)]
 mod tests {
-    use codec::grammar::*;
-    use model::request::SmtpHost::*;
-    use model::request::SmtpCommand::*;
-    use model::request::SmtpInput::*;
-    use model::request::SmtpInput::Invalid;
+    use super::{script, session, host};
+    use model::command::SmtpCommand::*;
+    use model::command::SmtpHost::*;
+    use model::command::SmtpInput::*;
+    use model::command::SmtpInput::Invalid;
+    use model::command::*;
+    use bytes::Bytes;
 
     #[test]
     fn script_parses_unknown_command() {
         let result = script("sOmE other command\r\n").unwrap();
         assert_eq!(
             result,
-            vec![
-                SmtpInput::Invalid(0, 20, Bytes::from("sOmE other command\r\n")),
-            ]
+            vec![SmtpInput::Invalid(
+                0,
+                20,
+                Bytes::from("sOmE other command\r\n"),
+            )]
         );
     }
 
@@ -54,13 +58,11 @@ mod tests {
 
         assert_eq!(
             result,
-            vec![
-                Command(
-                    0,
-                    17,
-                    Helo(SmtpHelo::Helo(Domain("domain.com".to_string())))
-                ),
-            ]
+            vec![Command(
+                0,
+                17,
+                Helo(SmtpHelo::Helo(Domain("domain.com".to_string()))),
+            )]
         );
     }
 
@@ -86,7 +88,7 @@ mod tests {
         assert_eq!(
             result,
             vec![
-                Invalid(0, 5, Bytes::from("QUIT\n")),
+                Command(0, 5, Quit),
                 Command(5, 6, Quit),
                 Command(11, 6, Quit),
             ]
@@ -118,7 +120,7 @@ mod tests {
                 Command(
                     0,
                     17,
-                    Helo(SmtpHelo::Helo(Domain("domain.com".to_string())))
+                    Helo(SmtpHelo::Helo(Domain("domain.com".to_string()))),
                 ),
                 Command(
                     17,
@@ -126,7 +128,7 @@ mod tests {
                     Mail(SmtpMail::Mail(SmtpPath::Direct(SmtpAddress::Mailbox(
                         "me".to_string(),
                         Domain("there.net".to_string()),
-                    ))))
+                    )))),
                 ),
                 Command(
                     43,
@@ -137,7 +139,7 @@ mod tests {
                             "him".to_string(),
                             Domain("unreachable.local".to_string()),
                         ),
-                    ))
+                    )),
                 ),
                 Command(87, 6, Quit),
             ]

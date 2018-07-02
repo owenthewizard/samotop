@@ -1,5 +1,4 @@
-pub mod request;
+pub mod command;
+pub mod controll;
 pub mod response;
-pub mod act;
-pub mod machine;
-pub mod state;
+pub mod server;

@@ -1,20 +1,32 @@
 #[macro_use]
 extern crate log;
-extern crate bytes;
+extern crate env_logger;
 extern crate regex;
-#[macro_use]
+extern crate bytes;
 extern crate futures;
-extern crate tokio_core;
-extern crate tokio_io;
-extern crate tokio_proto;
-extern crate tokio_service;
+extern crate tokio;
+extern crate tokio_codec;
 
-pub mod io;
-pub mod codec;
 pub mod model;
 pub mod protocol;
+pub mod server;
 pub mod service;
+pub mod grammar;
+
+use server::builder::Samotop;
+use service::echo::EchoService;
+
+
+pub static START: Samotop<EchoService> = Samotop {
+    default_port: "localhost:25",
+    default_service: EchoService,
+};
 
 
 #[cfg(test)]
-extern crate env_logger;
+mod tests {
+    #[test]
+    fn it_works() {
+        assert_eq!(2 + 2, 4);
+    }
+}

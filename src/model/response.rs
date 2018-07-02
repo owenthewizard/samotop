@@ -329,7 +329,7 @@ impl fmt::Display for SmtpReply {
     }
 }
 fn write_reply_end(buf: &mut fmt::Write, code: u16, text: &str) -> Result<(), fmt::Error> {
-    write!(buf, "{} {}", code, text)
+    write!(buf, "{} {}\r\n", code, text)
 }
 fn write_reply_continued(buf: &mut fmt::Write, code: u16, text: &str) -> Result<(), fmt::Error> {
     write!(buf, "{}-{}\r\n", code, text)
