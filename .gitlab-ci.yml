@@ -16,9 +16,10 @@ build:
   artifacts:
     paths:
       - target/release/samotop
+      - Cargo.lock
 
 test:
   stage: test
   script:
     - rustc --version && cargo --version
-    - cargo test --all --verbose
+    - cargo test --all
