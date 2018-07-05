@@ -1,0 +1,24 @@
+# Official language image. Look for the different tagged releases at:
+# https://hub.docker.com/r/library/rust/tags/
+image: "rust:latest"
+
+stages:
+  - build
+  - test
+
+build:
+  stage: build
+  script:
+    - cargo build --release
+  cache:
+    paths:
+      - target/
+  artifacts:
+    paths:
+      - target/release/samotop
+
+test:
+  stage: test
+  script:
+    - rustc --version && cargo --version
+    - cargo test --all --verbose
