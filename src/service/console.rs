@@ -1,5 +1,5 @@
 use super::MailService;
-use bytes::{Bytes, IntoBuf};
+use bytes::Bytes;
 use futures::{Async, AsyncSink, Poll, StartSend};
 use hostname::get_hostname;
 use model::session::Session;
@@ -11,8 +11,8 @@ pub struct ConsoleMail {
 }
 
 impl ConsoleMail {
-    pub fn new() -> Self {
-        Self { name: None }
+    pub fn new(name: Option<String>) -> Self {
+        Self { name }
     }
 }
 

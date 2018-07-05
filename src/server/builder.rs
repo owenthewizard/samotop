@@ -1,53 +1,33 @@
 use futures::future;
 use model::server::SamotopServer;
 use server;
-use service::SamotopService;
+use service::TcpService;
 use tokio::prelude::Future;
-
-pub struct Samotop<S>
-where
-    S: SamotopService + Clone,
-{
-    pub default_port: &'static str,
-    pub default_service: S,
-}
-
-impl<S> Samotop<S>
-where
-    S: SamotopService + Clone,
-{
-    pub fn with<SX>(&self, factory: SX) -> SamotopBuilder<SX>
-    where
-        SX: SamotopService + Clone + Send + Sync + 'static,
-    {
-        SamotopBuilder::new(self.default_port.into(), factory)
-    }
-}
 
 #[derive(Clone)]
 pub struct SamotopBuilder<S>
 where
-    S: SamotopService + Clone,
+    S: TcpService + Clone,
 {
     default_port: String,
     ports: Vec<String>,
-    factory: S,
+    service: S,
 }
 
 impl<S> SamotopBuilder<S>
 where
-    S: SamotopService + Clone + Send + Sync + 'static,
+    S: TcpService + Clone + Send + Sync + 'static,
 {
-    pub fn new(default_port: String, factory: S) -> Self {
+    pub fn new(default_port: impl ToString, service: S) -> Self {
         Self {
-            default_port,
+            default_port: default_port.to_string(),
             ports: vec![],
-            factory,
+            service,
         }
     }
-    pub fn with<SX>(self, factory: SX) -> SamotopBuilder<SX>
+    pub fn with<SX>(self, service: SX) -> SamotopBuilder<SX>
     where
-        SX: SamotopService + Clone,
+        SX: TcpService + Clone,
     {
         let Self {
             default_port,
@@ -56,7 +36,7 @@ where
         } = self;
         SamotopBuilder {
             default_port,
-            factory,
+            service,
             ports,
         }
     }
@@ -78,7 +58,7 @@ where
         let Self {
             default_port,
             ports,
-            factory,
+            service,
         } = self;
         let ports = match ports.len() {
             0 => vec![default_port],
@@ -87,7 +67,7 @@ where
         future::join_all(ports.into_iter().map(move |addr| {
             server::serve(SamotopServer {
                 addr,
-                factory: factory.clone(),
+                service: service.clone(),
             })
         })).map(|_| ())
     }

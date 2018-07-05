@@ -2,7 +2,7 @@ use model::controll::*;
 use model::command::SmtpCommand;
 use model::response::SmtpReply;
 use protocol::*;
-use service::SamotopService;
+use service::TcpService;
 use grammar::SmtpParser;
 use tokio;
 use tokio::io;
@@ -13,7 +13,7 @@ use tokio_codec::Decoder;
 #[derive(Clone)]
 pub struct EchoService;
 
-impl SamotopService for EchoService {
+impl TcpService for EchoService {
     fn handle(self, socket: TcpStream) {
         let local = socket.local_addr().ok();
         let peer = socket.peer_addr().ok();

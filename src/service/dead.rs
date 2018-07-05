@@ -1,9 +1,9 @@
-use service::SamotopService;
+use service::TcpService;
 use tokio::net::TcpStream;
 
 #[derive(Clone)]
 struct DeadService;
 
-impl SamotopService for DeadService {
+impl TcpService for DeadService {
     fn handle(self, _socket: TcpStream) {}
 }

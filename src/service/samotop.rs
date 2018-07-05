@@ -1,7 +1,7 @@
 
-use model::controll::*;
 use protocol::*;
-use service::{console::ConsoleMail, SamotopService};
+use service::TcpService;
+use service::console::ConsoleMail;
 use grammar::SmtpParser;
 use tokio;
 use tokio::io;
@@ -9,13 +9,14 @@ use tokio::net::TcpStream;
 use tokio::prelude::*;
 use tokio_codec::Decoder;
 
+/** A TCP service providing SMTP - Samotop */
 #[derive(Clone)]
-pub struct MailService {
-    name: String, 
+pub struct SamotopService {
+    name: String,
     parser: SmtpParser,
 }
 
-impl MailService {
+impl SamotopService {
     pub fn new(name: impl ToString) -> Self {
         Self {
             name: name.to_string(),
@@ -24,15 +25,16 @@ impl MailService {
     }
 }
 
-impl SamotopService for MailService {
+impl TcpService for SamotopService {
     fn handle(self, socket: TcpStream) {
         let local = socket.local_addr().ok();
         let peer = socket.peer_addr().ok();
+        info!("accepted peer {:?} on {:?}", peer, local);
         let (dst, src) = SmtpCodec::new().framed(socket).split();
         let task = src
             .peer(peer)
             .parse(SmtpParser)
-            .mail(ConsoleMail::new())
+            .mail(ConsoleMail::new(Some(self.name)))
             // prevent polling after shutdown
             .fuse_shutdown()
             // prevent polling of completed stream
@@ -45,5 +47,3 @@ impl SamotopService for MailService {
         tokio::spawn(task);
     }
 }
-
-

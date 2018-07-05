@@ -1,29 +1,29 @@
-use service::SamotopService;
+use service::TcpService;
 use std::net::SocketAddr;
 use tokio::net::TcpListener;
 
 #[derive(Clone)]
 pub struct SamotopServer<S>
 where
-    S: SamotopService + Clone,
+    S: TcpService + Clone,
 {
     pub addr: String,
-    pub factory: S,
+    pub service: S,
 }
 
 #[derive(Clone)]
 pub struct SamotopPort<S>
 where
-    S: SamotopService + Clone,
+    S: TcpService + Clone,
 {
     pub addr: SocketAddr,
-    pub factory: S,
+    pub service: S,
 }
 
 pub struct SamotopListener<S>
 where
-    S: SamotopService + Clone,
+    S: TcpService + Clone,
 {
     pub listener: TcpListener,
-    pub factory: S,
+    pub service: S,
 }

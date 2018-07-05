@@ -20,7 +20,6 @@ pub struct Session {
 #[derive(Clone, PartialEq, Eq)]
 enum State {
     New,
-    Start,
     Helo,
     Mail,
     Rcpt,
@@ -60,9 +59,13 @@ impl Session {
     }
     pub fn data_end(&mut self) -> &mut Self {
         trace!("watching data finishing up!");
+        self.state = State::New;
+        self.rcpts.clear();
+        self.mail = None;
+        self.helo = None;
         self
     }
-    pub fn data(&mut self, data: Bytes) -> &mut Self {
+    pub fn data(&mut self, _data: Bytes) -> &mut Self {
         trace!("watching data pass by!");
         self
     }
