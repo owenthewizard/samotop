@@ -1,9 +1,9 @@
-use bytes::Bytes;
-use std::net::{SocketAddr, Ipv4Addr, Ipv6Addr};
-
 use self::SmtpInput::*;
+use bytes::Bytes;
+use std::fmt;
+use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
 
-#[derive(Eq, PartialEq, Debug)]
+#[derive(Eq, PartialEq, Debug, Clone)]
 pub enum SmtpInput {
     Command(usize, usize, SmtpCommand),
     Invalid(usize, usize, Bytes),
@@ -51,7 +51,7 @@ impl SmtpInput {
     }
 }
 
-#[derive(Eq, PartialEq, Debug)]
+#[derive(Eq, PartialEq, Debug, Clone)]
 pub enum SmtpCommand {
     Helo(SmtpHelo),
     Mail(SmtpMail),
@@ -64,6 +64,7 @@ pub enum SmtpCommand {
     Rset,
     Data,
     Turn,
+    Unknown(String),
 }
 
 #[derive(Eq, PartialEq, Debug, Clone)]
@@ -75,7 +76,7 @@ pub enum SmtpHost {
     Other { label: String, literal: String },
 }
 
-#[derive(Eq, PartialEq, Debug)]
+#[derive(Eq, PartialEq, Debug, Clone)]
 pub enum SmtpPath {
     Direct(SmtpAddress),
     Relay(Vec<SmtpHost>, SmtpAddress),
@@ -83,7 +84,7 @@ pub enum SmtpPath {
     Null,
 }
 
-#[derive(Eq, PartialEq, Debug)]
+#[derive(Eq, PartialEq, Debug, Clone)]
 pub enum SmtpAddress {
     Mailbox(String, SmtpHost),
 }
@@ -103,19 +104,40 @@ impl SmtpHelo {
         }
     }
     pub fn name(&self) -> String {
+        format!("{}", self.host())
+    }
+}
+
+impl fmt::Display for SmtpPath {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        match self {
+            &SmtpPath::Direct(ref addr) => match addr {
+                &SmtpAddress::Mailbox(ref name, ref host) => write!(f, "<{}@{}>", name, host),
+            },
+            &SmtpPath::Null => write!(f, "<>"),
+            &SmtpPath::Postmaster => write!(f, "<POSTMASTER>"),
+            &SmtpPath::Relay(_, ref addr) => match addr {
+                &SmtpAddress::Mailbox(ref name, ref host) => write!(f, "<{}@{}>", name, host),
+            },
+        }
+    }
+}
+
+impl fmt::Display for SmtpHost {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         use self::SmtpHost::*;
-        match self.host() {
-            &Domain(ref h) => format!("{}", h),
-            &Ipv4(ref h) => format!("{}", h),
-            &Ipv6(ref h) => format!("{}", h),
+        match self {
+            &Domain(ref h) => f.write_str(h),
+            &Ipv4(ref h) => write!(f, "{}", h),
+            &Ipv6(ref h) => write!(f, "{}", h),
             &Invalid {
                 ref label,
                 ref literal,
-            } => format!("{}:{}", label, literal),
+            } => write!(f, "{}:{}", label, literal),
             &Other {
                 ref label,
                 ref literal,
-            } => format!("{}:{}", label, literal),
+            } => write!(f, "{}:{}", label, literal),
         }
     }
 }
@@ -127,10 +149,21 @@ pub struct SmtpConnection {
     pub peer_addr: Option<SocketAddr>,
 }
 
-#[derive(Eq, PartialEq, Debug)]
+#[derive(Eq, PartialEq, Debug, Clone)]
 pub enum SmtpMail {
     Mail(SmtpPath),
     Send(SmtpPath),
     Saml(SmtpPath),
     Soml(SmtpPath),
+}
+
+impl SmtpMail {
+    pub fn from(&self) -> &SmtpPath {
+        match self {
+            SmtpMail::Mail(p) => &p,
+            SmtpMail::Send(p) => &p,
+            SmtpMail::Saml(p) => &p,
+            SmtpMail::Soml(p) => &p,
+        }
+    }
 }

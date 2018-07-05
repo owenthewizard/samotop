@@ -1,4 +1,5 @@
 use bytes::{BufMut, Bytes, BytesMut};
+use model::command::SmtpCommand;
 use model::controll::*;
 use tokio::io;
 use tokio_codec::{Decoder, Encoder};
@@ -38,7 +39,7 @@ impl Decoder for LineCodec {
 
             // Return Ok(Some(...)) to signal that a full frame has been produced.
             match line {
-                Ok(line) => Ok(Some(ServerControll::Command(line))),
+                Ok(line) => Ok(Some(ServerControll::Command(SmtpCommand::Unknown(line)))),
                 Err(_) => Ok(Some(ServerControll::Invalid(Bytes::from(bytes)))),
             }
         } else {
@@ -59,9 +60,10 @@ impl Encoder for LineCodec {
     type Error = io::Error;
     fn encode(&mut self, item: Self::Item, buf: &mut BytesMut) -> Result<(), Self::Error> {
         let line = match item {
+            ClientControll::Noop => return Ok(()),
             ClientControll::Shutdown => return Ok(()),
             ClientControll::AcceptData => return Ok(()),
-            ClientControll::Reply(line) => line,
+            ClientControll::Reply(line) => line.to_string(),
         };
 
         // It's important to reserve the amount of space needed. The `bytes` API

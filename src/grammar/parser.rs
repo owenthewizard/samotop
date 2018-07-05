@@ -7,6 +7,10 @@ use model::command::{SmtpCommand, SmtpInput};
 
 static PARSER: SmtpParser = SmtpParser;
 
+pub trait Parser {
+    fn command<'input>(&self, input: &'input str) -> ParseResult<SmtpCommand>;
+}
+
 #[derive(Clone)]
 pub struct SmtpParser;
 
@@ -19,5 +23,11 @@ impl SmtpParser {
     }
     pub fn command<'input>(&self, input: &'input str) -> ParseResult<SmtpCommand> {
         command(input)
+    }
+}
+
+impl Parser for SmtpParser {
+    fn command<'input>(&self, input: &'input str) -> ParseResult<SmtpCommand> {
+        self.command(input)
     }
 }

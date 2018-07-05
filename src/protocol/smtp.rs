@@ -1,4 +1,5 @@
 use bytes::{BufMut, Bytes, BytesMut};
+use model::command::SmtpCommand;
 use model::controll::*;
 use regex::bytes::Regex;
 use tokio::io;
@@ -86,7 +87,10 @@ impl SmtpCodec {
                     // Return Ok(Some(...)) to signal that a full frame has been produced.
                     match line {
                         Err(_) => (Ok(Some(ServerControll::Invalid(Bytes::from(bytes)))), state),
-                        Ok(line) => (Ok(Some(ServerControll::Command(line))), state),
+                        Ok(line) => (
+                            Ok(Some(ServerControll::Command(SmtpCommand::Unknown(line)))),
+                            state,
+                        ),
                     }
                 }
             }
@@ -106,34 +110,37 @@ impl SmtpCodec {
         match dotstate(&mut buf.iter(), nl) {
             Wait => (Ok(None), State::Data(nl, pos)),
             End(end) => (
-                Ok(Some(ServerControll::DataEnd(Bytes::from(&buf[..end])))),
+                // it is the data terminating line
+                Ok(Some(ServerControll::FinalDot(Bytes::from(&buf[..end])))),
                 State::Line(end, end),
             ),
             Escape(0) => (
-                Ok(Some(ServerControll::DataDot(Bytes::from(&buf[..1])))),
+                // the first byte is an escaping dot, send just the dot
+                Ok(Some(ServerControll::EscapeDot(Bytes::from(&buf[..1])))),
                 State::Data(false, 1),
             ),
             Escape(pos) => (
-                Ok(Some(ServerControll::Data(Bytes::from(&buf[..pos])))),
+                // there is an escaping dot at pos, send data before pos
+                Ok(Some(ServerControll::DataChunk(Bytes::from(&buf[..pos])))),
                 State::Data(true, pos),
             ),
             LF => (
-                Ok(Some(ServerControll::Data(Bytes::from(&b"\n"[..])))),
+                Ok(Some(ServerControll::DataChunk(Bytes::from(&b"\n"[..])))),
                 State::Data(true, 1),
             ),
             CRLF => (
-                Ok(Some(ServerControll::Data(Bytes::from(&b"\r\n"[..])))),
+                Ok(Some(ServerControll::DataChunk(Bytes::from(&b"\r\n"[..])))),
                 State::Data(true, 2),
             ),
             GoOn => match self.nl_lookup.find(&buf.as_ref()[..]) {
                 Some(found) => (
-                    Ok(Some(ServerControll::Data(Bytes::from(
+                    Ok(Some(ServerControll::DataChunk(Bytes::from(
                         &buf[..found.start()],
                     )))),
                     State::Data(false, found.start()),
                 ),
                 None => (
-                    Ok(Some(ServerControll::Data(Bytes::from(&buf[..])))),
+                    Ok(Some(ServerControll::DataChunk(Bytes::from(&buf[..])))),
                     State::Data(false, buf.len()),
                 ),
             },
@@ -173,6 +180,7 @@ impl Encoder for SmtpCodec {
     type Error = io::Error;
     fn encode(&mut self, item: Self::Item, buf: &mut BytesMut) -> Result<(), Self::Error> {
         let line = match item {
+            ClientControll::Noop => return Ok(()),
             ClientControll::Shutdown => return Ok(()),
             ClientControll::AcceptData => {
                 if let State::Line(_, tail) = self.state {
@@ -180,7 +188,7 @@ impl Encoder for SmtpCodec {
                 }
                 return Ok(());
             }
-            ClientControll::Reply(line) => line,
+            ClientControll::Reply(reply) => reply.to_string(),
         };
 
         // It's important to reserve the amount of space needed. The `bytes` API

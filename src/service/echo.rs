@@ -52,67 +52,73 @@ pub fn answers(ctrl: ServerControll) -> impl Stream<Item = ClientControll, Error
     let shutdown = Ok(ClientControll::Shutdown);
     let mut bunch = vec![];
     match ctrl {
-        ServerControll::Data(bytes) => {
+        ServerControll::DataChunk(_bytes) => {
             // bunch.push(Ok(ClientControll::Reply(
             //     format!("Thanks for the data! {:?}\r\n", bytes),
             // )))
         }
-        ServerControll::DataEnd(_) => {
-            bunch.push(Ok(ClientControll::Reply(SmtpReply::OkInfo.to_string())))
+        ServerControll::FinalDot(_) => {
+            bunch.push(Ok(ClientControll::Reply(SmtpReply::OkInfo)))
         }
-        ServerControll::DataDot(_) => {}
+        ServerControll::EscapeDot(_) => {}
         ServerControll::Invalid(bytes) => {
             warn!("Goobledygook! {:?}\r\n", bytes);
             bunch.push(Ok(ClientControll::Reply(
-                SmtpReply::CommandSyntaxFailure.to_string(),
+                SmtpReply::CommandSyntaxFailure,
             )))
         }
-        ServerControll::PeerConnected(peer) => {
-            bunch.push(Ok(ClientControll::Reply(format!("Hey ho! {:?}\r\n", peer))))
+        ServerControll::PeerConnected(_peer) => {
+            bunch.push(Ok(ClientControll::Reply(SmtpReply::ServiceReadyInfo("Hi!".into()))))
         }
         ServerControll::PeerShutdown(_) => bunch.push(shutdown),
         ServerControll::Command(cmd) => {
             let parser = SmtpParser;
-            match parser.command(&cmd) {
-                Err(e) => {
-                    warn!("Goobledygook {:?}: {:?}\r\n", cmd, e);
+
+            let cmd = match cmd {
+                SmtpCommand::Unknown(line) => {
+                    match parser.command(&line) {
+                        Err(e) => {
+                            warn!("Goobledygook {:?}: {:?}\r\n", line, e);
+                            SmtpCommand::Unknown(line)
+                        }
+                        Ok(cmd) => cmd,
+                    }
+                },
+                pass => pass
+            };
+
+            match cmd {
+                SmtpCommand::Quit => {
                     bunch.push(Ok(ClientControll::Reply(
-                        SmtpReply::CommandSyntaxFailure.to_string(),
+                        SmtpReply::ClosingConnectionInfo(format!("Bye!"))
+                            ,
+                    )));
+                    bunch.push(shutdown)
+                }
+                SmtpCommand::Data => {
+                    bunch.push(Ok(ClientControll::Reply(
+                        SmtpReply::StartMailInputChallenge,
+                    )));
+                    bunch.push(Ok(ClientControll::AcceptData))
+                }
+                cmd => {
+                    bunch.push(Ok(ClientControll::Reply(
+                        match cmd {
+                            SmtpCommand::Helo(_) => SmtpReply::OkHeloInfo {
+                                local: format!("here"),
+                                remote: format!("there"),
+                            },
+                            SmtpCommand::Mail(_mail) => SmtpReply::OkInfo,
+                            SmtpCommand::Rcpt(_path) => SmtpReply::OkInfo,
+                            SmtpCommand::Data => SmtpReply::StartMailInputChallenge,
+                            SmtpCommand::Noop(_text) => SmtpReply::OkInfo,
+                            SmtpCommand::Rset => SmtpReply::OkInfo,
+                            SmtpCommand::Quit => SmtpReply::ClosingConnectionInfo(format!("Bye!")),
+                            _ => SmtpReply::CommandNotImplementedFailure,
+                        },
                     )))
                 }
-                Ok(cmd) => {
-                    match cmd {
-                        SmtpCommand::Quit => {
-                            bunch.push(Ok(ClientControll::Reply(SmtpReply::OkInfo.to_string())));
-                            bunch.push(shutdown)
-                        }
-                        SmtpCommand::Data => {
-                            bunch.push(Ok(ClientControll::Reply(
-                                SmtpReply::StartMailInputChallenge.to_string(),
-                            )));
-                            bunch.push(Ok(ClientControll::AcceptData))
-                        }
-                        cmd => {
-                            bunch.push(Ok(ClientControll::Reply(
-                                match cmd {
-                                    SmtpCommand::Helo(_) => SmtpReply::OkHeloInfo {
-                                        local: format!("here"),
-                                        remote: format!("there"),
-                                    },
-                                    SmtpCommand::Mail(_mail) => SmtpReply::OkInfo,
-                                    SmtpCommand::Rcpt(_path) => SmtpReply::OkInfo,
-                                    SmtpCommand::Data => SmtpReply::StartMailInputChallenge,
-                                    SmtpCommand::Noop(_text) => SmtpReply::OkInfo,
-                                    SmtpCommand::Rset => SmtpReply::OkInfo,
-                                    SmtpCommand::Quit => SmtpReply::ClosingConnectionInfo(
-                                        format!("Bye!"),
-                                    ),
-                                    _ => SmtpReply::CommandNotImplementedFailure,
-                                }.to_string(),
-                            )))
-                        }
-                    }
-                }
+
             }
         }
     };

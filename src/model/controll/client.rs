@@ -1,7 +1,9 @@
+use model::response::SmtpReply;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ClientControll {
     Shutdown,
     AcceptData,
-    Reply(String),
+    Reply(SmtpReply),
+    Noop,
 }

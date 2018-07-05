@@ -13,7 +13,8 @@ fn main() {
 
     tokio::run(
         samotop::START
-            .with(samotop::service::echo::EchoService)
+            //.with(samotop::service::echo::EchoService)
+            .with(samotop::service::mail::MailService::new("wooohoo"))
             .on_all(opt.ports)
             .as_task(),
     );

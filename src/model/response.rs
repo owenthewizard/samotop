@@ -53,10 +53,10 @@
       mail system vis-a-vis the requested transfer or other mail system
       action.
 */
-use std::fmt;
 use model::response::SmtpReply::*;
+use std::fmt;
 
-#[derive(Eq, PartialEq, Debug)]
+#[derive(Eq, PartialEq, Debug, Clone)]
 pub enum SmtpReply {
     // I'm using a suffix to make names sound english:
     // 2xx => ...Info
@@ -95,7 +95,10 @@ pub enum SmtpReply {
     // 250 first line is either Ok or specific message, use Vec<String> for subsequent items
     OkInfo,
     OkMessageInfo(String),
-    OkHeloInfo { local: String, remote: String },
+    OkHeloInfo {
+        local: String,
+        remote: String,
+    },
     OkEhloInfo {
         local: String,
         remote: String,
@@ -212,12 +215,10 @@ impl SmtpReply {
             &ClosingConnectionInfo(ref domain) => {
                 format!("{} Service closing transmission channel", domain)
             }
-            &ServiceNotAvailableError(ref domain) => {
-                format!(
-                    "{} Service not available, closing transmission channel",
-                    domain
-                )
-            }
+            &ServiceNotAvailableError(ref domain) => format!(
+                "{} Service not available, closing transmission channel",
+                domain
+            ),
             &MailNotAcceptedByHostFailure => "Host does not accept mail".to_owned(),
 
             &OkInfo => "Ok".to_owned(),
