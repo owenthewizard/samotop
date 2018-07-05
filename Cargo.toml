@@ -1,20 +1,21 @@
 [package]
 name = "samotop"
-version = "0.1.1"
-authors = ["Robert Cutajar <github-commit@robajz.info>"]
+version = "0.3.0"
+authors = ["jocutajar <tellnoone@robajz.info>"]
 build = "src/peg.rs"
 
 [dependencies]
 log = "0.4"
-env_logger = "0.5.10"
+env_logger = "0.5"
 structopt = "0.2"
-peg = "0.5.4"
-bytes = "0.4"
-futures = "0.1"
+peg = "0.5"
+tokio = "0.1"
 tokio-io = "0.1"
-tokio-core = "0.1"
-tokio-proto = "0.1"
-tokio-service = "0.1"
+tokio-codec = "0.1"
+futures = "0.1"
+bytes = "0.4"
+regex = "1.0"
+hostname = "0.1"
 
 [build-dependencies]
-peg = { version = "0.5.2" }
+peg = { version = "0.5" }
