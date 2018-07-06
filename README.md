@@ -4,6 +4,8 @@ SMTP Relay Server (MTA) library and a sample simple server implemented in Rust w
 We've got a decent SMTP command parser written as a PEG grammar. The model is tightly nit from the RFCs. A tokio based server will hear your SMTP commands, drive the SMTP state machine and correct you if you step aside. Once a mail session is ready, the mail data are streamed to the console. After that, you can do it again.
 ## Todo
 - [x] Successfully parse a simple SMTP session
+- [x] SMTP state machine - helo, mail, rcpt*, data, rset, quit - must be in correct order
+- [x] DATA are handled and terminated correctly (escape dot, final dot).
 - [x] Simple SMTP MTA, logging smtp session to standard output but able to receive mail from common relays
 - [ ] Privacy: STARTTLS required
 - [ ] Antispam: Strict SMTP
