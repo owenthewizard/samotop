@@ -10,6 +10,10 @@ use tokio::net::TcpStream;
 pub trait TcpService {
     fn handle(self, TcpStream);
 }
+pub trait TcpService2 {
+    type Handler;
+    fn start(&self) -> Self::Handler;
+}
 
 /** Handles mail sending and has a name */
 pub trait MailService {

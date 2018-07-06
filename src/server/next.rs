@@ -1,18 +1,20 @@
-pub mod builder;
-pub mod next;
-
 use futures::stream;
-use model::server::{SamotopListener, SamotopPort, SamotopServer};
-use service::TcpService;
+use model::next::{SamotopListener, SamotopPort, SamotopServer};
+use service::TcpService2;
+use std::fmt::Debug;
 use std::net::ToSocketAddrs;
 use tokio;
 use tokio::io;
-use tokio::net::TcpListener;
+use tokio::net::{TcpListener, TcpStream};
 use tokio::prelude::*;
 
 pub fn serve<S>(server: SamotopServer<S>) -> impl Future<Item = (), Error = ()>
 where
-    S: TcpService + Clone + Send + Sync + 'static,
+    S: Clone + Send + 'static,
+    S: TcpService2,
+    S::Handler: Sink<SinkItem = TcpStream, SinkError = io::Error>,
+    S::Handler: Debug,
+    S::Handler: Send,
 {
     resolve(server)
         .map_err(|e| error!("{}", e))
@@ -21,7 +23,10 @@ where
 
 pub fn resolve<S>(server: SamotopServer<S>) -> impl Stream<Item = SamotopPort<S>, Error = io::Error>
 where
-    S: TcpService + Clone,
+    S: Clone,
+    S: TcpService2,
+    S::Handler: Sink<SinkItem = TcpStream, SinkError = io::Error>,
+    S::Handler: Debug,
 {
     let SamotopServer { addr, service } = server;
     stream::once(addr.to_socket_addrs())
@@ -41,7 +46,10 @@ where
 
 pub fn bind<S>(port: SamotopPort<S>) -> impl Future<Item = SamotopListener<S>, Error = ()>
 where
-    S: TcpService + Clone,
+    S: Clone,
+    S: TcpService2,
+    S::Handler: Sink<SinkItem = TcpStream, SinkError = io::Error>,
+    S::Handler: Debug,
 {
     let SamotopPort {
         addr: local,
@@ -60,16 +68,20 @@ where
 
 pub fn accept<S>(listener: SamotopListener<S>) -> impl Future<Item = (), Error = ()>
 where
-    S: TcpService + Clone,
+    S: TcpService2,
+    S::Handler: Sink<SinkItem = TcpStream, SinkError = io::Error>,
+    S::Handler: Debug,
 {
     let SamotopListener { listener, service } = listener;
     let local = listener.local_addr().ok();
+    let handler = service.start();
     listener
         .incoming()
-        .map_err(move |e| error!("error accepting on {:?}: {:?}", local, e))
-        .for_each(move |socket| Ok(service.clone().handle(socket)))
+        .forward(handler)
+        //.map_err(move |e| error!("error accepting on {:?}: {:?}", local, e))
+        //.for_each(move |socket| Ok(service.clone().handle(socket)))
         .then(move |result| match result {
-            Ok(_) => Ok(info!("done accepting on {:?}, {:?}", local, result)),
-            Err(e) => Err(error!("done accepting on {:?} with error: {:?}", result, e)),
+            Ok((_i,h)) => Ok(info!("done accepting on {:?}, handler: {:?}", local, h)),
+            Err(e) => Err(error!("done accepting on {:?} with error: {:?}", local, e)),
         })
 }

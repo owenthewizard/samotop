@@ -1,5 +1,6 @@
+use futures::StartSend;
 use tokio;
-use tokio::prelude::future::FutureResult;
+use tokio::io;
 use tokio::prelude::*;
 
 struct Subject {
@@ -7,89 +8,80 @@ struct Subject {
 }
 
 trait Svc {
-    type Future;
-    fn handle(&self, subject: Subject) -> Self::Future;
+    type Receiver;
+    type Error;
+    fn start(&self) -> Self::Receiver;
 }
 
-struct SizedSvc {
+struct MySvc {
     name: String,
 }
-impl Svc for SizedSvc {
-    type Future = FutureResult<(), ()>;
-    fn handle(&self, subject: Subject) -> Self::Future {
-        future::ok(println!(
-            "MySvc. Hi {}! My name is {}.",
-            subject.name, self.name
-        ))
+
+impl Svc for MySvc {
+    type Receiver = MyReceiver;
+    type Error = io::Error;
+    fn start(&self) -> Self::Receiver {
+        MyReceiver::new(&self.name)
     }
 }
 
-#[derive(Clone)]
-struct BoxSvc1 {
+struct MyReceiver {
     name: String,
+    pending: Box<Future<Item = (), Error = ()> + Send>,
 }
-impl Svc for BoxSvc1 {
-    type Future = Box<Future<Item = (), Error = ()>>;
-    fn handle(&self, subject: Subject) -> Self::Future {
-        Box::new(
-            future::ok((self.name.clone(), subject))
-                .and_then(|(n, s)| Ok(println!("BoxSvc1. Hi {}! My name is {}.", s.name, n))),
-        )
+
+impl MyReceiver {
+    fn say_hi(&self, subject: Subject) {
+        println!("Hi {}! It's {}.", subject.name, self.name)
+    }
+    fn new(name: impl ToString) -> Self {
+        Self {
+            name: name.to_string(),
+            pending: Box::new(future::ok(())),
+        }
     }
 }
 
-#[derive(Clone)]
-struct BoxSvc2 {
-    name: String,
-}
-impl Svc for BoxSvc2 {
-    type Future = Box<Future<Item = (), Error = ()>>;
-    fn handle(&self, subject: Subject) -> Self::Future {
-        Box::new(future::ok(println!(
-            "Hi {}! My name is {}.",
-            subject.name, self.name
-        )))
+impl Future for MyReceiver {
+    type Item = Self;
+    type Error = Self;
+    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        Ok(Async::Ready(MyReceiver::new(&self.name)))
     }
 }
 
-struct Server<S> {
-    service: S,
-}
-
-impl<S> Server<S>
-where
-    S: Svc,
-    S::Future: Future<Item = (), Error = ()> + Send + 'static,
-{
-    pub fn run(&self) -> impl Future<Item = (), Error = ()> {
-        let subject = Subject {
-            name: "Gandalf".into(),
-        };
-        let spawn = tokio::spawn(self.service.handle(subject));
-        spawn.into_future()
+impl Sink for MyReceiver {
+    type SinkItem = Subject;
+    type SinkError = ();
+    fn start_send(&mut self, item: Self::SinkItem) -> StartSend<Self::SinkItem, Self::SinkError> {
+        self.say_hi(item);
+        Ok(AsyncSink::Ready)
+    }
+    fn poll_complete(&mut self) -> Poll<(), Self::SinkError> {
+        Ok(Async::Ready(()))
     }
 }
 
 #[test]
-fn server_works() {
-    // this works, but only because we know exactly te future type
-    // and as such it's not flexible at all
-    let srv1 = Server {
-        service: SizedSvc {
-            name: "Zorg".into(),
-        },
-    };
-    let _srv2 = Server {
-        service: BoxSvc1 {
-            name: "Darth".into(),
-        },
-    };
-    let _srv3 = Server {
-        service: BoxSvc2 {
-            name: "Shadow".into(),
-        },
-    };
-    tokio::run(future::ok(srv1).and_then(|s| s.run()));
-    //tokio::run(future::ok(srv2).and_then(|s| s.run()));
-    //tokio::run(future::ok(srv3).and_then(|s| s.run()));
+pub fn try() {
+    let svc = MySvc { name: "jOy".into() };
+
+    let task = future::ok(svc)
+        .and_then(|s| {
+            s.start().and_then(|r| {
+                let subject = Subject {
+                    name: "Miou".into(),
+                };
+                let task = stream::once(Ok::<Subject, ()>(subject))
+                    .forward(r)
+                    .map_err(|_| ())
+                    .and_then(|_| Ok(()));
+                tokio::spawn(task);
+                Ok(())
+            })
+        })
+        .and_then(|_| Ok(()))
+        .map_err(|_| ());
+
+    tokio::run(task);
 }
