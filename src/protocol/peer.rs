@@ -1,4 +1,3 @@
-use model::controll::ClientControll;
 use model::controll::ServerControll;
 use std::net::SocketAddr;
 use tokio::prelude::*;

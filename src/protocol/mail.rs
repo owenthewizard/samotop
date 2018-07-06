@@ -1,13 +1,11 @@
-use bytes::{Buf, Bytes, BytesMut, IntoBuf};
-use futures::sink;
+use bytes::Bytes;
 use futures::StartSend;
 use model::controll::{ClientControll, ServerControll};
 use model::response::SmtpReply;
 use model::session::Session;
 use service::MailService;
-use std::mem;
-use tokio::io;
 use tokio::prelude::*;
+use tokio::io;
 use util::futu::*;
 
 pub trait IntoMail
@@ -48,7 +46,7 @@ where
             stream,
             service,
             state: Session::new(),
-            write: EventualSink { sink: None },
+            write: EventualSink::new(),
         }
     }
 

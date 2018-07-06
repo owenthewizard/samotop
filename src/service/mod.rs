@@ -1,15 +1,16 @@
-pub mod dead;
-pub mod echo;
-pub mod mail;
 pub mod console;
+pub mod dead;
+pub mod samotop;
 
 use model::session::Session;
-use tokio::net::TcpStream;
 
-pub trait SamotopService {
-    fn handle(self, TcpStream);
+/** Handles TCP connections */
+pub trait TcpService2 {
+    type Handler;
+    fn start(&self) -> Self::Handler;
 }
 
+/** Handles mail sending and has a name */
 pub trait MailService {
     type MailDataWrite;
     fn name(&mut self) -> &str;

@@ -6,7 +6,7 @@ use std::iter;
 use tokio;
 
 #[test]
-fn run() {
+pub fn run() {
     let x = X;
     let (sink, stream) = S { i: 4, j: 0 }.split();
 

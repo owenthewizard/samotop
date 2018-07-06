@@ -1,54 +1,26 @@
-use futures::future;
 use model::server::SamotopServer;
 use server;
-use service::SamotopService;
-use tokio::prelude::Future;
-
-pub struct Samotop<S>
-where
-    S: SamotopService + Clone,
-{
-    pub default_port: &'static str,
-    pub default_service: S,
-}
-
-impl<S> Samotop<S>
-where
-    S: SamotopService + Clone,
-{
-    pub fn with<SX>(&self, factory: SX) -> SamotopBuilder<SX>
-    where
-        SX: SamotopService + Clone + Send + Sync + 'static,
-    {
-        SamotopBuilder::new(self.default_port.into(), factory)
-    }
-}
+use service::TcpService2;
+use tokio::io;
+use tokio::net::TcpStream;
+use tokio::prelude::*;
 
 #[derive(Clone)]
-pub struct SamotopBuilder<S>
-where
-    S: SamotopService + Clone,
-{
+pub struct SamotopBuilder<S> {
     default_port: String,
     ports: Vec<String>,
-    factory: S,
+    service: S,
 }
 
-impl<S> SamotopBuilder<S>
-where
-    S: SamotopService + Clone + Send + Sync + 'static,
-{
-    pub fn new(default_port: String, factory: S) -> Self {
+impl<S> SamotopBuilder<S> {
+    pub fn new(default_port: impl ToString, service: S) -> Self {
         Self {
-            default_port,
+            default_port: default_port.to_string(),
             ports: vec![],
-            factory,
+            service,
         }
     }
-    pub fn with<SX>(self, factory: SX) -> SamotopBuilder<SX>
-    where
-        SX: SamotopService + Clone,
-    {
+    pub fn with<SX>(self, service: SX) -> SamotopBuilder<SX> {
         let Self {
             default_port,
             ports,
@@ -56,11 +28,14 @@ where
         } = self;
         SamotopBuilder {
             default_port,
-            factory,
+            service,
             ports,
         }
     }
-    pub fn on(self, port: impl ToString) -> Self {
+    pub fn on(self, port: impl ToString) -> Self
+    where
+        S: Clone,
+    {
         let mut me = self.clone();
         me.ports.push(port.to_string());
         me
@@ -68,17 +43,23 @@ where
     pub fn on_all<P>(self, ports: impl IntoIterator<Item = P>) -> Self
     where
         P: ToString,
+        S: Clone,
     {
         let mut me = self.clone();
         me.ports
             .extend(ports.into_iter().map(|port| port.to_string()));
         me
     }
-    pub fn as_task(self) -> impl Future<Item = (), Error = ()> {
+    pub fn as_task(self) -> impl Future<Item = (), Error = ()>
+    where
+        S: TcpService2 + Clone + Send + 'static,
+        S::Handler: Send,
+        S::Handler: Sink<SinkItem = TcpStream, SinkError = io::Error>,
+    {
         let Self {
             default_port,
             ports,
-            factory,
+            service,
         } = self;
         let ports = match ports.len() {
             0 => vec![default_port],
@@ -87,7 +68,7 @@ where
         future::join_all(ports.into_iter().map(move |addr| {
             server::serve(SamotopServer {
                 addr,
-                factory: factory.clone(),
+                service: service.clone(),
             })
         })).map(|_| ())
     }
