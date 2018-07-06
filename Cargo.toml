@@ -6,6 +6,33 @@ build = "src/peg.rs"
 exclude = [
     "downloads/*"
 ]
+description = "SMTP server and library built on tokio"
+documentation = "https://gitlab.com/BrightOpen/BackYard/Samotop/"
+homepage = "https://gitlab.com/BrightOpen/BackYard/Samotop/"
+repository = "https://gitlab.com/BrightOpen/BackYard/Samotop/"
+readme = "README.md"
+keywords = ["smtp", "tokio", "server", "parser", "PEG"]
+
+# see crates.io/category_slugs
+categories = ["email", "asynchronous", "network-programming", "parser-implementations"]
+
+# This is an SPDX 2.1 license expression for this package.  Currently
+# crates.io will validate the license provided against a whitelist of
+# known license and exception identifiers from the SPDX license list
+# 2.4.  Parentheses are not currently supported.
+#
+# Multiple licenses can be separated with a `/`, although that usage
+# is deprecated.  Instead, use a license expression with AND and OR
+# operators to get more explicit semantics.
+license = "MIT"
+
+# If a project is using a nonstandard license, then this key may be specified in
+# lieu of the above key and must point to a file relative to this manifest
+# (similar to the readme key).
+license-file = "LICENSE"
+
+[badges]
+gitlab = { repository = "https://gitlab.com/BrightOpen/BackYard/Samotop", branch = "develop" }
 
 [dependencies]
 log = "0.4"
