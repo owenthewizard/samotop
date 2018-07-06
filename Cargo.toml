@@ -1,6 +1,6 @@
 [package]
 name = "samotop"
-version = "0.3.1"
+version = "0.3.2"
 authors = ["jocutajar <tellnoone@robajz.info>"]
 build = "src/peg.rs"
 exclude = [
@@ -32,7 +32,7 @@ license = "MIT"
 license-file = "LICENSE"
 
 [badges]
-gitlab = { repository = "https://gitlab.com/BrightOpen/BackYard/Samotop", branch = "develop" }
+gitlab = { repository = "BrightOpen/BackYard/Samotop", branch = "develop" }
 
 [dependencies]
 log = "0.4"
