@@ -59,11 +59,14 @@ impl Session {
     }
     pub fn data_end(&mut self) -> &mut Self {
         trace!("watching data finishing up!");
-        self.state = State::New;
+        self.state = match self.state {
+            State::New => State::New,
+            _ => State::Helo,
+        };
         self.rcpts.clear();
         self.mail = None;
-        self.helo = None;
-        self
+        // leaving helo as is
+        self.say_ok()
     }
     pub fn data(&mut self, _data: Bytes) -> &mut Self {
         trace!("watching data pass by!");
@@ -151,8 +154,12 @@ impl Session {
         // reset bufers
         self.rcpts.clear();
         self.mail = None;
+        // leaving helo as is
         //set new state
-        self.state = State::Helo;
+        self.state = match self.state {
+            State::New => State::New,
+            _ => State::Helo,
+        };
         self.say_ok()
     }
     pub fn cmd_noop(&mut self) -> &mut Self {

@@ -3,12 +3,8 @@ pub mod dead;
 pub mod samotop;
 
 use model::session::Session;
-use tokio::net::TcpStream;
 
 /** Handles TCP connections */
-pub trait TcpService {
-    fn handle(self, TcpStream);
-}
 pub trait TcpService2 {
     type Handler;
     fn start(&self) -> Self::Handler;

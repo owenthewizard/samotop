@@ -3,12 +3,10 @@ use tokio::io;
 use tokio::net::TcpStream;
 use tokio::prelude::*;
 
+#[doc = "Dummy TCP service for samotop server"]
 #[derive(Clone, Debug)]
 pub struct DeadService;
 
-impl TcpService for DeadService {
-    fn handle(self, _socket: TcpStream) {}
-}
 impl TcpService2 for DeadService {
     type Handler = Self;
     fn start(&self) -> Self::Handler {

@@ -1,5 +1,5 @@
 use futures::stream;
-use model::next::{SamotopListener, SamotopPort, SamotopServer};
+use model::server::{SamotopListener, SamotopPort, SamotopServer};
 use service::TcpService2;
 use std::net::ToSocketAddrs;
 use tokio;
@@ -73,10 +73,8 @@ where
     listener
         .incoming()
         .forward(handler)
-        //.map_err(move |e| error!("error accepting on {:?}: {:?}", local, e))
-        //.for_each(move |socket| Ok(service.clone().handle(socket)))
         .then(move |result| match result {
-            Ok((_i,_h)) => Ok(info!("done accepting on {:?}", local)),
+            Ok((_i, _h)) => Ok(info!("done accepting on {:?}", local)),
             Err(e) => Err(error!("done accepting on {:?} with error: {:?}", local, e)),
         })
 }
