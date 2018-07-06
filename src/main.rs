@@ -11,7 +11,7 @@ fn main() {
 
     let opt = Opt::from_args();
 
-    tokio::run(samotop::builder()
+    tokio::run(samotop::next()
             //.with(samotop::service::echo::EchoService)
             //.with(samotop::service::samotop::SamotopService::new("wooohoo"))
             .on_all(opt.ports)

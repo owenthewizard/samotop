@@ -1,7 +1,6 @@
 use futures::stream;
 use model::next::{SamotopListener, SamotopPort, SamotopServer};
 use service::TcpService2;
-use std::fmt::Debug;
 use std::net::ToSocketAddrs;
 use tokio;
 use tokio::io;
@@ -13,7 +12,6 @@ where
     S: Clone + Send + 'static,
     S: TcpService2,
     S::Handler: Sink<SinkItem = TcpStream, SinkError = io::Error>,
-    S::Handler: Debug,
     S::Handler: Send,
 {
     resolve(server)
@@ -26,7 +24,6 @@ where
     S: Clone,
     S: TcpService2,
     S::Handler: Sink<SinkItem = TcpStream, SinkError = io::Error>,
-    S::Handler: Debug,
 {
     let SamotopServer { addr, service } = server;
     stream::once(addr.to_socket_addrs())
@@ -49,7 +46,6 @@ where
     S: Clone,
     S: TcpService2,
     S::Handler: Sink<SinkItem = TcpStream, SinkError = io::Error>,
-    S::Handler: Debug,
 {
     let SamotopPort {
         addr: local,
@@ -70,7 +66,6 @@ pub fn accept<S>(listener: SamotopListener<S>) -> impl Future<Item = (), Error =
 where
     S: TcpService2,
     S::Handler: Sink<SinkItem = TcpStream, SinkError = io::Error>,
-    S::Handler: Debug,
 {
     let SamotopListener { listener, service } = listener;
     let local = listener.local_addr().ok();
@@ -81,7 +76,7 @@ where
         //.map_err(move |e| error!("error accepting on {:?}: {:?}", local, e))
         //.for_each(move |socket| Ok(service.clone().handle(socket)))
         .then(move |result| match result {
-            Ok((_i,h)) => Ok(info!("done accepting on {:?}, handler: {:?}", local, h)),
+            Ok((_i,_h)) => Ok(info!("done accepting on {:?}", local)),
             Err(e) => Err(error!("done accepting on {:?} with error: {:?}", local, e)),
         })
 }

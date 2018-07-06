@@ -1,6 +1,5 @@
 pub mod console;
 pub mod dead;
-pub mod echo;
 pub mod samotop;
 
 use model::session::Session;

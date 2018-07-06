@@ -1,9 +1,8 @@
 extern crate samotop;
 extern crate tokio;
 
-use tokio::prelude::*;
-
 #[test]
+#[ignore]
 pub fn use_dead_service() {
     let service = samotop::service::dead::DeadService;
     let server = samotop::model::next::SamotopServer {
