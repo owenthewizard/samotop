@@ -1,7 +1,7 @@
+pub mod console;
 pub mod dead;
 pub mod echo;
 pub mod samotop;
-pub mod console;
 
 use model::session::Session;
 use tokio::net::TcpStream;

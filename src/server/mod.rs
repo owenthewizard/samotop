@@ -15,12 +15,7 @@ where
 {
     resolve(server)
         .map_err(|e| error!("{}", e))
-        .for_each(|port| {
-            tokio::spawn(bind(port).and_then(accept));
-            Ok(())
-        })
-
-    //            tokio::spawn(accept(listener));
+        .for_each(|port| tokio::spawn(bind(port).and_then(accept)))
 }
 
 pub fn resolve<S>(server: SamotopServer<S>) -> impl Stream<Item = SamotopPort<S>, Error = io::Error>
@@ -73,13 +68,7 @@ where
         .map_err(move |e| error!("error accepting on {:?}: {:?}", local, e))
         .for_each(move |socket| Ok(service.clone().handle(socket)))
         .then(move |result| match result {
-            Ok(_) => {
-                info!("done accepting on {:?}, {:?}", local, result);
-                Ok(())
-            }
-            Err(e) => {
-                error!("done accepting on {:?} with error: {:?}", result, e);
-                Err(())
-            }
+            Ok(_) => Ok(info!("done accepting on {:?}, {:?}", local, result)),
+            Err(e) => Err(error!("done accepting on {:?} with error: {:?}", result, e)),
         })
 }
