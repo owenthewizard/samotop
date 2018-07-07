@@ -1,14 +1,15 @@
 extern crate samotop;
-extern crate tokio;
 
 #[test]
-#[ignore]
 fn use_dead_service() {
-    let service = samotop::service::dead::DeadService;
-    let server = samotop::model::server::SamotopServer {
-        addr: "invalid name:99999999".into(),
-        service,
-    };
-    let task = samotop::server::serve(server);
-    tokio::run(task);
+    let _ = samotop::builder()
+        .with(samotop::service::dead::DeadService)
+        .as_task();
+}
+
+#[test]
+fn use_samotop_service() {
+    let _ = samotop::builder()
+        .with(samotop::service::samotop::SamotopService::new("name"))
+        .as_task();
 }

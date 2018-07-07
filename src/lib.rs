@@ -1,11 +1,22 @@
 //! # Status
+//! 
 //! The API is still very much subject to change. Until you see the release of version 1.0.0, don't expect much stability.
 //! See the README.md file and project open issues for current status.
-//!
-//! # Usage
+//! 
 //! The use case of running the server as a standalone application should be described in the README.md (tbd)
 //! Here we focus on using the library.
 //!
+//! # Installation
+//!
+//! Add this to your `Cargo.toml`:
+//!
+//! ```toml
+//! [dependencies]
+//! samotop = "0.4"
+//! ```
+//! 
+//! # Usage
+//! 
 //! There are a few interesting provisions one could take away here:
 //! * The server (through `samotop::builder()`) - it takes IP:port's to listen `on()` and you can use it `with()` your own implementation of `TcpService`.
 //! * The SMTP service (`SamotopService`) - it takes a `tokio::net::TcpStream` into the `Sink` created by `start()`.
@@ -19,7 +30,7 @@
 //! # Builder
 //! The simplest way is to run the server with a builder:
 //!
-//! ```
+//! ```no_run
 //! extern crate env_logger;
 //! extern crate samotop;
 //! extern crate tokio;

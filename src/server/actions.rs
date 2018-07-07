@@ -9,11 +9,23 @@ use tokio::io;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::prelude::*;
 
+/// Create a builder that can configure a samotop server and make it runnable as a task.
+/// Each listener is executed as a separate task, but they are all joined into one future.
+///
+/// Example of creating a samotop server task (`Future<Item=(),Error=()>`):
+/// ```
+///     samotop::builder()
+///              // SamotopService is the default, but you can set your own name here.
+///             .with(samotop::service::samotop::SamotopService::new("MySamotop"))
+///             .on("1.1.1.1:25")
+///             .as_task();
+/// ```
 pub fn builder() -> SamotopBuilder<SamotopService> {
     SamotopBuilder::new("localhost:25", SamotopService::new("Samotop"))
 }
 
-pub fn serve<S>(server: SamotopServer<S>) -> impl Future<Item = (), Error = ()>
+/// Start the server, spawning each listener as a separate task.
+pub(crate) fn serve<S>(server: SamotopServer<S>) -> impl Future<Item = (), Error = ()>
 where
     S: Clone + Send + 'static,
     S: TcpService,
@@ -25,7 +37,10 @@ where
         .for_each(|port| tokio::spawn(bind(port).and_then(accept)))
 }
 
-pub fn resolve<S>(server: SamotopServer<S>) -> impl Stream<Item = SamotopPort<S>, Error = io::Error>
+/// Resolve `SamotopServer` addr into `SamotopPort`s
+pub(crate) fn resolve<S>(
+    server: SamotopServer<S>,
+) -> impl Stream<Item = SamotopPort<S>, Error = io::Error>
 where
     S: Clone,
     S: TcpService,
@@ -47,7 +62,8 @@ where
         })
 }
 
-pub fn bind<S>(port: SamotopPort<S>) -> impl Future<Item = SamotopListener<S>, Error = ()>
+// Bind the samotop TCP port
+pub(crate) fn bind<S>(port: SamotopPort<S>) -> impl Future<Item = SamotopListener<S>, Error = ()>
 where
     S: Clone,
     S: TcpService,
@@ -68,7 +84,8 @@ where
         })
 }
 
-pub fn accept<S>(listener: SamotopListener<S>) -> impl Future<Item = (), Error = ()>
+/// Accept incomming TCP connections and forward them to the handler sink created by TcpService
+pub(crate) fn accept<S>(listener: SamotopListener<S>) -> impl Future<Item = (), Error = ()>
 where
     S: TcpService,
     S::Handler: Sink<SinkItem = TcpStream, SinkError = io::Error>,

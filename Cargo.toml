@@ -1,13 +1,13 @@
 [package]
 name = "samotop"
-version = "0.4.2"
+version = "0.4.3"
 authors = ["jocutajar <tellnoone@robajz.info>"]
 build = "src/peg.rs"
 exclude = [
     "downloads/*"
 ]
 description = "SMTP server and library built on tokio"
-documentation = "https://gitlab.com/BrightOpen/BackYard/Samotop/"
+documentation = "https://docs.rs/samotop/"
 homepage = "https://gitlab.com/BrightOpen/BackYard/Samotop/"
 repository = "https://gitlab.com/BrightOpen/BackYard/Samotop/"
 readme = "README.md"
