@@ -12,8 +12,8 @@ fn main() {
     let opt = Opt::from_args();
 
     tokio::run(samotop::builder()
-            //.with(samotop::service::echo::EchoService)
-            //.with(samotop::service::samotop::SamotopService::new("wooohoo"))
+            //SamotopService is the default, but you can set your own name here.
+            .with(samotop::service::samotop::SamotopService::new("MySamotop"))
             .on_all(opt.ports)
             .as_task());
 }

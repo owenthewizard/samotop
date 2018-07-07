@@ -1,5 +1,5 @@
 use futures::StartSend;
-use service::TcpService2;
+use service::TcpService;
 use protocol::*;
 use service::console::ConsoleMail;
 use grammar::SmtpParser;
@@ -20,7 +20,7 @@ impl SamotopService {
     }
 }
 
-impl TcpService2 for SamotopService {
+impl TcpService for SamotopService {
     type Handler = SamotopHandler;
     fn start(&self) -> Self::Handler {
         SamotopHandler::new(&self.name)

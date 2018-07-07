@@ -1,6 +1,6 @@
 use futures::stream;
 use model::server::{SamotopListener, SamotopPort, SamotopServer};
-use service::TcpService2;
+use service::TcpService;
 use std::net::ToSocketAddrs;
 use tokio;
 use tokio::io;
@@ -10,7 +10,7 @@ use tokio::prelude::*;
 pub fn serve<S>(server: SamotopServer<S>) -> impl Future<Item = (), Error = ()>
 where
     S: Clone + Send + 'static,
-    S: TcpService2,
+    S: TcpService,
     S::Handler: Sink<SinkItem = TcpStream, SinkError = io::Error>,
     S::Handler: Send,
 {
@@ -22,7 +22,7 @@ where
 pub fn resolve<S>(server: SamotopServer<S>) -> impl Stream<Item = SamotopPort<S>, Error = io::Error>
 where
     S: Clone,
-    S: TcpService2,
+    S: TcpService,
     S::Handler: Sink<SinkItem = TcpStream, SinkError = io::Error>,
 {
     let SamotopServer { addr, service } = server;
@@ -44,7 +44,7 @@ where
 pub fn bind<S>(port: SamotopPort<S>) -> impl Future<Item = SamotopListener<S>, Error = ()>
 where
     S: Clone,
-    S: TcpService2,
+    S: TcpService,
     S::Handler: Sink<SinkItem = TcpStream, SinkError = io::Error>,
 {
     let SamotopPort {
@@ -64,7 +64,7 @@ where
 
 pub fn accept<S>(listener: SamotopListener<S>) -> impl Future<Item = (), Error = ()>
 where
-    S: TcpService2,
+    S: TcpService,
     S::Handler: Sink<SinkItem = TcpStream, SinkError = io::Error>,
 {
     let SamotopListener { listener, service } = listener;

@@ -5,7 +5,7 @@ pub mod samotop;
 use model::session::Session;
 
 /** Handles TCP connections */
-pub trait TcpService2 {
+pub trait TcpService {
     type Handler;
     fn start(&self) -> Self::Handler;
 }
