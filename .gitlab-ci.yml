@@ -24,8 +24,14 @@ test:
   script:
     - rustc --version && cargo --version
     - cargo test --all --release
+  cache:
+    paths:
+      - target/
 
 publish:
   stage: deploy
   script:
     - cargo login "$CRATES_KEY" && cargo publish
+  cache:
+    paths:
+      - target/
