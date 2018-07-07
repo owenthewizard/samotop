@@ -53,7 +53,7 @@ impl Sink for SamotopHandler {
         info!("got an item");
 
         let task = src
-            .peer(peer)
+            .peer(local, peer)
             .parse(SmtpParser)
             .mail(ConsoleMail::new(Some(self.name.clone())))
             // prevent polling after shutdown

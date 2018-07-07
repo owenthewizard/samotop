@@ -4,8 +4,8 @@ use model::controll::{ClientControll, ServerControll};
 use model::response::SmtpReply;
 use model::session::Session;
 use service::MailService;
-use tokio::prelude::*;
 use tokio::io;
+use tokio::prelude::*;
 use util::futu::*;
 
 pub trait IntoMail
@@ -58,17 +58,26 @@ where
         W: Sink<SinkItem = Bytes, SinkError = S::Error>,
     {
         let ctrl = match self.state.answer() {
-            None => {
-                return None;
-            }
+            None => return None,
             Some(ctrl) => ctrl,
         };
         trace!("Answer: {:?}", ctrl);
         match ctrl {
             a @ ClientControll::AcceptData => {
-                match self.write.set(self.service.send(&self.state)) {
-                    Err(_) => Some(reply_mail_not_accepted()),
-                    Ok(()) => Some(a),
+                let envelope = self.state.extract_envelope();
+                let write = self.service.send(envelope);
+                match write {
+                    None => {
+                        // service did not accept the mail envelop
+                        self.write.set(write);
+                        self.state.cancel();
+                        Some(reply_mail_not_accepted())
+                    }
+                    Some(_) => {
+                        // service accepted the mail envelop
+                        self.write.set(write);
+                        Some(a)
+                    }
                 }
             }
             a => Some(a),
@@ -161,9 +170,8 @@ impl<W> EventualSink<W> {
     pub fn new() -> Self {
         Self { sink: None }
     }
-    pub fn set(&mut self, sink: Option<W>) -> io::Result<()> {
+    pub fn set(&mut self, sink: Option<W>) {
         self.sink = sink;
-        Ok(())
     }
 }
 

@@ -2,7 +2,7 @@ use super::MailService;
 use bytes::Bytes;
 use futures::{Async, AsyncSink, Poll, StartSend};
 use hostname::get_hostname;
-use model::session::Session;
+use model::mail::Envelope;
 use tokio::io;
 use tokio::prelude::*;
 
@@ -24,22 +24,35 @@ impl MailService for ConsoleMail {
             Some(hostname) => hostname,
         })
     }
-    fn send(&mut self, session: &Session) -> Option<Self::MailDataWrite> {
-        if let (Some(mail), Some(helo), Some(peer)) =
-            (session.mail(), session.helo(), session.peer())
-        {
-            println!(
-                "Mail from {} (helo: {}) (peer: {}) for {}",
-                mail.from(),
-                helo.name(),
-                peer,
-                session
-                    .rcpts()
-                    .fold(String::new(), |s, r| s + format!("{}, ", r).as_ref())
-            );
-            Some(MailSink)
-        } else {
-            None
+    fn send(&mut self, envelope: Envelope) -> Option<Self::MailDataWrite> {
+        match envelope {
+            Envelope {
+                ref name,
+                peer: Some(ref peer),
+                local: Some(ref local),
+                helo: Some(ref helo),
+                mail: Some(ref mail),
+                ref rcpts,
+            } if rcpts.len() != 0 =>
+            {
+                println!(
+                    "Mail from {} (helo: {}) (peer: {}) for {} on {} ({} <- {})",
+                    mail.from(),
+                    helo.name(),
+                    peer,
+                    rcpts
+                        .iter()
+                        .fold(String::new(), |s, r| s + format!("{}, ", r).as_ref()),
+                    name,
+                    local,
+                    peer
+                );
+                Some(MailSink)
+            }
+            envelope => {
+                warn!("Incomplete envelope: {:?}", envelope);
+                None
+            }
         }
     }
 }

@@ -2,7 +2,7 @@ pub mod console;
 pub mod dead;
 pub mod samotop;
 
-use model::session::Session;
+use model::mail::Envelope;
 
 /** 
 An object implementing this trait handles TCP connections.
@@ -93,5 +93,5 @@ pub trait TcpService {
 pub trait MailService {
     type MailDataWrite;
     fn name(&mut self) -> &str;
-    fn send(&mut self, session: &Session) -> Option<Self::MailDataWrite>;
+    fn send(&mut self, envelope: Envelope) -> Option<Self::MailDataWrite>;
 }

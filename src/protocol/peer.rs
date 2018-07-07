@@ -7,9 +7,10 @@ pub trait HasPeer
 where
     Self: Sized,
 {
-    fn peer(self, peer: Option<SocketAddr>) -> WithPeer<Self> {
+    fn peer(self, local: Option<SocketAddr>, peer: Option<SocketAddr>) -> WithPeer<Self> {
         WithPeer {
             stream: self,
+            local,
             peer,
             connected: false,
             shutdown: false,
@@ -25,6 +26,7 @@ where
 
 pub struct WithPeer<S> {
     stream: S,
+    local: Option<SocketAddr>,
     peer: Option<SocketAddr>,
     connected: bool,
     shutdown: bool,
@@ -39,7 +41,10 @@ where
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
         if !self.connected {
             self.connected = true;
-            return ok(ServerControll::PeerConnected(self.peer));
+            return ok(ServerControll::PeerConnected {
+                local: self.local,
+                peer: self.peer,
+            });
         }
 
         match try_ready!(self.stream.poll()) {
@@ -47,7 +52,7 @@ where
                 true => none(),
                 false => {
                     self.shutdown = true;
-                    ok(ServerControll::PeerShutdown(self.peer))
+                    ok(ServerControll::PeerShutdown)
                 }
             },
             Some(c) => ok(c),
