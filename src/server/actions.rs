@@ -1,11 +1,17 @@
 use futures::stream;
 use model::server::{SamotopListener, SamotopPort, SamotopServer};
+use server::builder::SamotopBuilder;
+use service::samotop::SamotopService;
 use service::TcpService;
 use std::net::ToSocketAddrs;
 use tokio;
 use tokio::io;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::prelude::*;
+
+pub fn builder() -> SamotopBuilder<SamotopService> {
+    SamotopBuilder::new("localhost:25", SamotopService::new("Samotop"))
+}
 
 pub fn serve<S>(server: SamotopServer<S>) -> impl Future<Item = (), Error = ()>
 where
