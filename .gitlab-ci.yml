@@ -30,8 +30,12 @@ test:
 
 publish:
   stage: deploy
+  only:
+    - master
+  except:
+    - schedules
   script:
-    - cargo login "$CRATES_KEY" && cargo publish
+    - cargo publish --token "$CRATES_KEY"
   cache:
     paths:
       - target/
