@@ -63,6 +63,7 @@ impl Encoder for LineCodec {
             ClientControll::Noop => return Ok(()),
             ClientControll::Shutdown => return Ok(()),
             ClientControll::AcceptData => return Ok(()),
+            ClientControll::QueueMail => return Ok(()),
             ClientControll::Reply(line) => line.to_string(),
         };
 

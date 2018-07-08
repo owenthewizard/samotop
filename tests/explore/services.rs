@@ -1,7 +1,4 @@
-use bytes::Bytes;
 use tokio;
-use tokio::io;
-use tokio::net::TcpStream;
 use tokio::prelude::*;
 
 trait TcpService: Copy {

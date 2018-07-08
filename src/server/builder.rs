@@ -50,11 +50,9 @@ impl<S> SamotopBuilder<S> {
             .extend(ports.into_iter().map(|port| port.to_string()));
         me
     }
-    pub fn as_task(self) -> impl Future<Item = (), Error = ()>
+    pub fn as_servers(self) -> impl Iterator<Item = SamotopServer<S>>
     where
-        S: TcpService + Clone + Send + 'static,
-        S::Handler: Send,
-        S::Handler: Sink<SinkItem = TcpStream, SinkError = io::Error>,
+        S: Clone,
     {
         let Self {
             default_port,
@@ -65,11 +63,17 @@ impl<S> SamotopBuilder<S> {
             0 => vec![default_port],
             _ => ports,
         };
-        future::join_all(ports.into_iter().map(move |addr| {
-            server::serve(SamotopServer {
-                addr,
-                service: service.clone(),
-            })
-        })).map(|_| ())
+        ports.into_iter().map(move |addr| SamotopServer {
+            addr,
+            service: service.clone(),
+        })
+    }
+    pub fn as_task(self) -> impl Future<Item = (), Error = ()>
+    where
+        S: TcpService + Clone + Send + 'static,
+        S::Handler: Send,
+        S::Handler: Sink<SinkItem = TcpStream, SinkError = io::Error>,
+    {
+        future::join_all(self.as_servers().map(server::serve)).map(|_| ())
     }
 }

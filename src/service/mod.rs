@@ -1,7 +1,7 @@
 pub mod mail;
 pub mod tcp;
 
-use model::mail::Envelope;
+use model::mail::*;
 
 /** 
 An object implementing this trait handles TCP connections.
@@ -90,7 +90,12 @@ pub trait TcpService {
 
 /** Handles mail sending and has a name */
 pub trait MailService {
-    type MailDataWrite;
-    fn name(&mut self) -> &str;
-    fn send(&mut self, envelope: Envelope) -> Option<Self::MailDataWrite>;
+    type MailDataWrite: MailHandler;
+    fn name(&self) -> String;
+    fn accept(&self, rcpt: AcceptRecipientRequest) -> AcceptRecipientResult;
+    fn mail(&self, envelope: Envelope) -> Option<Self::MailDataWrite>;
+}
+
+pub trait MailHandler {
+    fn into_queue(self) -> QueueResult;
 }

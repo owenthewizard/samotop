@@ -1,8 +1,8 @@
-use super::MailService;
 use bytes::Bytes;
 use futures::{Async, AsyncSink, Poll, StartSend};
 use hostname::get_hostname;
-use model::mail::Envelope;
+use model::mail::*;
+use service::*;
 use tokio::io;
 use tokio::prelude::*;
 
@@ -24,13 +24,20 @@ impl ConsoleMail {
 
 impl MailService for ConsoleMail {
     type MailDataWrite = MailSink;
-    fn name(&mut self) -> &str {
-        self.name.get_or_insert_with(|| match get_hostname() {
-            None => "Samotop".into(),
-            Some(hostname) => hostname,
-        })
+    fn name(&self) -> String {
+        match self.name {
+            None => match get_hostname() {
+                None => "Samotop".into(),
+                Some(name) => name,
+            },
+            Some(ref name) => name.clone(),
+        }
     }
-    fn send(&mut self, envelope: Envelope) -> Option<Self::MailDataWrite> {
+    fn accept(&self, rcpt: AcceptRecipientRequest) -> AcceptRecipientResult {
+        println!("Accepting recipient {:?}", rcpt);
+        AcceptRecipientResult::Accepted
+    }
+    fn mail(&self, envelope: Envelope) -> Option<Self::MailDataWrite> {
         match envelope {
             Envelope {
                 ref name,
@@ -38,13 +45,15 @@ impl MailService for ConsoleMail {
                 local: Some(ref local),
                 helo: Some(ref helo),
                 mail: Some(ref mail),
+                ref id,
                 ref rcpts,
             } if rcpts.len() != 0 =>
             {
                 println!(
-                    "Mail from {} (helo: {}) (peer: {}) for {} on {} ({} <- {})",
+                    "Mail from {} (helo: {}, mailid: {}) (peer: {}) for {} on {} ({} <- {})",
                     mail.from(),
                     helo.name(),
+                    id,
                     peer,
                     rcpts
                         .iter()
@@ -53,7 +62,7 @@ impl MailService for ConsoleMail {
                     local,
                     peer
                 );
-                Some(MailSink)
+                Some(MailSink { id: id.clone() })
             }
             envelope => {
                 warn!("Incomplete envelope: {:?}", envelope);
@@ -63,16 +72,25 @@ impl MailService for ConsoleMail {
     }
 }
 
-pub struct MailSink;
+pub struct MailSink {
+    id: String,
+}
 
 impl Sink for MailSink {
     type SinkItem = Bytes;
     type SinkError = io::Error;
     fn start_send(&mut self, bytes: Self::SinkItem) -> StartSend<Self::SinkItem, Self::SinkError> {
-        println!("Mail data: {:?}", bytes);
+        println!("Mail data for {}: {:?}", self.id, bytes);
         Ok(AsyncSink::Ready)
     }
     fn poll_complete(&mut self) -> Poll<(), Self::SinkError> {
         Ok(Async::Ready(()))
+    }
+}
+
+impl MailHandler for MailSink {
+    fn into_queue(self) -> QueueResult {
+        println!("Mail data finished for {}", self.id);
+        QueueResult::QueuedWithId(self.id)
     }
 }

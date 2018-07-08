@@ -73,6 +73,7 @@ extern crate futures;
 extern crate hostname;
 extern crate tokio;
 extern crate tokio_codec;
+extern crate uuid;
 
 pub mod grammar;
 pub mod model;

@@ -5,6 +5,7 @@ use model::mail::*;
 use model::response::SmtpReply;
 use std::collections::VecDeque;
 use std::net::SocketAddr;
+use uuid::Uuid;
 
 #[derive(Clone)]
 pub struct Session {
@@ -14,6 +15,7 @@ pub struct Session {
     local: Option<SocketAddr>,
     helo: Option<SmtpHelo>,
     mail: Option<SmtpMail>,
+    mailid: Uuid,
     rcpts: Vec<SmtpPath>,
     answers: VecDeque<ClientControll>,
 }
@@ -36,6 +38,7 @@ impl Session {
             local: None,
             helo: None,
             mail: None,
+            mailid: Uuid::new_v4(),
             rcpts: vec![],
             answers: vec![].into(),
         }
@@ -97,6 +100,19 @@ impl Session {
             helo: self.helo.clone(),
             mail: self.mail.clone(),
             rcpts: self.rcpts.clone(),
+            id: self.mailid.to_string(),
+        }
+    }
+    /// Returns a snapshot of the current mail session buffers.
+    pub fn extract_rcpt(&self, rcpt: &SmtpPath) -> AcceptRecipientRequest {
+        AcceptRecipientRequest {
+            name: self.name.clone(),
+            local: self.local.clone(),
+            peer: self.peer.clone(),
+            helo: self.helo.clone(),
+            mail: self.mail.clone(),
+            id: self.mailid.to_string(),
+            rcpt: rcpt.clone(),
         }
     }
 
@@ -109,7 +125,12 @@ impl Session {
         self.rcpts.clear();
         self.mail = None;
         // leaving helo as is
-        self.say_ok()
+        // TODO: need a better solution here.
+        //  - who is responsibile for the answers?
+        //self.say_ok()
+        let id = self.mailid.to_string();
+        self.say(ClientControll::QueueMail)
+            .say_reply(SmtpReply::OkMessageInfo(format!("Queued as {}", id)))
     }
     fn data(&mut self, _data: Bytes) -> &mut Self {
         trace!("watching data pass by!");
@@ -185,6 +206,8 @@ impl Session {
         }
     }
     fn cmd_helo(&mut self, helo: SmtpHelo) -> &mut Self {
+        // new mail ID
+        self.mailid = Uuid::new_v4();
         // reset bufers
         self.rcpts.clear();
         self.mail = None;

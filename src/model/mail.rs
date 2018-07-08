@@ -14,6 +14,8 @@ pub struct Envelope {
     pub helo: Option<SmtpHelo>,
     /// The SMTP mail from:path sent by peer
     pub mail: Option<SmtpMail>,
+    /// unique mail request identifier
+    pub id: String,
     /// A list of SMTP rcpt to:path sent by peer
     pub rcpts: Vec<SmtpPath>,
 }
@@ -31,6 +33,8 @@ pub struct AcceptRecipientRequest {
     pub helo: Option<SmtpHelo>,
     /// The SMTP mail from:path sent by peer
     pub mail: Option<SmtpMail>,
+    /// unique mail request identifier
+    pub id: String,
     /// The SMTP rcpt to:path sent by peer we want to check
     pub rcpt: SmtpPath,
 }
@@ -40,5 +44,13 @@ pub enum AcceptRecipientResult {
     Accepted,
     Rejected,
     AcceptedWithNewPath(SmtpPath),
-    RejectedWithNewPath(SmtpPath)
+    RejectedWithNewPath(SmtpPath),
+}
+
+/// Mail was queued with id
+#[derive(Debug)]
+pub enum QueueResult {
+    QueuedWithId(String),
+    Refused,
+    Failed,
 }
