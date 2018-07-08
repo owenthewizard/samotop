@@ -5,6 +5,7 @@ image: "rust:latest"
 stages:
   - build
   - test
+  - deploy
 
 build:
   stage: build
@@ -23,3 +24,18 @@ test:
   script:
     - rustc --version && cargo --version
     - cargo test --all --release
+  cache:
+    paths:
+      - target/
+
+publish:
+  stage: deploy
+  only:
+    - master
+  except:
+    - schedules
+  script:
+    - cargo publish --token "$CRATES_KEY"
+  cache:
+    paths:
+      - target/

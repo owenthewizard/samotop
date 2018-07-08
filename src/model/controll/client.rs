@@ -4,6 +4,7 @@ use model::response::SmtpReply;
 pub enum ClientControll {
     Shutdown,
     AcceptData,
+    QueueMail,
     Reply(SmtpReply),
     Noop,
 }

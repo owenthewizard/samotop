@@ -7,7 +7,7 @@ use tokio::prelude::*;
 #[derive(Clone, Debug)]
 pub struct DeadService;
 
-impl TcpService2 for DeadService {
+impl TcpService for DeadService {
     type Handler = Self;
     fn start(&self) -> Self::Handler {
         self.clone()

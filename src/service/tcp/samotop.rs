@@ -1,7 +1,8 @@
+use bytes::Bytes;
 use futures::StartSend;
-use service::TcpService2;
+use service::*;
 use protocol::*;
-use service::console::ConsoleMail;
+use service::mail::ConsoleMail;
 use grammar::SmtpParser;
 use tokio::io;
 use tokio::net::TcpStream;
@@ -9,39 +10,49 @@ use tokio::prelude::*;
 use tokio_codec::Decoder;
 
 #[doc = "A TCP service providing SMTP - Samotop"]
-#[derive(Clone)]
-pub struct SamotopService {
-    name: String,
+#[derive(Clone, Copy)]
+pub struct SamotopService<M> {
+    mail_service: M
 }
 
-impl SamotopService {
-    pub fn new(name: impl ToString) -> Self {
-        Self { name: name.to_string() }
+pub fn default()->SamotopService<ConsoleMail> {
+    SamotopService::new(ConsoleMail::default())
+}
+
+impl<M> SamotopService <M> {
+    pub fn new(mail_service:M) -> Self {
+        Self { mail_service }
+    }
+    pub fn serve<MX>(self, mail_service:MX) -> SamotopService<MX>{
+        SamotopService::new(mail_service)
     }
 }
 
-impl TcpService2 for SamotopService {
-    type Handler = SamotopHandler;
+impl<M> TcpService for SamotopService<M> where M:Clone{
+    type Handler = SamotopHandler<M>;
     fn start(&self) -> Self::Handler {
-        SamotopHandler::new(&self.name)
+        SamotopHandler::new(self.mail_service.clone())
     }
 }
 
-pub struct SamotopHandler {
-    name: String,
+pub struct SamotopHandler<M> {
+    mail_service: M,
     pending: Box<Future<Item = (), Error = io::Error> + Send + 'static>,
 }
 
-impl SamotopHandler {
-    pub fn new(name: impl ToString) -> Self {
-        SamotopHandler {
-            name: name.to_string(),
+impl<M> SamotopHandler<M> {
+    pub fn new(mail_service:M) -> Self {
+        Self {
+            mail_service,
             pending: Box::new(future::ok(())),
         }
     }
 }
 
-impl Sink for SamotopHandler {
+impl<M> Sink for SamotopHandler<M>
+ where M:MailService +Clone +Send +'static,
+    M::MailDataWrite:Sink<SinkItem = Bytes, SinkError = io::Error> + Send
+  {
     type SinkItem = TcpStream;
     type SinkError = io::Error;
 
@@ -53,9 +64,9 @@ impl Sink for SamotopHandler {
         info!("got an item");
 
         let task = src
-            .peer(peer)
+            .peer(local, peer)
             .parse(SmtpParser)
-            .mail(ConsoleMail::new(Some(self.name.clone())))
+            .mail(self.mail_service.clone())
             // prevent polling after shutdown
             .fuse_shutdown()
             // prevent polling of completed stream

@@ -1,11 +1,13 @@
 use bytes::Bytes;
 use futures::StartSend;
+use model::command::SmtpCommand;
 use model::controll::{ClientControll, ServerControll};
+use model::mail::*;
 use model::response::SmtpReply;
 use model::session::Session;
-use service::MailService;
-use tokio::prelude::*;
+use service::*;
 use tokio::io;
+use tokio::prelude::*;
 use util::futu::*;
 
 pub trait IntoMail
@@ -15,7 +17,7 @@ where
     fn mail<M, W>(self, service: M) -> Mail<Self, M, W>
     where
         M: MailService<MailDataWrite = W>,
-        W: Sink,
+        W: MailHandler + Sink,
     {
         Mail::new(self, service)
     }
@@ -29,24 +31,24 @@ where
 
 pub struct Mail<S, M, W>
 where
-    W: Sink,
+    W: MailHandler + Sink,
 {
     stream: S,
-    service: M,
+    mail_service: M,
     state: Session,
-    write: EventualSink<W>,
+    write: EventualMail<W>,
 }
 
 impl<S, M, W> Mail<S, M, W>
 where
-    W: Sink,
+    W: MailHandler + Sink,
 {
-    pub fn new(stream: S, service: M) -> Self {
+    pub fn new(stream: S, mail_service: M) -> Self {
         Self {
             stream,
-            service,
+            mail_service,
             state: Session::new(),
-            write: EventualSink::new(),
+            write: EventualMail::new(),
         }
     }
 
@@ -58,18 +60,31 @@ where
         W: Sink<SinkItem = Bytes, SinkError = S::Error>,
     {
         let ctrl = match self.state.answer() {
-            None => {
-                return None;
-            }
+            None => return None,
             Some(ctrl) => ctrl,
         };
         trace!("Answer: {:?}", ctrl);
         match ctrl {
             a @ ClientControll::AcceptData => {
-                match self.write.set(self.service.send(&self.state)) {
-                    Err(_) => Some(reply_mail_not_accepted()),
-                    Ok(()) => Some(a),
+                let envelope = self.state.extract_envelope();
+                let write = self.mail_service.mail(envelope);
+                match write {
+                    None => {
+                        // service did not accept the mail envelop
+                        self.write.set(write);
+                        self.state.cancel();
+                        Some(reply_mail_not_accepted())
+                    }
+                    Some(_) => {
+                        // service accepted the mail envelop
+                        self.write.set(write);
+                        Some(a)
+                    }
                 }
+            }
+            a @ ClientControll::QueueMail => {
+                self.write.queue();
+                Some(a)
             }
             a => Some(a),
         }
@@ -81,6 +96,7 @@ where
     S: Stream<Item = ServerControll, Error = io::Error>,
     M: MailService<MailDataWrite = W>,
     M::MailDataWrite: Sink<SinkError = S::Error>,
+    M::MailDataWrite: MailHandler,
     W: Sink<SinkItem = Bytes, SinkError = S::Error>,
 {
     type Item = ClientControll;
@@ -88,7 +104,7 @@ where
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
         // TODO: Do it only once
         // set service name
-        self.state.set_name(self.service.name());
+        self.state.set_name(self.mail_service.name());
 
         // pass any pending answers
         trace!("Handling any remaining answers");
@@ -99,6 +115,23 @@ where
         // flush the mail data write sink if necessary
         trace!("Flushing the mail data write sink");
         try_ready!(self.write.poll_complete());
+
+        trace!("Checking mail queue");
+        match try_ready!(self.write.poll()) {
+            None => { /*no buzz*/ }
+            Some(QueueResult::Failed) => {
+                self.state.cancel();
+                return ok(reply_mail_not_accepted());
+            }
+            Some(QueueResult::Refused) => {
+                self.state.cancel();
+                return ok(reply_mail_queue_failed());
+            }
+            Some(QueueResult::QueuedWithId(_)) => {
+                // should send back the id, but Ok is already given by session.
+                // TODO: improve session handling in these edge cases
+            }
+        }
 
         // and handle the next stream item
         trace!("Fetching the next stream item");
@@ -113,9 +146,17 @@ where
 
         trace!("Got controll: {:?}", ctrl);
         match ctrl {
+            ServerControll::Command(SmtpCommand::Rcpt(ref rcpt)) => {
+                match self.mail_service.accept(self.state.extract_rcpt(rcpt)) {
+                    AcceptRecipientResult::Accepted => {}
+                    AcceptRecipientResult::AcceptedWithNewPath(_) => {}
+                    AcceptRecipientResult::Rejected => return ok(reply_recipient_not_accepted()),
+                    AcceptRecipientResult::RejectedWithNewPath(_) => {
+                        return ok(reply_recipient_not_accepted())
+                    }
+                }
+            }
             ServerControll::DataChunk(ref b) => {
-                // TODO: keep the buffer and poll again
-                //let mut buf = Bytes::from(&b[..]).into_buf();
                 trace!("About to write...");
                 match write.send(b.clone()).poll() {
                     Ok(Async::Ready(_)) => {
@@ -130,14 +171,6 @@ where
                     }
                 }
             }
-            /*
-            ServerControll::FinalDot(_) => if let Some(ref mut w) = self.write {
-                // TODO: poll again if not done
-                trace!("About to flush...");
-                error!("unimplemented!");
-            } else {
-                warn!("Got data but no writer!");
-            },*/
             _ => {}
         };
 
@@ -149,25 +182,55 @@ where
     }
 }
 
+fn reply_recipient_not_accepted() -> ClientControll {
+    ClientControll::Reply(SmtpReply::MailboxNotAvailableFailure)
+}
 fn reply_mail_not_accepted() -> ClientControll {
     ClientControll::Reply(SmtpReply::MailboxNotAvailableFailure)
 }
+fn reply_mail_queue_failed() -> ClientControll {
+    ClientControll::Reply(SmtpReply::MailboxNotAvailableError)
+}
 
-struct EventualSink<W> {
+struct EventualMail<W> {
     sink: Option<W>,
+    queued: Option<QueueResult>,
 }
 
-impl<W> EventualSink<W> {
+impl<W> EventualMail<W> {
     pub fn new() -> Self {
-        Self { sink: None }
+        Self {
+            sink: None,
+            queued: None,
+        }
     }
-    pub fn set(&mut self, sink: Option<W>) -> io::Result<()> {
+    pub fn set(&mut self, sink: Option<W>) {
         self.sink = sink;
-        Ok(())
+        self.queued = None;
+    }
+    pub fn queue(&mut self)
+    where
+        W: MailHandler,
+    {
+        self.queued = match self.sink.take() {
+            None => panic!("trying to queue mail without a mail sink"),
+            Some(w) => Some(w.into_queue()),
+        };
     }
 }
 
-impl<W> Sink for EventualSink<W>
+impl<W> Future for EventualMail<W> {
+    type Item = Option<QueueResult>;
+    type Error = io::Error;
+    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        match self.queued.take() {
+            None => Ok(Async::Ready(None)),
+            q @ Some(_) => Ok(Async::Ready(q)),
+        }
+    }
+}
+
+impl<W> Sink for EventualMail<W>
 where
     W: Sink<SinkError = io::Error>,
 {

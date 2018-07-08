@@ -5,9 +5,12 @@ use std::net::SocketAddr;
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum ServerControll {
     /** Peer connected */
-    PeerConnected(Option<SocketAddr>),
+    PeerConnected {
+        local: Option<SocketAddr>,
+        peer: Option<SocketAddr>,
+    },
     /** Peer disconnected */
-    PeerShutdown(Option<SocketAddr>),
+    PeerShutdown,
     /** SMTP command line */
     Command(SmtpCommand),
     /** raw input that could not be understood */

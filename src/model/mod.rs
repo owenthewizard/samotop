@@ -3,3 +3,4 @@ pub mod controll;
 pub mod response;
 pub mod server;
 pub mod session;
+pub mod mail;

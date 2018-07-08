@@ -1,7 +1,7 @@
 # Samotop
 SMTP Relay Server (MTA) library and a sample simple server implemented in Rust with focus on spam elimination and privacy. The motivation is to revive e-mail infrastructure and architecture, address current problems and allow new systems to integrate SMTP. It's called SaMoToP, which could be a nice Czech word.
 ## Status
-We've got a decent SMTP command parser written as a PEG grammar. The model is tightly nit from the RFCs. A tokio based server will hear your SMTP commands, drive the SMTP state machine and correct you if you step aside. Once a mail session is ready, the mail data are streamed to the console. After that, you can do it again.
+We've got a decent SMTP command parser written as a PEG grammar. The model is tightly nit from the RFCs. A tokio based server will hear your SMTP commands, drive the SMTP state machine and correct you if you step aside. Once a mail session is ready, the mail data are streamed to the console. After that, you can do it again. See the [crate documentation](https://docs.rs/samotop/) for API status. The [samotop crate is published on crates.io](https://crates.io/crates/samotop).
 ## Todo
 - [x] Successfully parse a simple SMTP session
 - [x] SMTP state machine - helo, mail, rcpt*, data, rset, quit - must be in correct order
