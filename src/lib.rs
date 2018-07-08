@@ -1,8 +1,8 @@
 //! # Status
-//! 
+//!
 //! The API is still very much subject to change. Until you see the release of version 1.0.0, don't expect much stability.
 //! See the README.md file and project open issues for current status.
-//! 
+//!
 //! The use case of running the server as a standalone application should be described in the README.md (tbd)
 //! Here we focus on using the library.
 //!
@@ -14,9 +14,9 @@
 //! [dependencies]
 //! samotop = "0.4"
 //! ```
-//! 
+//!
 //! # Usage
-//! 
+//!
 //! There are a few interesting provisions one could take away here:
 //! * The server (through `samotop::builder()`) - it takes IP:port's to listen `on()` and you can use it `with()` your own implementation of `TcpService`.
 //! * The SMTP service (`SamotopService`) - it takes a `tokio::net::TcpStream` into the `Sink` created by `start()`.
@@ -44,9 +44,12 @@
 //!
 //!     let opt = Opt::from_args();
 //!
+//!    //SamotopService is the default, but you can set your own name here.
+//!    let svc = samotop::service::tcp::default()
+//!        .serve(samotop::service::mail::ConsoleMail::new("MySamotop"));
+//!
 //!     tokio::run(samotop::builder()
-//!             // SamotopService is the default, but you can set your own name here.
-//!             .with(samotop::service::samotop::SamotopService::new("MySamotop"))
+//!             .with(svc)
 //!             .on_all(opt.ports)
 //!             .as_task());
 //! }

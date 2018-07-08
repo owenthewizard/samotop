@@ -1,7 +1,8 @@
 use futures::stream;
 use model::server::{SamotopListener, SamotopPort, SamotopServer};
 use server::builder::SamotopBuilder;
-use service::samotop::SamotopService;
+use service::mail::ConsoleMail;
+use service::tcp::{self, SamotopService};
 use service::TcpService;
 use std::net::ToSocketAddrs;
 use tokio;
@@ -15,13 +16,11 @@ use tokio::prelude::*;
 /// Example of creating a samotop server task (`Future<Item=(),Error=()>`):
 /// ```
 ///     samotop::builder()
-///              // SamotopService is the default, but you can set your own name here.
-///             .with(samotop::service::samotop::SamotopService::new("MySamotop"))
 ///             .on("1.1.1.1:25")
 ///             .as_task();
 /// ```
-pub fn builder() -> SamotopBuilder<SamotopService> {
-    SamotopBuilder::new("localhost:25", SamotopService::new("Samotop"))
+pub fn builder() -> SamotopBuilder<SamotopService<ConsoleMail>> {
+    SamotopBuilder::new("localhost:25", tcp::default())
 }
 
 /// Start the server, spawning each listener as a separate task.

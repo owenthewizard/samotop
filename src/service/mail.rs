@@ -6,13 +6,19 @@ use model::mail::Envelope;
 use tokio::io;
 use tokio::prelude::*;
 
+#[derive(Clone)]
 pub struct ConsoleMail {
     name: Option<String>,
 }
 
 impl ConsoleMail {
-    pub fn new(name: Option<String>) -> Self {
-        Self { name }
+    pub fn new(name: impl ToString) -> Self {
+        Self {
+            name: Some(name.to_string()),
+        }
+    }
+    pub fn default() -> Self {
+        Self { name: None }
     }
 }
 

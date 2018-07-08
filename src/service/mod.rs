@@ -1,6 +1,5 @@
-pub mod console;
-pub mod dead;
-pub mod samotop;
+pub mod mail;
+pub mod tcp;
 
 use model::mail::Envelope;
 
@@ -74,7 +73,7 @@ impl Sink for DeadHandler {
 ```
 You can then use this `DeadService` in samotop:
 ```
-# use samotop::service::dead::DeadService;
+# use samotop::service::tcp::DeadService;
 let task = samotop::builder()
         .with(DeadService)
         .as_task();

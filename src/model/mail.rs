@@ -20,7 +20,7 @@ pub struct Envelope {
 
 /// Request to check if mail is accepted for given recipient
 #[derive(Debug)]
-pub struct AcceptRecipient {
+pub struct AcceptRecipientRequest {
     /// Service name
     pub name: String,
     /// Local server endpoint
@@ -33,4 +33,12 @@ pub struct AcceptRecipient {
     pub mail: Option<SmtpMail>,
     /// The SMTP rcpt to:path sent by peer we want to check
     pub rcpt: SmtpPath,
+}
+
+#[derive(Debug)]
+pub enum AcceptRecipientResult {
+    Accepted,
+    Rejected,
+    AcceptedWithNewPath(SmtpPath),
+    RejectedWithNewPath(SmtpPath)
 }
