@@ -12,9 +12,11 @@
 //!
 //! ```toml
 //! [dependencies]
-//! samotop = "0.4"
+//! samotop = "0"
 //! ```
 //!
+//! Note that the API is still unstable. Please use the latest release.
+//! 
 //! # Usage
 //!
 //! There are a few interesting provisions one could take away here:
