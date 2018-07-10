@@ -12,9 +12,11 @@
 //!
 //! ```toml
 //! [dependencies]
-//! samotop = "0.4"
+//! samotop = "0"
 //! ```
 //!
+//! Note that the API is still unstable. Please use the latest release.
+//! 
 //! # Usage
 //!
 //! There are a few interesting provisions one could take away here:
@@ -44,12 +46,7 @@
 //!
 //!     let opt = Opt::from_args();
 //!
-//!    //SamotopService is the default, but you can set your own name here.
-//!    let svc = samotop::service::tcp::default()
-//!        .serve(samotop::service::mail::ConsoleMail::new("MySamotop"));
-//!
 //!     tokio::run(samotop::builder()
-//!             .with(svc)
 //!             .on_all(opt.ports)
 //!             .as_task());
 //! }

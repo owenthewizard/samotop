@@ -11,17 +11,20 @@ fn main() {
 
     let opt = Opt::from_args();
 
-    //SamotopService is the default, but you can set your own name here.
-    let svc = samotop::service::tcp::default()
-        .serve(samotop::service::mail::ConsoleMail::new("MySamotop"));
+    let task = samotop::builder().on_all(opt.ports).as_task();
 
-    tokio::run(samotop::builder().with(svc).on_all(opt.ports).as_task());
+    tokio::run(task);
 }
 
 #[derive(StructOpt, Debug)]
 #[structopt(name = "samotop")]
 struct Opt {
-    /// SMTP server address:port
-    #[structopt(short = "p", long = "port")]
+    /// SMTP server address:port,
+    /// such as 127.0.0.1:25 or localhost:12345.
+    /// The option can be set multiple times and
+    /// the server will start on all given ports.
+    /// If no ports are given, the default is to 
+    /// start on localhost:25
+    #[structopt(short = "p", long = "port", name = "port")]
     ports: Vec<String>,
 }

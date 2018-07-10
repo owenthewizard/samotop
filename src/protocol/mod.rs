@@ -1,17 +1,11 @@
-mod line;
-mod machine;
-mod parse;
-mod smtp;
 mod fuse;
+mod parse;
 mod peer;
-mod mail;
-pub use self::mail::*;
-pub use self::peer::*;
+mod smtp;
 pub use self::fuse::*;
-pub use self::line::*;
 pub use self::parse::*;
+pub use self::peer::*;
 pub use self::smtp::*;
-pub use self::machine::*;
 
 #[cfg(test)]
 mod tests {

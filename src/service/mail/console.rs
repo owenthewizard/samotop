@@ -33,9 +33,9 @@ impl MailService for ConsoleMail {
             Some(ref name) => name.clone(),
         }
     }
-    fn accept(&self, rcpt: AcceptRecipientRequest) -> AcceptRecipientResult {
-        println!("Accepting recipient {:?}", rcpt);
-        AcceptRecipientResult::Accepted
+    fn accept(&self, request: AcceptRecipientRequest) -> AcceptRecipientResult {
+        println!("Accepting recipient {:?}", request);
+        AcceptRecipientResult::Accepted(request.rcpt)
     }
     fn mail(&self, envelope: Envelope) -> Option<Self::MailDataWrite> {
         match envelope {
@@ -89,7 +89,7 @@ impl Sink for MailSink {
 }
 
 impl MailHandler for MailSink {
-    fn into_queue(self) -> QueueResult {
+    fn queue(self) -> QueueResult {
         println!("Mail data finished for {}", self.id);
         QueueResult::QueuedWithId(self.id)
     }
