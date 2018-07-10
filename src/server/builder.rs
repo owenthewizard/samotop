@@ -1,6 +1,6 @@
 use model::server::SamotopServer;
 use server;
-use service::TcpService;
+use service::{TcpService, TcpServiceNext};
 use tokio::io;
 use tokio::net::TcpStream;
 use tokio::prelude::*;
@@ -75,5 +75,12 @@ impl<S> SamotopBuilder<S> {
         S::Handler: Sink<SinkItem = TcpStream, SinkError = io::Error>,
     {
         future::join_all(self.as_servers().map(server::serve)).map(|_| ())
+    }
+    pub fn as_task_next<Fut>(self) -> impl Future<Item = (), Error = ()>
+    where
+        S: TcpServiceNext<Future = Fut> + Clone + Send + 'static,
+        Fut: Future<Item = (), Error = ()> + Send + 'static,
+    {
+        future::join_all(self.as_servers().map(server::serve_next)).map(|_| ())
     }
 }

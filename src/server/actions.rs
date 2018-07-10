@@ -3,7 +3,7 @@ use model::server::{SamotopListener, SamotopPort, SamotopServer};
 use server::builder::SamotopBuilder;
 use service::mail::ConsoleMail;
 use service::tcp::{self, SamotopService};
-use service::TcpService;
+use service::{TcpService, TcpServiceNext};
 use std::net::ToSocketAddrs;
 use tokio;
 use tokio::io;
@@ -42,8 +42,6 @@ pub(crate) fn resolve<S>(
 ) -> impl Stream<Item = SamotopPort<S>, Error = io::Error>
 where
     S: Clone,
-    S: TcpService,
-    S::Handler: Sink<SinkItem = TcpStream, SinkError = io::Error>,
 {
     let SamotopServer { addr, service } = server;
     stream::once(addr.to_socket_addrs())
@@ -62,12 +60,7 @@ where
 }
 
 // Bind the samotop TCP port
-pub(crate) fn bind<S>(port: SamotopPort<S>) -> impl Future<Item = SamotopListener<S>, Error = ()>
-where
-    S: Clone,
-    S: TcpService,
-    S::Handler: Sink<SinkItem = TcpStream, SinkError = io::Error>,
-{
+pub(crate) fn bind<S>(port: SamotopPort<S>) -> impl Future<Item = SamotopListener<S>, Error = ()> {
     let SamotopPort {
         addr: local,
         service,
@@ -78,7 +71,7 @@ where
             info!("listening on {}", local);
             future::ok(SamotopListener {
                 listener,
-                service: service.clone(),
+                service: service,
             })
         })
 }
@@ -97,6 +90,46 @@ where
         .forward(handler)
         .then(move |result| match result {
             Ok((_i, _h)) => Ok(info!("done accepting on {:?}", local)),
+            Err(e) => Err(error!("done accepting on {:?} with error: {:?}", local, e)),
+        })
+}
+/// Start the server, spawning each listener as a separate task.
+pub(crate) fn serve_next<S, Fut>(server: SamotopServer<S>) -> impl Future<Item = (), Error = ()>
+where
+    S: Clone + Send + 'static,
+    S: TcpServiceNext<Future = Fut>,
+    Fut: Future<Item = (), Error = ()> + Send + 'static,
+{
+    resolve(server)
+        .map(|port| {
+            let SamotopPort { addr, service } = port;
+            let service = stream::repeat(service);
+            SamotopPort { addr, service }
+        })
+        .map_err(|e| error!("{}", e))
+        .for_each(|port| tokio::spawn(bind(port).and_then(accept_next)))
+}
+
+/// Accept incomming TCP connections and forward them to the handler sink created by TcpService
+pub(crate) fn accept_next<S, TcpSvc, Fut>(
+    listener: SamotopListener<S>,
+) -> impl Future<Item = (), Error = ()>
+where
+    S: Stream<Item = TcpSvc, Error = io::Error>,
+    TcpSvc: TcpServiceNext<Future = Fut>,
+    Fut: Future<Item = (), Error = ()> + Send + 'static,
+{
+    let SamotopListener { listener, service } = listener;
+    let local = listener.local_addr().ok();
+    listener
+        .incoming()
+        .zip(service)
+        .for_each(|(tcp, handler)| {
+            tokio::spawn(handler.handle(tcp));
+            Ok(())
+        })
+        .then(move |result| match result {
+            Ok(_) => Ok(info!("done accepting on {:?}", local)),
             Err(e) => Err(error!("done accepting on {:?} with error: {:?}", local, e)),
         })
 }

@@ -1,14 +1,33 @@
-use model::controll::{ClientControll, ServerControll};
-use model::session::Session;
+extern crate samotop;
+#[macro_use]
+extern crate futures;
+extern crate tokio;
+
+use samotop::model::command::SmtpCommand;
+use samotop::model::controll::{ClientControll, ServerControll};
+use samotop::model::session::Session;
+use samotop::util::*;
 use tokio::prelude::*;
-use util::futu::*;
+
+#[test]
+fn machine_test() {
+    let controls = vec![ServerControll::Command(SmtpCommand::Data)];
+
+    let stream = stream::iter_ok(controls.into_iter());
+
+    let task = stream
+        .machine("Howdy!")
+        .for_each(|c| Ok(println!("{:?}", c)));
+
+    tokio::run(task);
+}
 
 pub trait IntoMachine
 where
     Self: Sized,
 {
-    fn machine(self, name: String) -> Machine<Self> {
-        Machine::new(self, name)
+    fn machine(self, name: impl ToString) -> Machine<Self> {
+        Machine::new(self, name.to_string())
     }
 }
 
@@ -43,7 +62,7 @@ where
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
         match self.state.answer() {
             Some(a) => {
-                trace!("Answer: {:?}", a);
+                println!("Answer: {:?}", a);
                 return ok(a);
             }
             _ => {}
@@ -52,11 +71,11 @@ where
         match try_ready!(self.stream.poll()) {
             None => none(),
             Some(ctrl) => {
-                trace!("Controll: {:?}", ctrl);
+                println!("Controll: {:?}", ctrl);
                 self.state.controll(ctrl);
                 match self.state.answer() {
                     Some(a) => {
-                        trace!("Answer: {:?}", a);
+                        println!("Answer: {:?}", a);
                         ok(a)
                     }
                     None => pending(),

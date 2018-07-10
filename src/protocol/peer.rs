@@ -1,7 +1,7 @@
 use model::controll::ServerControll;
 use std::net::SocketAddr;
 use tokio::prelude::*;
-use util::futu::*;
+use util::*;
 
 pub trait HasPeer
 where

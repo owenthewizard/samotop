@@ -2,7 +2,7 @@ use model::command::*;
 use std::net::SocketAddr;
 
 /// Mail envelope before sending mail data
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Envelope {
     /// Service name
     pub name: String,
@@ -21,7 +21,7 @@ pub struct Envelope {
 }
 
 /// Request to check if mail is accepted for given recipient
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct AcceptRecipientRequest {
     /// Service name
     pub name: String,
@@ -39,16 +39,16 @@ pub struct AcceptRecipientRequest {
     pub rcpt: SmtpPath,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum AcceptRecipientResult {
-    Accepted,
+    Accepted(SmtpPath),
     Rejected,
     AcceptedWithNewPath(SmtpPath),
     RejectedWithNewPath(SmtpPath),
 }
 
 /// Mail was queued with id
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum QueueResult {
     QueuedWithId(String),
     Refused,

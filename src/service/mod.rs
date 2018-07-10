@@ -1,7 +1,10 @@
 pub mod mail;
+pub mod session;
 pub mod tcp;
 
 use model::mail::*;
+use tokio::net::TcpStream;
+use tokio::prelude::Future;
 
 /** 
 An object implementing this trait handles TCP connections.
@@ -92,10 +95,20 @@ pub trait TcpService {
 pub trait MailService {
     type MailDataWrite: MailHandler;
     fn name(&self) -> String;
-    fn accept(&self, rcpt: AcceptRecipientRequest) -> AcceptRecipientResult;
+    fn accept(&self, request: AcceptRecipientRequest) -> AcceptRecipientResult;
     fn mail(&self, envelope: Envelope) -> Option<Self::MailDataWrite>;
+}
+
+pub trait TcpServiceNext {
+    type Future: Future<Item = (), Error = ()>;
+    fn handle(self, stream: TcpStream) -> Self::Future;
 }
 
 pub trait MailHandler {
     fn into_queue(self) -> QueueResult;
+}
+
+pub trait SessionService {
+    type Handler;
+    fn start(&self) -> Self::Handler;
 }

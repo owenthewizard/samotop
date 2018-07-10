@@ -8,7 +8,7 @@ use model::session::Session;
 use service::*;
 use tokio::io;
 use tokio::prelude::*;
-use util::futu::*;
+use util::*;
 
 pub trait IntoMail
 where
@@ -148,7 +148,7 @@ where
         match ctrl {
             ServerControll::Command(SmtpCommand::Rcpt(ref rcpt)) => {
                 match self.mail_service.accept(self.state.extract_rcpt(rcpt)) {
-                    AcceptRecipientResult::Accepted => {}
+                    AcceptRecipientResult::Accepted(_) => {}
                     AcceptRecipientResult::AcceptedWithNewPath(_) => {}
                     AcceptRecipientResult::Rejected => return ok(reply_recipient_not_accepted()),
                     AcceptRecipientResult::RejectedWithNewPath(_) => {

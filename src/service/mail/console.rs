@@ -33,9 +33,9 @@ impl MailService for ConsoleMail {
             Some(ref name) => name.clone(),
         }
     }
-    fn accept(&self, rcpt: AcceptRecipientRequest) -> AcceptRecipientResult {
-        println!("Accepting recipient {:?}", rcpt);
-        AcceptRecipientResult::Accepted
+    fn accept(&self, request: AcceptRecipientRequest) -> AcceptRecipientResult {
+        println!("Accepting recipient {:?}", request);
+        AcceptRecipientResult::Accepted(request.rcpt)
     }
     fn mail(&self, envelope: Envelope) -> Option<Self::MailDataWrite> {
         match envelope {
