@@ -182,7 +182,6 @@ impl Encoder for SmtpCodec {
         let line = match item {
             ClientControll::Noop => return Ok(()),
             ClientControll::Shutdown => return Ok(()),
-            ClientControll::QueueMail => return Ok(()),
             ClientControll::AcceptData => {
                 if let State::Line(_, tail) = self.state {
                     self.state = State::Data(true, tail);

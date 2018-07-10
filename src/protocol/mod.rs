@@ -1,14 +1,8 @@
 mod fuse;
-mod line;
-mod mail;
-mod next;
 mod parse;
 mod peer;
 mod smtp;
 pub use self::fuse::*;
-pub use self::line::*;
-pub use self::mail::*;
-pub use self::next::*;
 pub use self::parse::*;
 pub use self::peer::*;
 pub use self::smtp::*;

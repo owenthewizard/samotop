@@ -1,92 +1,52 @@
-use bytes::Bytes;
-use futures::StartSend;
-use service::*;
-use protocol::*;
-use service::mail::ConsoleMail;
 use grammar::SmtpParser;
+use model::controll::*;
+use protocol::*;
+use service::*;
 use tokio::io;
 use tokio::net::TcpStream;
 use tokio::prelude::*;
 use tokio_codec::Decoder;
+use util::*;
 
-#[doc = "A TCP service providing SMTP - Samotop"]
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct SamotopService<M> {
-    mail_service: M
+    mail_service: M,
 }
-
-pub fn default()->SamotopService<ConsoleMail> {
-    SamotopService::new(ConsoleMail::default())
-}
-
-impl<M> SamotopService <M> {
-    pub fn new(mail_service:M) -> Self {
+impl<M> SamotopService<M> {
+    pub fn new(mail_service: M) -> Self {
         Self { mail_service }
     }
-    pub fn serve<MX>(self, mail_service:MX) -> SamotopService<MX>{
-        SamotopService::new(mail_service)
-    }
 }
 
-impl<M> TcpService for SamotopService<M> where M:Clone{
-    type Handler = SamotopHandler<M>;
-    fn start(&self) -> Self::Handler {
-        SamotopHandler::new(self.mail_service.clone())
-    }
-}
-
-pub struct SamotopHandler<M> {
-    mail_service: M,
-    pending: Box<Future<Item = (), Error = io::Error> + Send + 'static>,
-}
-
-impl<M> SamotopHandler<M> {
-    pub fn new(mail_service:M) -> Self {
-        Self {
-            mail_service,
-            pending: Box::new(future::ok(())),
-        }
-    }
-}
-
-impl<M> Sink for SamotopHandler<M>
- where M:MailService +Clone +Send +'static,
-    M::MailDataWrite:Sink<SinkItem = Bytes, SinkError = io::Error> + Send
-    ,M::MailDataWrite:MailHandler
-  {
-    type SinkItem = TcpStream;
-    type SinkError = io::Error;
-
-    fn start_send(&mut self, socket: Self::SinkItem) -> StartSend<Self::SinkItem, Self::SinkError> {
+impl<M, H> TcpService for SamotopService<M>
+where
+    M: SessionService<Handler = H>,
+    H: Send + 'static,
+    H: Sink<SinkItem = ServerControll, SinkError = io::Error>,
+    H: Stream<Item = ClientControll, Error = io::Error>,
+{
+    type Future = Box<Future<Item = (), Error = ()> + Send>;
+    fn handle(self, socket: TcpStream) -> Self::Future {
         let local = socket.local_addr().ok();
         let peer = socket.peer_addr().ok();
         info!("accepted peer {:?} on {:?}", peer, local);
         let (dst, src) = SmtpCodec::new().framed(socket).split();
-        info!("got an item");
 
         let task = src
             .peer(local, peer)
             .parse(SmtpParser)
-            .mail(self.mail_service.clone())
+            .tee(self.mail_service.start())
             // prevent polling after shutdown
             .fuse_shutdown()
             // prevent polling of completed stream
-            .fuse()            
+            .fuse()
             // forward to client
             .forward(dst)
             .then(move |r| match r {
-                Ok(_)=>Ok(info!("peer {:?} gone from {:?}", peer, local)),
-                Err(e) => {
-                    warn!("peer {:?} gone from {:?} with error {:?}", peer, local, e);
-                    Err(e)
-                }
+                Ok(_) => Ok(info!("peer {:?} gone from {:?}", peer, local)),
+                Err(e) => Err(warn!("peer {:?} gone from {:?} with error {:?}", peer, local, e))
             }).fuse();
 
-        self.pending = Box::new(task);
-        Ok(AsyncSink::Ready)
-    }
-
-    fn poll_complete(&mut self) -> Poll<(), Self::SinkError> {
-        self.pending.poll()
+        Box::new(task)
     }
 }

@@ -138,137 +138,137 @@ pub enum SmtpReply {
 
 impl SmtpReply {
     pub fn code(&self) -> u16 {
-        match self {
+        match *self {
             /* &Custom(ref class, ref category, ref digit, _, _) => {
                 *class as u16 + *category as u16 + *digit as u16
             }*/
-            &None => 0,
-            &CommandSyntaxFailure => 500,
-            &ParameterSyntaxFailure => 501,
-            &CommandNotImplementedFailure => 502,
-            &CommandSequenceFailure => 503,
-            &UnexpectedParameterFailure => 504,
+            None => 0,
+            CommandSyntaxFailure => 500,
+            ParameterSyntaxFailure => 501,
+            CommandNotImplementedFailure => 502,
+            CommandSequenceFailure => 503,
+            UnexpectedParameterFailure => 504,
 
-            &StatusInfo(_) => 211,
-            &HelpInfo(_) => 214,
+            StatusInfo(_) => 211,
+            HelpInfo(_) => 214,
 
             // <domain> Service ready
-            &ServiceReadyInfo(_) => 220,
+            ServiceReadyInfo(_) => 220,
             // <domain> Service closing transmission channel
-            &ClosingConnectionInfo(_) => 221,
+            ClosingConnectionInfo(_) => 221,
             // <domain> Service not available, closing transmission channel
-            &ServiceNotAvailableError(_) => 421,
+            ServiceNotAvailableError(_) => 421,
             // RFC 7504
-            &MailNotAcceptedByHostFailure => 521,
+            MailNotAcceptedByHostFailure => 521,
 
             // first line is either Ok or specific message, use Vec<String> for subsequent items
-            &OkInfo => 250,
-            &OkMessageInfo(_) => 250,
-            &OkHeloInfo { .. } => 250,
-            &OkEhloInfo { .. } => 250,
+            OkInfo => 250,
+            OkMessageInfo(_) => 250,
+            OkHeloInfo { .. } => 250,
+            OkEhloInfo { .. } => 250,
             // will forward to <forward-path> (See Section 3.4)
-            &UserNotLocalInfo(_) => 251,
+            UserNotLocalInfo(_) => 251,
             //, but will accept message and attempt delivery (See Section 3.5.3)
-            &CannotVerifyUserInfo => 252,
+            CannotVerifyUserInfo => 252,
             // end with <CRLF>.<CRLF>
-            &StartMailInputChallenge => 354,
+            StartMailInputChallenge => 354,
             // Requested mail action not taken (e.g., mailbox busy
             // or temporarily blocked for policy reasons)
-            &MailboxNotAvailableError => 450,
+            MailboxNotAvailableError => 450,
             // Requested action aborted
-            &ProcesingError => 451,
+            ProcesingError => 451,
             // Requested action not taken
-            &StorageError => 452,
+            StorageError => 452,
             // right now the parameters given cannot be accomodated
-            &ParametersNotAccommodatedError => 455,
+            ParametersNotAccommodatedError => 455,
             // Requested action not taken: mailbox unavailable (e.g.,
             // mailbox not found, no access, or command rejected for policy reasons)
-            &MailboxNotAvailableFailure => 550,
+            MailboxNotAvailableFailure => 550,
             // please try <forward-path> (See Section 3.4)
-            &UserNotLocalFailure(_) => 551,
+            UserNotLocalFailure(_) => 551,
             // Requested mail action aborted: exceeded storage allocation
-            &StorageFailure => 552,
+            StorageFailure => 552,
             // Requested action not taken: mailbox name not allowed (e.g., mailbox syntax incorrect)
-            &MailboxNameInvalidFailure => 553,
+            MailboxNameInvalidFailure => 553,
             // (Or, in the case of a connection-opening response, "No SMTP service here")
-            &TransactionFailure => 554,
+            TransactionFailure => 554,
             // MAIL FROM/RCPT TO parameters not recognized or not implemented
-            &UnknownMailParametersFailure => 555,
+            UnknownMailParametersFailure => 555,
             // RFC 7504
-            &MailNotAcceptedByDomainFailure => 556,
+            MailNotAcceptedByDomainFailure => 556,
         }
     }
 
     pub fn text(&self) -> String {
-        match self {
-            &None => "".to_owned(),
-            &CommandSyntaxFailure => "Syntax error, command unrecognized".to_owned(),
-            &ParameterSyntaxFailure => "Syntax error in parameters or arguments".to_owned(),
-            &CommandNotImplementedFailure => "Command not implemented".to_owned(),
-            &CommandSequenceFailure => "Bad sequence of commands".to_owned(),
-            &UnexpectedParameterFailure => "Command parameter not implemented".to_owned(),
+        match *self {
+            None => "".to_owned(),
+            CommandSyntaxFailure => "Syntax error, command unrecognized".to_owned(),
+            ParameterSyntaxFailure => "Syntax error in parameters or arguments".to_owned(),
+            CommandNotImplementedFailure => "Command not implemented".to_owned(),
+            CommandSequenceFailure => "Bad sequence of commands".to_owned(),
+            UnexpectedParameterFailure => "Command parameter not implemented".to_owned(),
 
-            &StatusInfo(ref text) => format!("{}", text),
-            &HelpInfo(ref text) => format!("{}", text),
+            StatusInfo(ref text) => format!("{}", text),
+            HelpInfo(ref text) => format!("{}", text),
 
-            &ServiceReadyInfo(ref domain) => format!("{} Service ready", domain),
-            &ClosingConnectionInfo(ref domain) => {
+            ServiceReadyInfo(ref domain) => format!("{} Service ready", domain),
+            ClosingConnectionInfo(ref domain) => {
                 format!("{} Service closing transmission channel", domain)
             }
-            &ServiceNotAvailableError(ref domain) => format!(
+            ServiceNotAvailableError(ref domain) => format!(
                 "{} Service not available, closing transmission channel",
                 domain
             ),
-            &MailNotAcceptedByHostFailure => "Host does not accept mail".to_owned(),
+            MailNotAcceptedByHostFailure => "Host does not accept mail".to_owned(),
 
-            &OkInfo => "Ok".to_owned(),
-            &OkMessageInfo(ref text) => format!("{}", text),
-            &OkHeloInfo {
+            OkInfo => "Ok".to_owned(),
+            OkMessageInfo(ref text) => format!("{}", text),
+            OkHeloInfo {
                 ref local,
                 ref remote,
                 ..
             } => format!("{} greets {}", local, remote),
-            &OkEhloInfo {
+            OkEhloInfo {
                 ref local,
                 ref remote,
                 ..
             } => format!("{} greets {}", local, remote),
 
-            &UserNotLocalInfo(ref forward_path) => {
+            UserNotLocalInfo(ref forward_path) => {
                 format!("User not local, will forward to {}", forward_path)
             }
-            &CannotVerifyUserInfo => {
+            CannotVerifyUserInfo => {
                 "Cannot VFRY user, but will accept message and attempt delivery".to_owned()
             }
-            &StartMailInputChallenge => "Start mail input, end with <CRLF>.<CRLF>".to_owned(),
-            &MailboxNotAvailableError => {
+            StartMailInputChallenge => "Start mail input, end with <CRLF>.<CRLF>".to_owned(),
+            MailboxNotAvailableError => {
                 "Requested mail action not taken: mailbox unavailable".to_owned()
             }
-            &ProcesingError => "Requested action aborted: error in processing".to_owned(),
-            &StorageError => "Requested action not taken: insufficient system storage".to_owned(),
-            &ParametersNotAccommodatedError => "Server unable to accommodate parameters".to_owned(),
-            &MailboxNotAvailableFailure => {
+            ProcesingError => "Requested action aborted: error in processing".to_owned(),
+            StorageError => "Requested action not taken: insufficient system storage".to_owned(),
+            ParametersNotAccommodatedError => "Server unable to accommodate parameters".to_owned(),
+            MailboxNotAvailableFailure => {
                 "Requested action not taken: mailbox unavailable".to_owned()
             }
-            &UserNotLocalFailure(ref forward_path) => {
+            UserNotLocalFailure(ref forward_path) => {
                 format!("User not local; please try {}", forward_path)
             }
-            &StorageFailure => {
+            StorageFailure => {
                 "Requested mail action aborted: exceeded storage allocation".to_owned()
             }
-            &MailboxNameInvalidFailure => {
+            MailboxNameInvalidFailure => {
                 "Requested action not taken: mailbox name not allowed".to_owned()
             }
-            &TransactionFailure => "Transaction failed".to_owned(),
-            &UnknownMailParametersFailure => {
+            TransactionFailure => "Transaction failed".to_owned(),
+            UnknownMailParametersFailure => {
                 "MAIL FROM/RCPT TO parameters not recognized or not implemented".to_owned()
             }
-            &MailNotAcceptedByDomainFailure => "Domain does not accept mail".to_owned(),
+            MailNotAcceptedByDomainFailure => "Domain does not accept mail".to_owned(),
         }
     }
     pub fn items(&self) -> Vec<String> {
-        match self {
-            &OkEhloInfo { ref extensions, .. } => {
+        match *self {
+            OkEhloInfo { ref extensions, .. } => {
                 extensions.iter().map(|e| format!("{}", e)).collect()
             }
             _ => vec![],
@@ -345,9 +345,9 @@ pub enum SmtpExtension {
 impl fmt::Display for SmtpExtension {
     fn fmt<'a>(&self, fmt: &'a mut fmt::Formatter) -> Result<(), fmt::Error> {
         use self::SmtpExtension::*;
-        match self {
-            &EightBitMime => fmt.write_str("8BITMIME"),
-            &Size(s) => {
+        match *self {
+            EightBitMime => fmt.write_str("8BITMIME"),
+            Size(s) => {
                 if s == 0 {
                     fmt.write_str("SIZE")
                 } else {

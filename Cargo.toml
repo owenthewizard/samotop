@@ -6,7 +6,7 @@ build = "src/peg.rs"
 exclude = [
     "downloads/*"
 ]
-description = "SMTP server and library built on tokio"
+description = "SMTP server and library built on tokio-rs"
 documentation = "https://docs.rs/samotop/"
 homepage = "https://gitlab.com/BrightOpen/BackYard/Samotop/"
 repository = "https://gitlab.com/BrightOpen/BackYard/Samotop/"

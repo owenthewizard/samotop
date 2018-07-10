@@ -17,23 +17,26 @@ pub struct Session {
     mail: Option<SmtpMail>,
     mailid: Uuid,
     rcpts: Vec<SmtpPath>,
-    answers: VecDeque<ClientControll>,
+    answers: VecDeque<SessionControll>,
 }
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 enum State {
     New,
     Helo,
     Mail,
+    RcptCheck,
     Rcpt,
     Data,
+    Queue,
+    End,
 }
 
 impl Session {
-    pub fn new() -> Self {
+    pub fn new(name: impl ToString) -> Self {
         Self {
             state: State::New,
-            name: "Samotop".into(),
+            name: name.to_string(),
             peer: None,
             local: None,
             helo: None,
@@ -43,115 +46,136 @@ impl Session {
             answers: vec![].into(),
         }
     }
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-    pub fn helo(&self) -> Option<&SmtpHelo> {
-        self.helo.as_ref()
-    }
-    pub fn mail(&self) -> Option<&SmtpMail> {
-        self.mail.as_ref()
-    }
-    pub fn peer(&self) -> Option<&SocketAddr> {
-        self.peer.as_ref()
-    }
-    pub fn rcpts(&self) -> impl Iterator<Item = &SmtpPath> {
-        self.rcpts.iter()
-    }
-    pub fn set_name(&mut self, name: impl ToString) {
-        self.name = name.to_string();
-    }
-    pub fn answer(&mut self) -> Option<ClientControll> {
+    pub fn get_answer(&mut self) -> Option<SessionControll> {
         self.answers.pop_front()
     }
-    pub fn controll(&mut self, ctrl: ServerControll) -> &mut Self {
+    pub fn push_back(&mut self, ctrl: SessionControll) -> &mut Self {
+        self.answers.push_front(ctrl);
+        self
+    }
+    pub fn controll(&mut self, ctrl: ServerControll) -> ControllResult<ServerControll> {
+        if self.answers.len() != 0 {
+            return ControllResult::Wait(ctrl);
+        }
+
+        if self.state == State::End {
+            return ControllResult::Ended;
+        }
+
         use model::controll::ServerControll::*;
         match ctrl {
             PeerConnected { local, peer } => self.conn(local, peer),
-            PeerShutdown => self.shut(),
+            PeerShutdown => self.end(),
             Invalid(_) => self.say_syntax_error(),
             Command(cmd) => self.cmd(cmd),
-            DataChunk(data) => self.data(data),
+            DataChunk(data) => self.data_chunk(data),
             EscapeDot(_data) => self,
             FinalDot(_data) => self.data_end(),
-        }
-    }
-    pub fn cancel(&mut self) -> &mut Self {
-        // reset bufers
-        self.rcpts.clear();
-        self.mail = None;
-        // leaving helo as is
-        //set new state
-        self.state = match self.state {
-            State::New => State::New,
-            _ => State::Helo,
         };
-        // also clear any pending answers
-        self.answers.clear();
-        self
+        ControllResult::Ok
     }
-
-    /// Returns a snapshot of the current mail session buffers.
-    pub fn extract_envelope(&self) -> Envelope {
-        Envelope {
-            name: self.name.clone(),
-            local: self.local.clone(),
-            peer: self.peer.clone(),
-            helo: self.helo.clone(),
-            mail: self.mail.clone(),
-            rcpts: self.rcpts.clone(),
-            id: self.mailid.to_string(),
+    pub fn error_sending_data(&mut self) -> &mut Self {
+        // Should never hapen. If it does, run.
+        warn!("error_sending_data() called in state {:?}", self.state);
+        self.end()
+    }
+    pub fn queued(&mut self, result: QueueResult) -> &mut Self {
+        if self.state == State::Queue {
+            match result {
+                QueueResult::QueuedWithId(id) => {
+                    self.rst().say_ok_info(format!("Queued as {}", id))
+                }
+                QueueResult::Failed => self.rst().say_mail_queue_failed(),
+                QueueResult::Refused => self.rst().say_mail_not_accepted(),
+            }
+        } else {
+            // Should never hapen. If it does, run.
+            warn!("queued() called in state {:?}", self.state);
+            self.end()
         }
     }
-    /// Returns a snapshot of the current mail session buffers.
-    pub fn extract_rcpt(&self, rcpt: &SmtpPath) -> AcceptRecipientRequest {
-        AcceptRecipientRequest {
-            name: self.name.clone(),
-            local: self.local.clone(),
-            peer: self.peer.clone(),
-            helo: self.helo.clone(),
-            mail: self.mail.clone(),
-            id: self.mailid.to_string(),
-            rcpt: rcpt.clone(),
+    pub fn mail_sent(&mut self, result: MailSendResult) -> &mut Self {
+        if self.state == State::Data {
+            match result {
+                MailSendResult::Ok => self.say_reply(SmtpReply::StartMailInputChallenge),
+                MailSendResult::Failed => self.say_mail_queue_failed(),
+                MailSendResult::Rejected => self.say_mail_not_accepted(),
+            }
+        } else {
+            // Should never hapen. If it does, run.
+            warn!("mail_sent() called in state {:?}", self.state);
+            self.end()
+        }
+    }
+    pub fn rcpt_checked(&mut self, result: AcceptRecipientResult) -> &mut Self {
+        if self.state == State::RcptCheck {
+            self.state = State::Rcpt;
+            use model::mail::AcceptRecipientResult::*;
+            match result {
+                Rejected => self.say_recipient_not_accepted(),
+                RejectedWithNewPath(path) => self.say_recipient_not_local(path),
+                Accepted(path) => {
+                    self.rcpts.push(path);
+                    self.say_ok()
+                }
+                AcceptedWithNewPath(path) => {
+                    self.rcpts.push(path.clone());
+                    self.say_ok_recipient_not_local(path)
+                }
+            }
+        } else {
+            // Should never hapen. If it does, run.
+            warn!("rcpt_checked() called in state {:?}", self.state);
+            self.end()
         }
     }
 
     fn data_end(&mut self) -> &mut Self {
-        trace!("watching data finishing up!");
-        self.state = match self.state {
-            State::New => State::New,
-            _ => State::Helo,
-        };
-        self.rcpts.clear();
-        self.mail = None;
-        // leaving helo as is
-        // TODO: need a better solution here.
-        //  - who is responsibile for the answers?
-        //self.say_ok()
-        let id = self.mailid.to_string();
-        self.say(ClientControll::QueueMail)
-            .say_reply(SmtpReply::OkMessageInfo(format!("Queued as {}", id)))
+        if self.state == State::Data {
+            self.state = State::Queue;
+            // confirmation or disaproval SmtpReply is sent after
+            // self.queued(..)
+            self.say(SessionControll::QueueMail)
+        } else {
+            // Should never hapen. If it does, run.
+            warn!("data_end() called in state {:?}", self.state);
+            self.end()
+        }
     }
-    fn data(&mut self, _data: Bytes) -> &mut Self {
-        trace!("watching data pass by!");
-        self
+    fn data_chunk(&mut self, data: Bytes) -> &mut Self {
+        if self.state == State::Data {
+            self.say(SessionControll::Data(data))
+        } else {
+            // Should never hapen. If it does, run.
+            warn!("data_chunk() called in state {:?}", self.state);
+            self.end()
+        }
     }
     fn conn(&mut self, local: Option<SocketAddr>, peer: Option<SocketAddr>) -> &mut Self {
-        self.state = State::New;
+        self.rst_to_new();
         self.local = local;
         self.peer = peer;
-        self.rcpts.clear();
-        self.mail = None;
-        self.helo = None;
         self.say_ready()
     }
-    fn shut(&mut self) -> &mut Self {
+    fn end(&mut self) -> &mut Self {
+        self.rst_to_new().say_end_of_session().state = State::End;
+        self
+    }
+    fn rst_to_new(&mut self) -> &mut Self {
         self.state = State::New;
-        self.peer = None;
-        self.rcpts.clear();
-        self.mail = None;
         self.helo = None;
-        self.say_shutdown()
+        self.rst()
+    }
+    fn rst(&mut self) -> &mut Self {
+        if self.helo == None {
+            self.state = State::New;
+        } else {
+            self.state = State::Helo;
+        }
+        self.mail = None;
+        self.rcpts.clear();
+        self.mailid = Uuid::new_v4();
+        self
     }
     fn cmd(&mut self, cmd: SmtpCommand) -> &mut Self {
         use model::command::SmtpCommand::*;
@@ -167,33 +191,34 @@ impl Session {
         }
     }
     fn cmd_quit(&mut self) -> &mut Self {
-        self.state = State::New;
-        self.helo = None;
-        self.mail = None;
-        self.rcpts.clear();
-        let name = self.name().into();
-        self.say_reply(SmtpReply::ClosingConnectionInfo(name))
-            .say_shutdown()
+        let name = self.name.clone();
+        self.rst_to_new()
+            .say_reply(SmtpReply::ClosingConnectionInfo(name))
+            .say_end_of_session()
     }
     fn cmd_data(&mut self) -> &mut Self {
-        if self.helo == None || self.mail == None || self.rcpts.len() == 0 {
+        if self.state != State::Rcpt
+            || self.helo == None
+            || self.mail == None
+            || self.rcpts.len() == 0
+        {
             self.say_command_sequence_fail()
         } else {
             self.state = State::Data;
-            self.say(ClientControll::AcceptData)
-                .say_reply(SmtpReply::StartMailInputChallenge)
+            let envelope = self.make_envelope();
+            self.say(SessionControll::SendMail(envelope))
         }
     }
-    fn cmd_rcpt(&mut self, path: SmtpPath) -> &mut Self {
+    fn cmd_rcpt(&mut self, rcpt: SmtpPath) -> &mut Self {
         if (self.state != State::Mail && self.state != State::Rcpt)
             || self.helo == None
             || self.mail == None
         {
             self.say_command_sequence_fail()
         } else {
-            self.state = State::Rcpt;
-            self.rcpts.push(path);
-            self.say_ok()
+            self.state = State::RcptCheck;
+            let request = self.make_rcpt_request(rcpt);
+            self.say(SessionControll::CheckRcpt(request))
         }
     }
     fn cmd_mail(&mut self, mail: SmtpMail) -> &mut Self {
@@ -206,48 +231,64 @@ impl Session {
         }
     }
     fn cmd_helo(&mut self, helo: SmtpHelo) -> &mut Self {
-        // new mail ID
-        self.mailid = Uuid::new_v4();
-        // reset bufers
-        self.rcpts.clear();
-        self.mail = None;
-        //set new state
-        self.state = State::Helo;
+        self.rst_to_new();
         let remote = helo.name();
         self.helo = Some(helo);
+        self.state = State::Helo;
         self.say_hi(remote)
     }
     fn cmd_rset(&mut self) -> &mut Self {
-        // reset bufers
-        self.rcpts.clear();
-        self.mail = None;
-        // leaving helo as is
-        //set new state
-        self.state = match self.state {
-            State::New => State::New,
-            _ => State::Helo,
-        };
-        self.say_ok()
+        self.rst().say_ok()
     }
     fn cmd_noop(&mut self) -> &mut Self {
         self.say_ok()
     }
-    fn say(&mut self, c: ClientControll) -> &mut Self {
+
+    /// Returns a snapshot of the current mail session buffers.
+    fn make_rcpt_request(&self, rcpt: SmtpPath) -> AcceptRecipientRequest {
+        AcceptRecipientRequest {
+            name: self.name.clone(),
+            local: self.local.clone(),
+            peer: self.peer.clone(),
+            helo: self.helo.clone(),
+            mail: self.mail.clone(),
+            id: self.mailid.to_string(),
+            rcpt: rcpt,
+        }
+    }
+
+    /// Returns a snapshot of the current mail session buffers.
+    fn make_envelope(&self) -> Envelope {
+        Envelope {
+            name: self.name.clone(),
+            local: self.local.clone(),
+            peer: self.peer.clone(),
+            helo: self.helo.clone(),
+            mail: self.mail.clone(),
+            rcpts: self.rcpts.clone(),
+            id: self.mailid.to_string(),
+        }
+    }
+
+    fn say(&mut self, c: SessionControll) -> &mut Self {
         self.answers.push_back(c);
         self
     }
     fn say_reply(&mut self, c: SmtpReply) -> &mut Self {
-        self.say(ClientControll::Reply(c))
+        self.say(SessionControll::Reply(c))
     }
-    fn say_shutdown(&mut self) -> &mut Self {
-        self.say(ClientControll::Shutdown)
+    fn say_end_of_session(&mut self) -> &mut Self {
+        self.say(SessionControll::EndOfSession)
     }
     fn say_ready(&mut self) -> &mut Self {
-        let name = self.name().into();
+        let name = self.name.clone();
         self.say_reply(SmtpReply::ServiceReadyInfo(name))
     }
     fn say_ok(&mut self) -> &mut Self {
         self.say_reply(SmtpReply::OkInfo)
+    }
+    fn say_ok_info(&mut self, info: String) -> &mut Self {
+        self.say_reply(SmtpReply::OkMessageInfo(info))
     }
     fn say_hi(&mut self, remote: String) -> &mut Self {
         let local = self.name.clone();
@@ -262,4 +303,41 @@ impl Session {
     fn say_not_implemented(&mut self) -> &mut Self {
         self.say_reply(SmtpReply::CommandNotImplementedFailure)
     }
+    fn say_recipient_not_accepted(&mut self) -> &mut Self {
+        self.say_reply(SmtpReply::MailboxNotAvailableFailure)
+    }
+    fn say_recipient_not_local(&mut self, path: SmtpPath) -> &mut Self {
+        self.say_reply(SmtpReply::UserNotLocalFailure(format!("{}", path)))
+    }
+    fn say_ok_recipient_not_local(&mut self, path: SmtpPath) -> &mut Self {
+        self.say_reply(SmtpReply::UserNotLocalInfo(format!("{}", path)))
+    }
+    fn say_mail_not_accepted(&mut self) -> &mut Self {
+        self.say_reply(SmtpReply::MailboxNotAvailableFailure)
+    }
+    fn say_mail_queue_failed(&mut self) -> &mut Self {
+        self.say_reply(SmtpReply::MailboxNotAvailableError)
+    }
+}
+
+pub enum ControllResult<T> {
+    Wait(T),
+    Ok,
+    Ended,
+}
+
+#[derive(Clone)]
+pub enum SessionControll {
+    QueueMail,
+    SendMail(Envelope),
+    CheckRcpt(AcceptRecipientRequest),
+    EndOfSession,
+    Reply(SmtpReply),
+    Data(Bytes),
+}
+
+pub enum MailSendResult {
+    Ok,
+    Rejected,
+    Failed,
 }
