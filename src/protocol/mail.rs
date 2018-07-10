@@ -214,7 +214,7 @@ impl<W> EventualMail<W> {
     {
         self.queued = match self.sink.take() {
             None => panic!("trying to queue mail without a mail sink"),
-            Some(w) => Some(w.into_queue()),
+            Some(w) => Some(w.queue()),
         };
     }
 }

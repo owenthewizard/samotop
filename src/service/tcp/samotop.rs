@@ -52,6 +52,7 @@ impl<M> SamotopHandler<M> {
 impl<M> Sink for SamotopHandler<M>
  where M:MailService +Clone +Send +'static,
     M::MailDataWrite:Sink<SinkItem = Bytes, SinkError = io::Error> + Send
+    ,M::MailDataWrite:MailHandler
   {
     type SinkItem = TcpStream;
     type SinkError = io::Error;

@@ -22,6 +22,7 @@ impl<M> TcpServiceNext for SamotopService<M>
 where
     M: MailService + Send + 'static,
     M::MailDataWrite: Sink<SinkItem = Bytes, SinkError = io::Error> + Send,
+    M::MailDataWrite: MailHandler,
 {
     type Future = Box<Future<Item = (), Error = ()> + Send>;
     fn handle(self, socket: TcpStream) -> Self::Future {

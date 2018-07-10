@@ -89,7 +89,7 @@ impl Sink for MailSink {
 }
 
 impl MailHandler for MailSink {
-    fn into_queue(self) -> QueueResult {
+    fn queue(self) -> QueueResult {
         println!("Mail data finished for {}", self.id);
         QueueResult::QueuedWithId(self.id)
     }

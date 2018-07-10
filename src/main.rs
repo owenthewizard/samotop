@@ -11,8 +11,11 @@ fn main() {
 
     let opt = Opt::from_args();
     let mail = samotop::service::mail::ConsoleMail::new("MySamotop");
-    let svc = samotop::service::tcp::next::SamotopService::new(mail);
-    let task = samotop::server::SamotopBuilder::new("localhost:12345", svc).as_task_next();
+    let sess = samotop::service::session::StatefulSessionService::new(mail);
+    let svc = samotop::service::tcp::next2::SamotopService::new(sess);
+    let task = samotop::server::SamotopBuilder::new("localhost:12345", svc)
+        .on_all(opt.ports)
+        .as_task_next();
     tokio::run(task);
     /*
     //SamotopService is the default, but you can set your own name here.

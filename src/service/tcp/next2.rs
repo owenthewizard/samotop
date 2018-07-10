@@ -28,13 +28,10 @@ where
 {
     type Future = Box<Future<Item = (), Error = ()> + Send>;
     fn handle(self, socket: TcpStream) -> Self::Future {
-        trace!("Got a stream!");
-
         let local = socket.local_addr().ok();
         let peer = socket.peer_addr().ok();
         info!("accepted peer {:?} on {:?}", peer, local);
         let (dst, src) = SmtpCodec::new().framed(socket).split();
-        info!("got an item");
 
         let task = src
             .peer(local, peer)

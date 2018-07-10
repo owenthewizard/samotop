@@ -4,7 +4,7 @@ pub mod tcp;
 
 use model::mail::*;
 use tokio::net::TcpStream;
-use tokio::prelude::Future;
+use tokio::prelude::*;
 
 /** 
 An object implementing this trait handles TCP connections.
@@ -93,7 +93,7 @@ pub trait TcpService {
 
 /** Handles mail sending and has a name */
 pub trait MailService {
-    type MailDataWrite: MailHandler;
+    type MailDataWrite;
     fn name(&self) -> String;
     fn accept(&self, request: AcceptRecipientRequest) -> AcceptRecipientResult;
     fn mail(&self, envelope: Envelope) -> Option<Self::MailDataWrite>;
@@ -105,7 +105,7 @@ pub trait TcpServiceNext {
 }
 
 pub trait MailHandler {
-    fn into_queue(self) -> QueueResult;
+    fn queue(self) -> QueueResult;
 }
 
 pub trait SessionService {

@@ -22,51 +22,76 @@ impl<M> StatefulSessionService<M> {
     }
 }
 
-impl<M> SessionService for StatefulSessionService<M>
+impl<M, H> SessionService for StatefulSessionService<M>
 where
-    M: MailService + Clone,
+    M: MailService<MailDataWrite = H> + Clone,
 {
-    type Handler = SessionHandler<M>;
+    type Handler = SessionHandler<M, H>;
     fn start(&self) -> Self::Handler {
         let name = self.mail_service.name();
         SessionHandler::new(name, self.mail_service.clone())
     }
 }
 
-pub struct SessionHandler<M> {
+pub struct SessionHandler<M, H> {
     mail_service: M,
+    mail_handler: Option<H>,
     session: Session,
 }
 
-impl<M> SessionHandler<M> {
+impl<M, H> SessionHandler<M, H> {
     pub fn new(name: impl ToString, mail_service: M) -> Self {
         Self {
             mail_service,
+            mail_handler: None,
             session: Session::new(name),
         }
     }
 }
 
-impl<M> Sink for SessionHandler<M> {
+impl<M, H> Sink for SessionHandler<M, H>
+where
+    H: Sink<SinkError = io::Error>,
+{
     type SinkItem = ServerControll;
     type SinkError = io::Error;
     fn poll_complete(&mut self) -> Poll<(), Self::SinkError> {
+        match self.mail_handler {
+            None => {}
+            Some(ref mut h) => match h.poll_complete() {
+                nr @ Ok(Async::NotReady) => return nr,
+                Err(e) => return Err(e),
+                Ok(Async::Ready(())) => {}
+            },
+        };
+
         // TODO: Handle unresolved futures:
         //   - pending rcpt check
-        //   - pending mail queue
         Ok(Async::Ready(()))
     }
     fn start_send(&mut self, item: Self::SinkItem) -> StartSend<Self::SinkItem, Self::SinkError> {
         match self.session.controll(item) {
             ControllResult::Ok => Ok(AsyncSink::Ready),
             ControllResult::Wait(item) => Ok(AsyncSink::NotReady(item)),
+            ControllResult::Ended => Err(io::Error::new(
+                io::ErrorKind::NotConnected,
+                format!("The session is over!"),
+            )),
         }
     }
 }
-impl<M> Stream for SessionHandler<M> {
+impl<M, H> Stream for SessionHandler<M, H>
+where
+    M: MailService<MailDataWrite = H>,
+    H: MailHandler,
+    H: Sink<SinkItem = Bytes, SinkError = io::Error>,
+{
     type Item = ClientControll;
     type Error = io::Error;
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
+        // Pick an answer only in one place while passing the poll to the sink.
+        // Whenever we later change the state we want to come back here right away
+        // so we return a ClientControll::Noop and the consumer will come back for more.
         let answer = match self.session.get_answer() {
             None => match self.poll_complete() {
                 Ok(Async::Ready(())) => match self.session.get_answer() {
@@ -79,9 +104,82 @@ impl<M> Stream for SessionHandler<M> {
             Some(answer) => answer,
         };
 
-        // TODO: queue mail or check rcpt
         match answer {
-            _ => unimplemented!(),
+            SessionControll::Reply(reply) => ok(ClientControll::Reply(reply)),
+            SessionControll::CheckRcpt(request) => {
+                let result = self.mail_service.accept(request);
+                self.session.rcpt_checked(result);
+                // we did something, but want to be called again
+                ok(ClientControll::Noop)
+            }
+            SessionControll::SendMail(envelope) => {
+                if self.mail_handler.is_some() {
+                    warn!("Asked to send mail, while another one is in progress. Bummer!");
+                    // I'm going to be very strict here. This should not happen.
+                    self.session.mail_sent(MailSendResult::Failed);
+                    // we did something, but want to be called again
+                    ok(ClientControll::Noop)
+                } else {
+                    let result = self.mail_service.mail(envelope);
+                    match result {
+                        None => {
+                            self.session.mail_sent(MailSendResult::Rejected);
+                            // we did something, but want to be called again
+                            ok(ClientControll::Noop)
+                        }
+                        Some(h) => {
+                            self.session.mail_sent(MailSendResult::Ok);
+                            self.mail_handler = Some(h);
+                            ok(ClientControll::AcceptData)
+                        }
+                    }
+                }
+            }
+            SessionControll::Data(data) => {
+                match self.mail_handler {
+                    None => {
+                        warn!("Asked to write mail data without a handler. Bummer!");
+                        self.session.error_sending_data();
+                        // we did something, but want to be called again
+                        ok(ClientControll::Noop)
+                    }
+                    Some(ref mut h) => {
+                        match h.start_send(data) {
+                            Ok(AsyncSink::Ready) => {
+                                /*Yay! Good stuff... */
+                                ok(ClientControll::Noop)
+                            }
+                            Ok(AsyncSink::NotReady(data)) => {
+                                /*Push back from the sink!*/
+                                self.session.push_back(SessionControll::Data(data));
+                                ok(ClientControll::Noop)
+                            }
+                            Err(e) => {
+                                warn!("Mail data write error. {:?}", e);
+                                self.session.error_sending_data();
+                                ok(ClientControll::Noop)
+                            }
+                        }
+                    }
+                }
+            }
+            SessionControll::QueueMail => {
+                match self.mail_handler.take() {
+                    None => {
+                        warn!("Asked to queue mail without a handler. Bummer!");
+                        self.session.queued(QueueResult::Failed);
+                        // we did something, but want to be called again
+                        ok(ClientControll::Noop)
+                    }
+                    Some(h) => {
+                        let result = h.queue();
+                        self.session.queued(result);
+                        // we did something, but want to be called again
+                        ok(ClientControll::Noop)
+                    }
+                }
+            }
+            SessionControll::EndOfSession => ok(ClientControll::Shutdown),
         }
     }
 }
@@ -89,16 +187,22 @@ impl<M> Stream for SessionHandler<M> {
 pub enum ControllResult<T> {
     Wait(T),
     Ok,
+    Ended,
 }
 
 #[derive(Clone)]
 pub enum SessionControll {
-    StartMailData,
-    QueueMail(Envelope),
+    QueueMail,
+    SendMail(Envelope),
     CheckRcpt(AcceptRecipientRequest),
     EndOfSession,
     Reply(SmtpReply),
     Data(Bytes),
+}
+pub enum MailSendResult {
+    Ok,
+    Rejected,
+    Failed,
 }
 
 #[derive(Clone)]
@@ -123,6 +227,7 @@ enum State {
     Rcpt,
     Data,
     Queue,
+    End,
 }
 
 impl Session {
@@ -142,9 +247,17 @@ impl Session {
     pub fn get_answer(&mut self) -> Option<SessionControll> {
         self.answers.pop_front()
     }
+    pub fn push_back(&mut self, ctrl: SessionControll) -> &mut Self {
+        self.answers.push_front(ctrl);
+        self
+    }
     pub fn controll(&mut self, ctrl: ServerControll) -> ControllResult<ServerControll> {
         if self.answers.len() != 0 {
             return ControllResult::Wait(ctrl);
+        }
+
+        if self.state == State::End {
+            return ControllResult::Ended;
         }
 
         use model::controll::ServerControll::*;
@@ -159,11 +272,37 @@ impl Session {
         };
         ControllResult::Ok
     }
+    pub fn error_sending_data(&mut self) -> &mut Self {
+        // Should never hapen. If it does, run.
+        warn!("error_sending_data() called in state {:?}", self.state);
+        self.end()
+    }
     pub fn queued(&mut self, result: QueueResult) -> &mut Self {
-        match result {
-            QueueResult::QueuedWithId(id) => self.rst().say_ok_info(format!("Queued as {}", id)),
-            QueueResult::Failed => self.rst().say_mail_queue_failed(),
-            QueueResult::Refused => self.rst().say_mail_not_accepted(),
+        if self.state == State::Queue {
+            match result {
+                QueueResult::QueuedWithId(id) => {
+                    self.rst().say_ok_info(format!("Queued as {}", id))
+                }
+                QueueResult::Failed => self.rst().say_mail_queue_failed(),
+                QueueResult::Refused => self.rst().say_mail_not_accepted(),
+            }
+        } else {
+            // Should never hapen. If it does, run.
+            warn!("queued() called in state {:?}", self.state);
+            self.end()
+        }
+    }
+    pub fn mail_sent(&mut self, result: MailSendResult) -> &mut Self {
+        if self.state == State::Data {
+            match result {
+                MailSendResult::Ok => self.say_reply(SmtpReply::StartMailInputChallenge),
+                MailSendResult::Failed => self.say_mail_queue_failed(),
+                MailSendResult::Rejected => self.say_mail_not_accepted(),
+            }
+        } else {
+            // Should never hapen. If it does, run.
+            warn!("mail_sent() called in state {:?}", self.state);
+            self.end()
         }
     }
     pub fn rcpt_checked(&mut self, result: AcceptRecipientResult) -> &mut Self {
@@ -185,21 +324,20 @@ impl Session {
         } else {
             // Should never hapen. If it does, run.
             warn!("rcpt_checked() called in state {:?}", self.state);
-            self.say_command_sequence_fail().end()
+            self.end()
         }
     }
 
     fn data_end(&mut self) -> &mut Self {
         if self.state == State::Data {
-            let envelope = self.make_envelope();
             self.state = State::Queue;
             // confirmation or disaproval SmtpReply is sent after
             // self.queued(..)
-            self.say(SessionControll::QueueMail(envelope))
+            self.say(SessionControll::QueueMail)
         } else {
             // Should never hapen. If it does, run.
             warn!("data_end() called in state {:?}", self.state);
-            self.say_command_sequence_fail().end()
+            self.end()
         }
     }
     fn data_chunk(&mut self, data: Bytes) -> &mut Self {
@@ -208,7 +346,7 @@ impl Session {
         } else {
             // Should never hapen. If it does, run.
             warn!("data_chunk() called in state {:?}", self.state);
-            self.say_command_sequence_fail().end()
+            self.end()
         }
     }
     fn conn(&mut self, local: Option<SocketAddr>, peer: Option<SocketAddr>) -> &mut Self {
@@ -218,7 +356,8 @@ impl Session {
         self.say_ready()
     }
     fn end(&mut self) -> &mut Self {
-        self.rst_to_new().say_end_of_session()
+        self.rst_to_new().say_end_of_session().state = State::End;
+        self
     }
     fn rst_to_new(&mut self) -> &mut Self {
         self.state = State::New;
@@ -264,8 +403,8 @@ impl Session {
             self.say_command_sequence_fail()
         } else {
             self.state = State::Data;
-            self.say(SessionControll::StartMailData)
-                .say_reply(SmtpReply::StartMailInputChallenge)
+            let envelope = self.make_envelope();
+            self.say(SessionControll::SendMail(envelope))
         }
     }
     fn cmd_rcpt(&mut self, rcpt: SmtpPath) -> &mut Self {
