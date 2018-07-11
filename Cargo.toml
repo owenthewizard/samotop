@@ -1,6 +1,6 @@
 [package]
 name = "samotop"
-version = "0.6.0"
+version = "0.7.0"
 authors = ["jocutajar <tellnoone@robajz.info>"]
 build = "src/peg.rs"
 exclude = [
@@ -15,15 +15,6 @@ keywords = ["smtp", "tokio", "server", "parser", "PEG"]
 
 # see crates.io/category_slugs
 categories = ["email", "asynchronous", "network-programming", "parser-implementations"]
-
-# This is an SPDX 2.1 license expression for this package.  Currently
-# crates.io will validate the license provided against a whitelist of
-# known license and exception identifiers from the SPDX license list
-# 2.4.  Parentheses are not currently supported.
-#
-# Multiple licenses can be separated with a `/`, although that usage
-# is deprecated.  Instead, use a license expression with AND and OR
-# operators to get more explicit semantics.
 license = "MIT"
 
 [badges]

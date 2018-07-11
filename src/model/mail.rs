@@ -41,10 +41,11 @@ pub struct AcceptRecipientRequest {
 
 #[derive(Debug, Clone)]
 pub enum AcceptRecipientResult {
-    Accepted(SmtpPath),
+    Failed,
     Rejected,
-    AcceptedWithNewPath(SmtpPath),
     RejectedWithNewPath(SmtpPath),
+    AcceptedWithNewPath(SmtpPath),
+    Accepted(SmtpPath),
 }
 
 /// Mail was queued with id

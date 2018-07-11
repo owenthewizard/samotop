@@ -7,11 +7,14 @@ use tokio::net::TcpStream;
 use tokio::prelude::*;
 
 /** 
-An object implementing this trait handles TCP connections.
+An object implementing this trait handles TCP connections in a `Future`.
 
-The caller would first `start()` the `Handler`, then pass tcp connections to the handler.
+The caller would ask the service to `handle()` the `TcpStream`, 
+then poll the returned future or more likely `tokio::spawn()` it.
 
-Here's a dead simple implementation that returns the `DeadHandler` as a handler:
+Here's a dead simple implementation that returns a completed future 
+and doesn't do anything with the stream:
+
 ```
 # extern crate samotop;
 # extern crate tokio;
@@ -30,19 +33,37 @@ impl TcpService for DeadService {
     }
 }
 ```
+
 You can then use this `DeadService` in samotop:
+
 ```
 # use samotop::service::tcp::DeadService;
 let task = samotop::builder()
         .with(DeadService)
         .as_task();
 ```
+
+The `SamotopService` implements this trait.
 */
 pub trait TcpService {
     type Future: Future<Item = (), Error = ()>;
     fn handle(self, stream: TcpStream) -> Self::Future;
 }
 
+pub trait NamedService {
+    fn name(&self) -> String;
+}
+
+pub trait MailGuard {
+    type Future: Future<Item = AcceptRecipientResult>;
+    fn accept(&self, request: AcceptRecipientRequest) -> Self::Future;
+}
+
+pub trait MailQueue {
+    type Mail;
+    type MailFuture: Future<Item = Option<Self::Mail>>;
+    fn mail(&self, envelope: Envelope) -> Self::MailFuture;
+}
 
 /** Handles mail sending and has a name */
 pub trait MailService {
@@ -52,8 +73,7 @@ pub trait MailService {
     fn mail(&self, envelope: Envelope) -> Option<Self::MailDataWrite>;
 }
 
-
-pub trait MailHandler {
+pub trait Mail {
     fn queue(self) -> QueueResult;
 }
 

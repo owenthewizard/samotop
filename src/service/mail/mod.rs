@@ -1,3 +1,3 @@
 mod console;
-
-pub use self::console::*;
+mod console_async;
+pub use self::console_async::*;

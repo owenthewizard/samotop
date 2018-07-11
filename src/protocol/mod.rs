@@ -85,7 +85,8 @@ mod tests {
         let mut sut = SmtpCodec::new();
 
         let mut buf = BytesMut::new();
-        sut.encode(ClientControll::AcceptData, &mut buf).unwrap();
+        sut.encode(ClientControll::AcceptData(true), &mut buf)
+            .unwrap();
 
         buf.extend(b(b"daaataaa\r\n"));
 
@@ -109,7 +110,8 @@ mod tests {
         let mut sut = SmtpCodec::new();
 
         let mut buf = BytesMut::new();
-        sut.encode(ClientControll::AcceptData, &mut buf).unwrap();
+        sut.encode(ClientControll::AcceptData(true), &mut buf)
+            .unwrap();
 
         buf.extend(b(b".\r\n"));
 
@@ -148,7 +150,8 @@ mod tests {
         let result = sut.decode_either(&mut buf).unwrap().unwrap();
         assert_eq!(result, Command(Unknown("data\r\n".into())));
 
-        sut.encode(ClientControll::AcceptData, &mut buf).unwrap();
+        sut.encode(ClientControll::AcceptData(true), &mut buf)
+            .unwrap();
 
         let result = sut.decode_either(&mut buf).unwrap().unwrap();
         assert_eq!(result, DataChunk(b(b"xxxx")));
@@ -165,7 +168,8 @@ mod tests {
         let mut sut = SmtpCodec::new();
 
         let mut buf = BytesMut::new();
-        sut.encode(ClientControll::AcceptData, &mut buf).unwrap();
+        sut.encode(ClientControll::AcceptData(true), &mut buf)
+            .unwrap();
 
         let result = sut.decode_either(&mut buf).unwrap();
         assert_eq!(result, None);

@@ -76,7 +76,7 @@ where
 impl<M, H> Stream for StatefulSessionHandler<M, H>
 where
     M: MailService<MailDataWrite = H>,
-    H: MailHandler,
+    H: Mail,
     H: Sink<SinkItem = Bytes, SinkError = io::Error>,
 {
     type Item = ClientControll;
@@ -109,21 +109,22 @@ where
                 if self.mail_handler.is_some() {
                     warn!("Asked to send mail, while another one is in progress. Bummer!");
                     // I'm going to be very strict here. This should not happen.
-                    self.session.mail_sent(MailSendResult::Failed);
+                    self.session.mail_sending(MailSendResult::Failed);
                     // we did something, but want to be called again
                     ok(ClientControll::Noop)
                 } else {
                     let result = self.mail_service.mail(envelope);
                     match result {
                         None => {
-                            self.session.mail_sent(MailSendResult::Rejected);
+                            self.session.mail_sending(MailSendResult::Rejected);
                             // we did something, but want to be called again
                             ok(ClientControll::Noop)
                         }
                         Some(h) => {
-                            self.session.mail_sent(MailSendResult::Ok);
+                            self.session.mail_sending(MailSendResult::Ok);
                             self.mail_handler = Some(h);
-                            ok(ClientControll::AcceptData)
+                            // we did something, but want to be called again
+                            ok(ClientControll::Noop)
                         }
                     }
                 }
@@ -160,19 +161,24 @@ where
                 match self.mail_handler.take() {
                     None => {
                         warn!("Asked to queue mail without a handler. Bummer!");
-                        self.session.queued(QueueResult::Failed);
+                        self.session.mail_queued(QueueResult::Failed);
                         // we did something, but want to be called again
                         ok(ClientControll::Noop)
                     }
                     Some(h) => {
                         let result = h.queue();
-                        self.session.queued(result);
+                        self.session.mail_queued(result);
                         // we did something, but want to be called again
                         ok(ClientControll::Noop)
                     }
                 }
             }
+            SessionControll::AcceptMailData(accept) => ok(ClientControll::AcceptData(accept)),
             SessionControll::EndOfSession => ok(ClientControll::Shutdown),
+            SessionControll::Fail => Err(io::Error::new(
+                io::ErrorKind::Other,
+                format!("Mail session failed"),
+            )),
         }
     }
 }

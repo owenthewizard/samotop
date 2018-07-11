@@ -2,6 +2,7 @@ use bytes::Bytes;
 use model::command::SmtpCommand;
 use std::net::SocketAddr;
 
+/// Represents the instructions towards the server side of the stream.
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum ServerControll {
     /** Peer connected */
@@ -21,4 +22,9 @@ pub enum ServerControll {
     FinalDot(Bytes),
     /** The SMTP data escape dot (.) is part of protocol signalling and not part of data */
     EscapeDot(Bytes),
+    /// The stream source decoder may need to know if a "data" command
+    /// should now switch processing to data mode of parsing input.
+    /// In that case it will send this controll and will expect
+    /// the corresponding `ClientControll::AcceptData(bool)`
+    ConfirmSwitchToData,
 }

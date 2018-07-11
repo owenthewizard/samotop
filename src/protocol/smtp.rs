@@ -14,9 +14,10 @@ use tokio_codec::{Decoder, Encoder};
  */
 pub struct SmtpCodec {
     nl_lookup: Regex,
-    //data_check: Regex,
+    data_check: Regex,
     sanity_check: Regex,
     state: State,
+    confirm_switch_to_data: bool,
 }
 
 /** Tracks the codec state */
@@ -34,9 +35,9 @@ impl SmtpCodec {
             // performs basic sanity check on a command line
             sanity_check: Regex::new(r"(?i)^[a-z]{4}(\r?\n| )").unwrap(),
             state: State::Line(0, 0),
-            // we could detect data command in the codec
-            // but it would not give the service a chance to decide
-            //data_check: Regex::new(r"(?i)^data(\r?\n| )").unwrap(),
+            // we detect data command in the codec and wait for confirmation
+            data_check: Regex::new(r"(?i)^data(\r?\n| )").unwrap(),
+            confirm_switch_to_data: false,
         }
     }
 
@@ -77,9 +78,9 @@ impl SmtpCodec {
                 if !self.sanity_check.is_match(bytes) {
                     (Ok(Some(ServerControll::Invalid(Bytes::from(bytes)))), state)
                 } else {
-                    //if self.data_check.is_match(bytes) {
-                    //    state = State::Data(true, tail)
-                    //}
+                    if self.data_check.is_match(bytes) {
+                        self.confirm_switch_to_data = true;
+                    }
 
                     // Convert the bytes to a string and panic if the bytes are not valid utf-8.
                     let line = String::from_utf8(bytes.to_vec());
@@ -171,7 +172,11 @@ impl Decoder for SmtpCodec {
     type Item = ServerControll;
     type Error = io::Error;
     fn decode(&mut self, buf: &mut BytesMut) -> Result<Option<ServerControll>, io::Error> {
-        self.decode_either(buf)
+        if self.confirm_switch_to_data {
+            Ok(Some(ServerControll::ConfirmSwitchToData))
+        } else {
+            self.decode_either(buf)
+        }
     }
 }
 
@@ -182,10 +187,13 @@ impl Encoder for SmtpCodec {
         let line = match item {
             ClientControll::Noop => return Ok(()),
             ClientControll::Shutdown => return Ok(()),
-            ClientControll::AcceptData => {
-                if let State::Line(_, tail) = self.state {
-                    self.state = State::Data(true, tail);
+            ClientControll::AcceptData(accept) => {
+                if accept {
+                    if let State::Line(_, tail) = self.state {
+                        self.state = State::Data(true, tail);
+                    }
                 }
+                self.confirm_switch_to_data = false;
                 return Ok(());
             }
             ClientControll::Reply(reply) => reply.to_string(),
@@ -336,3 +344,26 @@ mod tests {
     }
 
 }
+
+
+/*
+
+helo there
+mail from:<gorila@mozilla.ff>
+rcpt to:<stalin@hell.hot>
+data
+BOOOO
+.
+mail from:<banana@mozilla.ff>
+rcpt to:<hitler@hell.hot>
+data
+BAAAA
+.
+mail from:<ticktack@mozilla.ff>
+rcpt to:<trump@hell.hot>
+data
+DRRRR
+.
+QUIT
+
+*/

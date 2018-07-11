@@ -25,10 +25,11 @@ enum State {
     New,
     Helo,
     Mail,
-    RcptCheck,
+    WaitForRcptCheck,
     Rcpt,
-    Data,
-    Queue,
+    WaitForSendMail,
+    DataStreaming,
+    WaitForQueue,
     End,
 }
 
@@ -54,7 +55,13 @@ impl Session {
         self
     }
     pub fn controll(&mut self, ctrl: ServerControll) -> ControllResult<ServerControll> {
-        if self.answers.len() != 0 {
+        if self.answers.len() != 0
+            || self.state == State::WaitForRcptCheck
+            || self.state == State::WaitForSendMail
+            || self.state == State::WaitForQueue
+        {
+            trace!("pushing back");
+            // We're waiting for something or we've got some backlog to clear. Push back!
             return ControllResult::Wait(ctrl);
         }
 
@@ -71,6 +78,7 @@ impl Session {
             DataChunk(data) => self.data_chunk(data),
             EscapeDot(_data) => self,
             FinalDot(_data) => self.data_end(),
+            ConfirmSwitchToData => self.confirm_data(),
         };
         ControllResult::Ok
     }
@@ -79,8 +87,8 @@ impl Session {
         warn!("error_sending_data() called in state {:?}", self.state);
         self.end()
     }
-    pub fn queued(&mut self, result: QueueResult) -> &mut Self {
-        if self.state == State::Queue {
+    pub fn mail_queued(&mut self, result: QueueResult) -> &mut Self {
+        if self.state == State::WaitForQueue {
             match result {
                 QueueResult::QueuedWithId(id) => {
                     self.rst().say_ok_info(format!("Queued as {}", id))
@@ -94,12 +102,22 @@ impl Session {
             self.end()
         }
     }
-    pub fn mail_sent(&mut self, result: MailSendResult) -> &mut Self {
-        if self.state == State::Data {
+    pub fn mail_sending(&mut self, result: MailSendResult) -> &mut Self {
+        if self.state == State::WaitForSendMail {
             match result {
-                MailSendResult::Ok => self.say_reply(SmtpReply::StartMailInputChallenge),
-                MailSendResult::Failed => self.say_mail_queue_failed(),
-                MailSendResult::Rejected => self.say_mail_not_accepted(),
+                MailSendResult::Ok => {
+                    self.state = State::DataStreaming;
+                    self.say(SessionControll::AcceptMailData(true))
+                        .say_reply(SmtpReply::StartMailInputChallenge)
+                }
+                MailSendResult::Failed => self
+                    .rst()
+                    .say(SessionControll::AcceptMailData(false))
+                    .say_mail_queue_failed(),
+                MailSendResult::Rejected => self
+                    .rst()
+                    .say(SessionControll::AcceptMailData(false))
+                    .say_mail_not_accepted(),
             }
         } else {
             // Should never hapen. If it does, run.
@@ -108,10 +126,11 @@ impl Session {
         }
     }
     pub fn rcpt_checked(&mut self, result: AcceptRecipientResult) -> &mut Self {
-        if self.state == State::RcptCheck {
+        if self.state == State::WaitForRcptCheck {
             self.state = State::Rcpt;
             use model::mail::AcceptRecipientResult::*;
             match result {
+                Failed => self.say_reply(SmtpReply::ProcesingError),
                 Rejected => self.say_recipient_not_accepted(),
                 RejectedWithNewPath(path) => self.say_recipient_not_local(path),
                 Accepted(path) => {
@@ -129,10 +148,17 @@ impl Session {
             self.end()
         }
     }
-
+    fn confirm_data(&mut self) -> &mut Self {
+        if self.state == State::DataStreaming {
+            self.say(SessionControll::AcceptMailData(true))
+        } else {
+            warn!("rejecting data?");
+            self.say(SessionControll::AcceptMailData(false))
+        }
+    }
     fn data_end(&mut self) -> &mut Self {
-        if self.state == State::Data {
-            self.state = State::Queue;
+        if self.state == State::DataStreaming {
+            self.state = State::WaitForQueue;
             // confirmation or disaproval SmtpReply is sent after
             // self.queued(..)
             self.say(SessionControll::QueueMail)
@@ -143,7 +169,7 @@ impl Session {
         }
     }
     fn data_chunk(&mut self, data: Bytes) -> &mut Self {
-        if self.state == State::Data {
+        if self.state == State::DataStreaming {
             self.say(SessionControll::Data(data))
         } else {
             // Should never hapen. If it does, run.
@@ -204,7 +230,7 @@ impl Session {
         {
             self.say_command_sequence_fail()
         } else {
-            self.state = State::Data;
+            self.state = State::WaitForSendMail;
             let envelope = self.make_envelope();
             self.say(SessionControll::SendMail(envelope))
         }
@@ -216,7 +242,7 @@ impl Session {
         {
             self.say_command_sequence_fail()
         } else {
-            self.state = State::RcptCheck;
+            self.state = State::WaitForRcptCheck;
             let request = self.make_rcpt_request(rcpt);
             self.say(SessionControll::CheckRcpt(request))
         }
@@ -326,14 +352,16 @@ pub enum ControllResult<T> {
     Ended,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum SessionControll {
     QueueMail,
     SendMail(Envelope),
     CheckRcpt(AcceptRecipientRequest),
     EndOfSession,
+    AcceptMailData(bool),
     Reply(SmtpReply),
     Data(Bytes),
+    Fail,
 }
 
 pub enum MailSendResult {
