@@ -50,33 +50,43 @@ pub trait TcpService {
     fn handle(self, stream: TcpStream) -> Self::Future;
 }
 
+/**
+The service which implements this trait has a name.
+*/
 pub trait NamedService {
     fn name(&self) -> String;
 }
 
+/**
+A mail guard can be queried whether a recepient is accepted on on which address.
+*/
 pub trait MailGuard {
     type Future: Future<Item = AcceptRecipientResult>;
     fn accept(&self, request: AcceptRecipientRequest) -> Self::Future;
 }
 
+/**
+A mail queue allows us to queue an e-mail. 
+We start with an envelope. Then, depending on implementation, 
+the `Mail` implementation receives the e-mail body.
+Finally, the caller queues the mail by calling `Mail.queue()`.
+*/
 pub trait MailQueue {
     type Mail;
     type MailFuture: Future<Item = Option<Self::Mail>>;
     fn mail(&self, envelope: Envelope) -> Self::MailFuture;
 }
 
-/** Handles mail sending and has a name */
-pub trait MailService {
-    type MailDataWrite;
-    fn name(&self) -> String;
-    fn accept(&self, request: AcceptRecipientRequest) -> AcceptRecipientResult;
-    fn mail(&self, envelope: Envelope) -> Option<Self::MailDataWrite>;
-}
-
+/**
+The final step of sending a mail is queueing it for delivery.
+*/
 pub trait Mail {
     fn queue(self) -> QueueResult;
 }
 
+/**
+A session service handles the Samotop session
+*/
 pub trait SessionService {
     type Handler;
     fn start(&self) -> Self::Handler;

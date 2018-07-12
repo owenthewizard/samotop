@@ -4,6 +4,7 @@ use hostname::get_hostname;
 use model::mail::*;
 use service::*;
 use tokio::io;
+use tokio::prelude::future::FutureResult;
 use tokio::prelude::*;
 
 #[derive(Clone)]
@@ -22,8 +23,7 @@ impl ConsoleMail {
     }
 }
 
-impl MailService for ConsoleMail {
-    type MailDataWrite = MailSink;
+impl NamedService for ConsoleMail {
     fn name(&self) -> String {
         match self.name {
             None => match get_hostname() {
@@ -33,11 +33,21 @@ impl MailService for ConsoleMail {
             Some(ref name) => name.clone(),
         }
     }
-    fn accept(&self, request: AcceptRecipientRequest) -> AcceptRecipientResult {
+}
+
+impl MailGuard for ConsoleMail {
+    type Future = FutureResult<AcceptRecipientResult, io::Error>;
+    fn accept(&self, request: AcceptRecipientRequest) -> Self::Future {
         println!("Accepting recipient {:?}", request);
-        AcceptRecipientResult::Accepted(request.rcpt)
+        future::ok(AcceptRecipientResult::Accepted(request.rcpt))
     }
-    fn mail(&self, envelope: Envelope) -> Option<Self::MailDataWrite> {
+}
+
+impl MailQueue for ConsoleMail {
+    type Mail = MailSink;
+    type MailFuture = FutureResult<Option<Self::Mail>, io::Error>;
+
+    fn mail(&self, envelope: Envelope) -> Self::MailFuture {
         match envelope {
             Envelope {
                 ref name,
@@ -62,11 +72,11 @@ impl MailService for ConsoleMail {
                     local,
                     peer
                 );
-                Some(MailSink { id: id.clone() })
+                future::ok(Some(MailSink { id: id.clone() }))
             }
             envelope => {
                 warn!("Incomplete envelope: {:?}", envelope);
-                None
+                future::ok(None)
             }
         }
     }
