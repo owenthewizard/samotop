@@ -8,76 +8,176 @@ use tokio::io;
 use util::*;
 
 #[derive(Clone)]
-pub struct StatefulSessionService<M> {
-    mail_service: M,
+pub struct StatefulSessionService<S> {
+    mail_service: S,
 }
 
-impl<M> StatefulSessionService<M> {
-    pub fn new(mail_service: M) -> Self {
+impl<S> StatefulSessionService<S> {
+    pub fn new(mail_service: S) -> Self {
         Self { mail_service }
     }
 }
 
-impl<M, H> SessionService for StatefulSessionService<M>
+impl<S, M, MFut, GFut> SessionService for StatefulSessionService<S>
 where
-    M: MailService<MailDataWrite = H> + Clone,
+    S: NamedService + Clone,
+    S: MailGuard<Future = GFut>,
+    S: MailQueue<MailFuture = MFut, Mail = M>,
+    MFut: Future<Item = Option<M>>,
+    GFut: Future<Item = AcceptRecipientResult>,
+    M: Mail,
+    M: Sink<SinkItem = Bytes, SinkError = io::Error>,
 {
-    type Handler = StatefulSessionHandler<M, H>;
+    type Handler = StatefulSessionHandler<S, M, MFut, GFut>;
     fn start(&self) -> Self::Handler {
         let name = self.mail_service.name();
         StatefulSessionHandler::new(name, self.mail_service.clone())
     }
 }
 
-pub struct StatefulSessionHandler<M, H> {
-    mail_service: M,
-    mail_handler: Option<H>,
+pub struct StatefulSessionHandler<S, M, MFut, GFut> {
+    mail_service: S,
+    mail: Option<M>,
+    mail_fut: Option<MFut>,
+    mail_guard_fut: Option<GFut>,
     session: Session,
 }
 
-impl<M, H> StatefulSessionHandler<M, H> {
-    pub fn new(name: impl ToString, mail_service: M) -> Self {
+impl<S, M, MFut, GFut> StatefulSessionHandler<S, M, MFut, GFut> {
+    pub fn new(name: impl ToString, mail_service: S) -> Self {
         Self {
             mail_service,
-            mail_handler: None,
+            mail: None,
+            mail_fut: None,
+            mail_guard_fut: None,
             session: Session::new(name),
         }
     }
 }
 
-impl<M, H> Sink for StatefulSessionHandler<M, H>
+impl<S, M, MFut, GFut> Sink for StatefulSessionHandler<S, M, MFut, GFut>
 where
-    H: Sink<SinkError = io::Error>,
+    S: MailGuard<Future = GFut>,
+    S: MailQueue<MailFuture = MFut, Mail = M>,
+    MFut: Future<Item = Option<M>, Error = io::Error>,
+    GFut: Future<Item = AcceptRecipientResult, Error = io::Error>,
+    M: Mail,
+    M: Sink<SinkItem = Bytes, SinkError = io::Error>,
 {
     type SinkItem = ServerControll;
     type SinkError = io::Error;
     fn poll_complete(&mut self) -> Poll<(), Self::SinkError> {
-        match self.mail_handler {
-            None => {}
-            Some(ref mut h) => match h.poll_complete() {
-                nr @ Ok(Async::NotReady) => return nr,
-                Err(e) => return Err(e),
-                Ok(Async::Ready(())) => {}
+        let mut poll = Ok(Async::Ready(()));
+        let pending = || Ok(Async::NotReady);
+
+        // poll pending mail send
+        poll = match self.mail_fut.take() {
+            None => poll,
+            Some(mut f) => match f.poll() {
+                Ok(Async::NotReady) => {
+                    self.mail_fut = Some(f);
+                    trace!("mail_fut not ready.");
+                    pending()
+                }
+                Err(e) => {
+                    warn!("Sending mail failed {:?}", e);
+                    self.session.mail_sending(MailSendResult::Failed);
+                    poll
+                }
+                Ok(Async::Ready(Some(mail))) => {
+                    if self.mail.is_some() {
+                        // This should not happen. Something is wrong with synchronization.
+                        warn!("Got a new mail while another is in progress. Bummer!");
+                        // We will not be going ahead with this new mail.
+                        self.session.mail_sending(MailSendResult::Failed);
+                        poll
+                    } else {
+                        trace!("mail_fut ready and accepted!");
+                        self.mail = Some(mail);
+                        self.session.mail_sending(MailSendResult::Ok);
+                        poll
+                    }
+                }
+                Ok(Async::Ready(None)) => {
+                    trace!("mail_fut ready and rejected!");
+                    self.session.mail_sending(MailSendResult::Rejected);
+                    poll
+                }
             },
         };
-        Ok(Async::Ready(()))
+
+        // poll the mail data sink
+        poll = match self.mail.take() {
+            None => poll,
+            Some(mut h) => match h.poll_complete() {
+                Ok(Async::NotReady) => {
+                    trace!("mail sink not ready.");
+                    self.mail = Some(h);
+                    pending()
+                }
+                Err(e) => {
+                    warn!("Sending mail data failed. {:?}", e);
+                    self.session.error_sending_data();
+                    poll
+                }
+                Ok(Async::Ready(())) => {
+                    trace!("mail sink ready!");
+                    self.mail = Some(h);
+                    poll
+                }
+            },
+        };
+
+        // poll pending rcpt check
+        poll = match self.mail_guard_fut.take() {
+            None => poll,
+            Some(mut f) => match f.poll() {
+                Err(e) => {
+                    warn!("Checking mail recipient failed. {:?}", e);
+                    self.session.rcpt_checked(AcceptRecipientResult::Failed);
+                    poll
+                }
+                Ok(Async::NotReady) => {
+                    trace!("rcpt check not ready.");
+                    self.mail_guard_fut = Some(f);
+                    pending()
+                }
+                Ok(Async::Ready(result)) => {
+                    trace!("rcpt check ready!");
+                    self.session.rcpt_checked(result);
+                    poll
+                }
+            },
+        };
+
+        poll
     }
     fn start_send(&mut self, item: Self::SinkItem) -> StartSend<Self::SinkItem, Self::SinkError> {
+        let dbg = format!("controll sink item: {:?}", item);
         match self.session.controll(item) {
-            ControllResult::Ok => Ok(AsyncSink::Ready),
             ControllResult::Wait(item) => Ok(AsyncSink::NotReady(item)),
-            ControllResult::Ended => Err(io::Error::new(
-                io::ErrorKind::NotConnected,
-                format!("The session is over!"),
-            )),
+            ControllResult::Ok => {
+                trace!("{}", dbg);
+                Ok(AsyncSink::Ready)
+            }
+            ControllResult::Ended => {
+                warn!("session already ended when {} came", dbg);
+                Err(io::Error::new(
+                    io::ErrorKind::NotConnected,
+                    format!("The session is over!"),
+                ))
+            }
         }
     }
 }
-impl<M, H> Stream for StatefulSessionHandler<M, H>
+impl<S, M, MFut, GFut> Stream for StatefulSessionHandler<S, M, MFut, GFut>
 where
-    M: MailService<MailDataWrite = H>,
-    H: MailHandler,
-    H: Sink<SinkItem = Bytes, SinkError = io::Error>,
+    S: MailGuard<Future = GFut>,
+    S: MailQueue<MailFuture = MFut, Mail = M>,
+    MFut: Future<Item = Option<M>, Error = io::Error>,
+    GFut: Future<Item = AcceptRecipientResult, Error = io::Error>,
+    M: Mail,
+    M: Sink<SinkItem = Bytes, SinkError = io::Error>,
 {
     type Item = ClientControll;
     type Error = io::Error;
@@ -91,45 +191,48 @@ where
                     None => return none(),
                     Some(answer) => answer,
                 },
-                Ok(Async::NotReady) => return pending(),
+                Ok(Async::NotReady) => {
+                    trace!("waiting for an answer.");
+                    return pending();
+                }
                 Err(e) => return Err(e),
             },
             Some(answer) => answer,
         };
 
+        trace!("session controll answer: {:?}", answer);
+
+        // process the answer
         match answer {
             SessionControll::Reply(reply) => ok(ClientControll::Reply(reply)),
             SessionControll::CheckRcpt(request) => {
-                let result = self.mail_service.accept(request);
-                self.session.rcpt_checked(result);
-                // we did something, but want to be called again
-                ok(ClientControll::Noop)
+                if self.mail_guard_fut.is_some() {
+                    // This should not happen. Something is wrong with synchronization.
+                    warn!("Asked to check Rcpt while another check is in progress. Bummer!");
+                    // We will not be adding this RCPT.
+                    self.session.rcpt_checked(AcceptRecipientResult::Failed);
+                    ok(ClientControll::Noop)
+                } else {
+                    self.mail_guard_fut = Some(self.mail_service.accept(request));
+                    // we did something, but want to be called again
+                    ok(ClientControll::Noop)
+                }
             }
             SessionControll::SendMail(envelope) => {
-                if self.mail_handler.is_some() {
-                    warn!("Asked to send mail, while another one is in progress. Bummer!");
+                if self.mail.is_some() {
+                    warn!("Asked to send mail while another one is in progress. Bummer!");
                     // I'm going to be very strict here. This should not happen.
-                    self.session.mail_sent(MailSendResult::Failed);
+                    self.session.mail_sending(MailSendResult::Failed);
                     // we did something, but want to be called again
                     ok(ClientControll::Noop)
                 } else {
-                    let result = self.mail_service.mail(envelope);
-                    match result {
-                        None => {
-                            self.session.mail_sent(MailSendResult::Rejected);
-                            // we did something, but want to be called again
-                            ok(ClientControll::Noop)
-                        }
-                        Some(h) => {
-                            self.session.mail_sent(MailSendResult::Ok);
-                            self.mail_handler = Some(h);
-                            ok(ClientControll::AcceptData)
-                        }
-                    }
+                    self.mail_fut = Some(self.mail_service.mail(envelope));
+                    // we did something, but want to be called again
+                    ok(ClientControll::Noop)
                 }
             }
             SessionControll::Data(data) => {
-                match self.mail_handler {
+                match self.mail {
                     None => {
                         warn!("Asked to write mail data without a handler. Bummer!");
                         self.session.error_sending_data();
@@ -157,22 +260,27 @@ where
                 }
             }
             SessionControll::QueueMail => {
-                match self.mail_handler.take() {
+                match self.mail.take() {
                     None => {
                         warn!("Asked to queue mail without a handler. Bummer!");
-                        self.session.queued(QueueResult::Failed);
+                        self.session.mail_queued(QueueResult::Failed);
                         // we did something, but want to be called again
                         ok(ClientControll::Noop)
                     }
                     Some(h) => {
                         let result = h.queue();
-                        self.session.queued(result);
+                        self.session.mail_queued(result);
                         // we did something, but want to be called again
                         ok(ClientControll::Noop)
                     }
                 }
             }
+            SessionControll::AcceptMailData(accept) => ok(ClientControll::AcceptData(accept)),
             SessionControll::EndOfSession => ok(ClientControll::Shutdown),
+            SessionControll::Fail => Err(io::Error::new(
+                io::ErrorKind::Other,
+                format!("Mail session failed"),
+            )),
         }
     }
 }

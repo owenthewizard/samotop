@@ -7,11 +7,14 @@ use tokio::net::TcpStream;
 use tokio::prelude::*;
 
 /** 
-An object implementing this trait handles TCP connections.
+An object implementing this trait handles TCP connections in a `Future`.
 
-The caller would first `start()` the `Handler`, then pass tcp connections to the handler.
+The caller would ask the service to `handle()` the `TcpStream`, 
+then poll the returned future or more likely `tokio::spawn()` it.
 
-Here's a dead simple implementation that returns the `DeadHandler` as a handler:
+Here's a dead simple implementation that returns a completed future 
+and doesn't do anything with the stream:
+
 ```
 # extern crate samotop;
 # extern crate tokio;
@@ -30,33 +33,60 @@ impl TcpService for DeadService {
     }
 }
 ```
+
 You can then use this `DeadService` in samotop:
+
 ```
 # use samotop::service::tcp::DeadService;
 let task = samotop::builder()
         .with(DeadService)
         .as_task();
 ```
+
+The `SamotopService` implements this trait.
 */
 pub trait TcpService {
     type Future: Future<Item = (), Error = ()>;
     fn handle(self, stream: TcpStream) -> Self::Future;
 }
 
-
-/** Handles mail sending and has a name */
-pub trait MailService {
-    type MailDataWrite;
+/**
+The service which implements this trait has a name.
+*/
+pub trait NamedService {
     fn name(&self) -> String;
-    fn accept(&self, request: AcceptRecipientRequest) -> AcceptRecipientResult;
-    fn mail(&self, envelope: Envelope) -> Option<Self::MailDataWrite>;
 }
 
+/**
+A mail guard can be queried whether a recepient is accepted on on which address.
+*/
+pub trait MailGuard {
+    type Future: Future<Item = AcceptRecipientResult>;
+    fn accept(&self, request: AcceptRecipientRequest) -> Self::Future;
+}
 
-pub trait MailHandler {
+/**
+A mail queue allows us to queue an e-mail. 
+We start with an envelope. Then, depending on implementation, 
+the `Mail` implementation receives the e-mail body.
+Finally, the caller queues the mail by calling `Mail.queue()`.
+*/
+pub trait MailQueue {
+    type Mail;
+    type MailFuture: Future<Item = Option<Self::Mail>>;
+    fn mail(&self, envelope: Envelope) -> Self::MailFuture;
+}
+
+/**
+The final step of sending a mail is queueing it for delivery.
+*/
+pub trait Mail {
     fn queue(self) -> QueueResult;
 }
 
+/**
+A session service handles the Samotop session
+*/
 pub trait SessionService {
     type Handler;
     fn start(&self) -> Self::Handler;

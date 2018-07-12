@@ -110,14 +110,14 @@ impl SmtpHelo {
 
 impl fmt::Display for SmtpPath {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-        match self {
-            &SmtpPath::Direct(ref addr) => match addr {
-                &SmtpAddress::Mailbox(ref name, ref host) => write!(f, "<{}@{}>", name, host),
+        match *self {
+            SmtpPath::Direct(ref addr) => match addr {
+                SmtpAddress::Mailbox(ref name, ref host) => write!(f, "<{}@{}>", name, host),
             },
-            &SmtpPath::Null => write!(f, "<>"),
-            &SmtpPath::Postmaster => write!(f, "<POSTMASTER>"),
-            &SmtpPath::Relay(_, ref addr) => match addr {
-                &SmtpAddress::Mailbox(ref name, ref host) => write!(f, "<{}@{}>", name, host),
+            SmtpPath::Null => write!(f, "<>"),
+            SmtpPath::Postmaster => write!(f, "<POSTMASTER>"),
+            SmtpPath::Relay(_, ref addr) => match addr {
+                SmtpAddress::Mailbox(ref name, ref host) => write!(f, "<{}@{}>", name, host),
             },
         }
     }
@@ -126,15 +126,15 @@ impl fmt::Display for SmtpPath {
 impl fmt::Display for SmtpHost {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         use self::SmtpHost::*;
-        match self {
-            &Domain(ref h) => f.write_str(h),
-            &Ipv4(ref h) => write!(f, "{}", h),
-            &Ipv6(ref h) => write!(f, "{}", h),
-            &Invalid {
+        match *self {
+            Domain(ref h) => f.write_str(h),
+            Ipv4(ref h) => write!(f, "{}", h),
+            Ipv6(ref h) => write!(f, "{}", h),
+            Invalid {
                 ref label,
                 ref literal,
             } => write!(f, "{}:{}", label, literal),
-            &Other {
+            Other {
                 ref label,
                 ref literal,
             } => write!(f, "{}:{}", label, literal),

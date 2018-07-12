@@ -9,18 +9,18 @@ use tokio_codec::Decoder;
 use util::*;
 
 #[derive(Clone)]
-pub struct SamotopService<M> {
-    mail_service: M,
+pub struct SamotopService<S> {
+    session_service: S,
 }
-impl<M> SamotopService<M> {
-    pub fn new(mail_service: M) -> Self {
-        Self { mail_service }
+impl<S> SamotopService<S> {
+    pub fn new(session_service: S) -> Self {
+        Self { session_service }
     }
 }
 
-impl<M, H> TcpService for SamotopService<M>
+impl<S, H> TcpService for SamotopService<S>
 where
-    M: SessionService<Handler = H>,
+    S: SessionService<Handler = H>,
     H: Send + 'static,
     H: Sink<SinkItem = ServerControll, SinkError = io::Error>,
     H: Stream<Item = ClientControll, Error = io::Error>,
@@ -35,7 +35,8 @@ where
         let task = src
             .peer(local, peer)
             .parse(SmtpParser)
-            .tee(self.mail_service.start())
+            // the steream is teed into the session handler and back
+            .tee(self.session_service.start())
             // prevent polling after shutdown
             .fuse_shutdown()
             // prevent polling of completed stream
