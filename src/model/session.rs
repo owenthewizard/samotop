@@ -213,6 +213,7 @@ impl Session {
             Quit => self.cmd_quit(),
             Rset => self.cmd_rset(),
             Noop(_) => self.cmd_noop(),
+            StartTls => self.cmd_starttls(),
             _ => self.say_not_implemented(),
         }
     }
@@ -268,6 +269,11 @@ impl Session {
     }
     fn cmd_noop(&mut self) -> &mut Self {
         self.say_ok()
+    }
+    fn cmd_starttls(&mut self) -> &mut Self {
+        let name = self.name.clone();
+        self.say_reply(SmtpReply::ServiceReadyInfo(name))
+            .say(SessionControll::AcceptStartTls)
     }
 
     /// Returns a snapshot of the current mail session buffers.
@@ -359,6 +365,7 @@ pub enum SessionControll {
     CheckRcpt(AcceptRecipientRequest),
     EndOfSession,
     AcceptMailData(bool),
+    AcceptStartTls,
     Reply(SmtpReply),
     Data(Bytes),
     Fail,

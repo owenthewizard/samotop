@@ -2,6 +2,7 @@ pub mod mail;
 pub mod session;
 pub mod tcp;
 
+use model::controll::*;
 use model::mail::*;
 use tokio::net::TcpStream;
 use tokio::prelude::*;
@@ -40,7 +41,7 @@ You can then use this `DeadService` in samotop:
 # use samotop::service::tcp::DeadService;
 let task = samotop::builder()
         .with(DeadService)
-        .as_task();
+        .build_task();
 ```
 
 The `SamotopService` implements this trait.
@@ -89,5 +90,5 @@ A session service handles the Samotop session
 */
 pub trait SessionService {
     type Handler;
-    fn start(&self) -> Self::Handler;
+    fn start(&self, tls_conf: TlsControll) -> Self::Handler;
 }

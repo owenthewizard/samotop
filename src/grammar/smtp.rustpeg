@@ -25,7 +25,8 @@ str_invalid = #quiet< "\n" / [^\n]+ "\n" > / #expected("invalid input")
 str_incomplete = #quiet< .+ > / #expected("incomplete input")
 
 pub command -> SmtpCommand
-	= cmd_helo /
+	= cmd_starttls / 
+	  cmd_helo /
 	  cmd_ehlo /
 	  cmd_mail /
 	  cmd_send /
@@ -40,6 +41,10 @@ pub command -> SmtpCommand
 	  cmd_vrfy /
 	  cmd_expn /
 	  cmd_help
+
+pub cmd_starttls -> SmtpCommand
+	= "starttls"i NL
+	{ SmtpCommand::StartTls }
 
 pub cmd_quit -> SmtpCommand
 	= "quit"i NL

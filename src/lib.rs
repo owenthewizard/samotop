@@ -16,7 +16,7 @@
 //! ```
 //!
 //! Note that the API is still unstable. Please use the latest release.
-//! 
+//!
 //! # Usage
 //!
 //! There are a few interesting provisions one could take away here:
@@ -48,7 +48,7 @@
 //!
 //!     tokio::run(samotop::builder()
 //!             .on_all(opt.ports)
-//!             .as_task());
+//!             .build_task());
 //! }
 //!
 //! #[derive(StructOpt, Debug)]
@@ -71,6 +71,10 @@ extern crate hostname;
 extern crate tokio;
 extern crate tokio_codec;
 extern crate uuid;
+extern crate secstr;
+
+#[cfg(feature = "tls")]
+extern crate native_tls;
 
 pub mod grammar;
 pub mod model;

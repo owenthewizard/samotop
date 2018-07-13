@@ -18,12 +18,12 @@ use tokio::prelude::*;
 /// ```
 ///     samotop::builder()
 ///             .on("1.1.1.1:25")
-///             .as_task();
+///             .build_task();
 /// ```
 pub fn builder() -> SamotopBuilder<SamotopService<StatefulSessionService<ConsoleMail>>> {
-    let mail_svc = ConsoleMail::default();
+    let mail_svc = ConsoleMail::new("Samotop STARTTLS");
     let session_svc = StatefulSessionService::new(mail_svc);
-    let tcp_svc = SamotopService::new(session_svc);
+    let tcp_svc = SamotopService::new(session_svc, Default::default());
     SamotopBuilder::new("localhost:25", tcp_svc)
 }
 

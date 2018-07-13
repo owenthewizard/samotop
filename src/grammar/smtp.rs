@@ -7,13 +7,13 @@ include!(concat!(env!("OUT_DIR"), "/smtp.rs"));
 
 #[cfg(test)]
 mod tests {
-    use super::{script, session, host};
+    use super::{host, script, session, command};
+    use bytes::Bytes;
     use model::command::SmtpCommand::*;
     use model::command::SmtpHost::*;
-    use model::command::SmtpInput::*;
     use model::command::SmtpInput::Invalid;
+    use model::command::SmtpInput::*;
     use model::command::*;
-    use bytes::Bytes;
 
     #[test]
     fn script_parses_unknown_command() {
@@ -38,6 +38,12 @@ mod tests {
                 literal: "what".to_string(),
             }
         );
+    }
+
+    #[test]
+    fn cmd_parser_starttls() {
+        let result = command("STARTTLS\r\n").unwrap();
+        assert_eq!(result, SmtpCommand::StartTls);
     }
 
     #[test]

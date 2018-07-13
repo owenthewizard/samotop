@@ -10,7 +10,7 @@ stages:
 build:
   stage: build
   script:
-    - cargo build --release
+    - cargo build --features tls
   cache:
     paths:
       - target/
@@ -18,15 +18,20 @@ build:
     paths:
       - target/release/samotop
       - Cargo.lock
+  except:
+    - tags
 
 test:
   stage: test
   script:
     - rustc --version && cargo --version
-    - cargo test --all --release
+    - cargo test --all --features tls
+    - cargo test --all
   cache:
     paths:
       - target/
+  except:
+    - tags
 
 publish:
   stage: deploy
@@ -35,7 +40,9 @@ publish:
   except:
     - schedules
   script:
-    - cargo publish --token "$CRATES_KEY"
+    - cargo publish --token "$CRATES_KEY" --features tls
   cache:
     paths:
       - target/
+  except:
+    - tags

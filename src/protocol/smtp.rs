@@ -33,7 +33,7 @@ impl SmtpCodec {
         Self {
             nl_lookup: Regex::new(r"\r?\n|\r$").unwrap(),
             // performs basic sanity check on a command line
-            sanity_check: Regex::new(r"(?i)^[a-z]{4}(\r?\n| )").unwrap(),
+            sanity_check: Regex::new(r"(?i)^([a-z]{4}|starttls)(\r?\n| )").unwrap(),
             state: State::Line(0, 0),
             // we detect data command in the codec and wait for confirmation
             data_check: Regex::new(r"(?i)^data(\r?\n| )").unwrap(),
