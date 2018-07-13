@@ -12,6 +12,7 @@ fn main() {
 
     let opt = Opt::from_args();
 
+    // TODO: Advertise STARTTLS in proper ESMTP way
     // TODO: let the user chose TLS mode and be more verbose about failures
     // TLS configuration, letting the user chose the identity file
     let mut tlsconf = samotop::model::controll::TlsConfig::default();

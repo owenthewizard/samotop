@@ -18,6 +18,8 @@ build:
     paths:
       - target/release/samotop
       - Cargo.lock
+  except:
+    - tags
 
 test:
   stage: test
@@ -28,6 +30,8 @@ test:
   cache:
     paths:
       - target/
+  except:
+    - tags
 
 publish:
   stage: deploy
@@ -40,3 +44,5 @@ publish:
   cache:
     paths:
       - target/
+  except:
+    - tags

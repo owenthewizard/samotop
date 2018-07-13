@@ -7,11 +7,13 @@ We've got a decent SMTP command parser written as a PEG grammar. The model is ti
 - [x] SMTP state machine - helo, mail, rcpt*, data, rset, quit - must be in correct order
 - [x] DATA are handled and terminated correctly (escape dot, final dot).
 - [x] Simple SMTP MTA, logging smtp session to standard output but able to receive mail from common relays
-- [ ] Privacy: STARTTLS required
+- [x] Privacy: TLS/STARTTLS supported
 - [ ] Antispam: Strict SMTP
 - [ ] Antispam: whitelist and blacklist
 - [ ] Antispam: greylisting
 - [ ] Antispam: white/black/grey list with UI - user decides new contact handling
+- [ ] Antispam: is it encrypted?
+- [ ] Antispam: reverse lookup
 - [ ] Antispam: DANE (DNSSEC) with UI - user verifies signatures
 - [ ] Antispam: SPF
 - [ ] Processing: Relay mail to another MTA
@@ -20,6 +22,7 @@ We've got a decent SMTP command parser written as a PEG grammar. The model is ti
 - [ ] MDA: Domain mailbox - mailbox for unclaimed addresses
 - [ ] MDA: Smart mailbox - multiple mailbox addresses by convention
 - [ ] MDA: Sieve
+- [ ] Privacy: Refuse unencrypted session
 - [ ] Privacy: Encrypted storage
 - [ ] Privacy: No trace
 
