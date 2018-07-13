@@ -1,5 +1,6 @@
 use grammar::SmtpParser;
 use model::controll::*;
+use protocol::WillDoTls;
 use protocol::*;
 use service::*;
 use tokio::io;
@@ -11,10 +12,14 @@ use util::*;
 #[derive(Clone)]
 pub struct SamotopService<S> {
     session_service: S,
+    tlsconf: TlsConfig,
 }
 impl<S> SamotopService<S> {
-    pub fn new(session_service: S) -> Self {
-        Self { session_service }
+    pub fn new(session_service: S, tlsconf: TlsConfig) -> Self {
+        Self {
+            session_service,
+            tlsconf,
+        }
     }
 }
 
@@ -29,14 +34,17 @@ where
     fn handle(self, socket: TcpStream) -> Self::Future {
         let local = socket.local_addr().ok();
         let peer = socket.peer_addr().ok();
+
         info!("accepted peer {:?} on {:?}", peer, local);
-        let (dst, src) = SmtpCodec::new().framed(socket).split();
+        let (tls_controll, tls_worker) = self.tlsconf.parts();
+
+        let (dst, src) = SmtpCodec::new().framed(socket.tls(tls_worker)).split();
 
         let task = src
             .peer(local, peer)
             .parse(SmtpParser)
             // the steream is teed into the session handler and back
-            .tee(self.session_service.start())
+            .tee(self.session_service.start(tls_controll))
             // prevent polling after shutdown
             .fuse_shutdown()
             // prevent polling of completed stream

@@ -53,6 +53,7 @@ impl SmtpInput {
 
 #[derive(Eq, PartialEq, Debug, Clone)]
 pub enum SmtpCommand {
+    StartTls,
     Helo(SmtpHelo),
     Mail(SmtpMail),
     Rcpt(SmtpPath),

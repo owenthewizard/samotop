@@ -2,10 +2,13 @@ mod fuse;
 mod parse;
 mod peer;
 mod smtp;
+mod tls;
+
 pub use self::fuse::*;
 pub use self::parse::*;
 pub use self::peer::*;
 pub use self::smtp::*;
+pub use self::tls::*;
 
 #[cfg(test)]
 mod tests {

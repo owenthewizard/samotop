@@ -29,9 +29,9 @@ where
     M: Sink<SinkItem = Bytes, SinkError = io::Error>,
 {
     type Handler = StatefulSessionHandler<S, M, MFut, GFut>;
-    fn start(&self) -> Self::Handler {
+    fn start(&self, tls_conf: TlsControll) -> Self::Handler {
         let name = self.mail_service.name();
-        StatefulSessionHandler::new(name, self.mail_service.clone())
+        StatefulSessionHandler::new(name, self.mail_service.clone(), tls_conf)
     }
 }
 
@@ -41,16 +41,18 @@ pub struct StatefulSessionHandler<S, M, MFut, GFut> {
     mail_fut: Option<MFut>,
     mail_guard_fut: Option<GFut>,
     session: Session,
+    tls_conf: TlsControll,
 }
 
 impl<S, M, MFut, GFut> StatefulSessionHandler<S, M, MFut, GFut> {
-    pub fn new(name: impl ToString, mail_service: S) -> Self {
+    pub fn new(name: impl ToString, mail_service: S, tls_conf: TlsControll) -> Self {
         Self {
             mail_service,
             mail: None,
             mail_fut: None,
             mail_guard_fut: None,
             session: Session::new(name),
+            tls_conf,
         }
     }
 }
@@ -274,6 +276,10 @@ where
                         ok(ClientControll::Noop)
                     }
                 }
+            }
+            SessionControll::AcceptStartTls => {
+                self.tls_conf.start_tls();
+                ok(ClientControll::Noop)
             }
             SessionControll::AcceptMailData(accept) => ok(ClientControll::AcceptData(accept)),
             SessionControll::EndOfSession => ok(ClientControll::Shutdown),

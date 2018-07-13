@@ -48,7 +48,7 @@ impl<S> SamotopBuilder<S> {
             .extend(ports.into_iter().map(|port| port.to_string()));
         me
     }
-    pub fn as_servers(self) -> impl Iterator<Item = SamotopServer<S>>
+    pub fn into_servers(self) -> impl Iterator<Item = SamotopServer<S>>
     where
         S: Clone,
     {
@@ -66,11 +66,11 @@ impl<S> SamotopBuilder<S> {
             service: service.clone(),
         })
     }
-    pub fn as_task<Fut>(self) -> impl Future<Item = (), Error = ()>
+    pub fn build_task<Fut>(self) -> impl Future<Item = (), Error = ()>
     where
         S: TcpService<Future = Fut> + Clone + Send + 'static,
         Fut: Future<Item = (), Error = ()> + Send + 'static,
     {
-        future::join_all(self.as_servers().map(server::serve)).map(|_| ())
+        future::join_all(self.into_servers().map(server::serve)).map(|_| ())
     }
 }
