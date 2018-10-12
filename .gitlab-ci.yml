@@ -1,16 +1,24 @@
 # Official language image. Look for the different tagged releases at:
 # https://hub.docker.com/r/library/rust/tags/
-image: "rust:latest"
+image: "docker:git"
+
+services:
+  - docker:dind
 
 stages:
   - build
   - test
-  - deploy
+  - release
+
+before_script:
+  - docker login -u gitlab-ci-token -p $CI_BUILD_TOKEN registry.gitlab.com
+  - docker run --rm -it --name samotop-build --mount type=bind,source="$(pwd)",target=/app rust:1.29-slim rustc --version
+  - docker run --rm -it --name samotop-build --mount type=bind,source="$(pwd)",target=/app rust:1.29-slim cargo --version
 
 build:
   stage: build
   script:
-    - cargo build --features tls
+    - docker run --rm -it --name samotop-build --mount type=bind,source="$(pwd)",target=/app  -e CARGO_HOME=/app/target/cargo rust:1.29-slim cargo build --manifest-path /app/Cargo.toml --features tls
   cache:
     paths:
       - target/
@@ -21,12 +29,20 @@ build:
   except:
     - tags
 
-test:
+test-tls:
   stage: test
   script:
-    - rustc --version && cargo --version
-    - cargo test --all --features tls
-    - cargo test --all
+    - docker run --rm -it --name samotop-build --mount type=bind,source="$(pwd)",target=/app  -e CARGO_HOME=/app/target/cargo rust:1.29-slim cargo test --manifest-path /app/Cargo.toml --all --features tls
+  cache:
+    paths:
+      - target/
+  except:
+    - tags
+
+test-notls:
+  stage: test
+  script:
+    - docker run --rm -it --name samotop-build --mount type=bind,source="$(pwd)",target=/app  -e CARGO_HOME=/app/target/cargo rust:1.29-slim cargo test --manifest-path /app/Cargo.toml --all
   cache:
     paths:
       - target/
@@ -34,13 +50,13 @@ test:
     - tags
 
 publish:
-  stage: deploy
+  stage: release
   only:
     - master
   except:
     - schedules
   script:
-    - cargo publish --token "$CRATES_KEY" --features tls
+    - docker run --rm -it --name samotop-build --mount type=bind,source="$(pwd)",target=/app  -e CARGO_HOME=/app/target/cargo rust:1.29-slim cargo publish --manifest-path /app/Cargo.toml --token "$CRATES_KEY" --features tls
   cache:
     paths:
       - target/
