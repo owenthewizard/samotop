@@ -74,7 +74,7 @@ publish-lib:
   except:
     - schedules
   script:
-    - docker run --rm -i --name samotop-build --mount type=bind,source="$(pwd)",target=/app  -e CARGO_HOME=/app/.cargo rust:1.29 cargo publish --manifest-path /app/Cargo.toml --token "$CRATES_KEY" --features tls --release
+    - docker run --rm -i --name samotop-build --mount type=bind,source="$(pwd)",target=/app  -e CARGO_HOME=/app/.cargo rust:1.29 cargo publish --manifest-path /app/Cargo.toml --token "$CRATES_KEY" --release
   cache:
     policy: pull
     paths:
@@ -90,7 +90,7 @@ publish-server:
   except:
     - schedules
   script:
-    - docker run --rm -i --name samotop-build --mount type=bind,source="$(pwd)",target=/app  -e CARGO_HOME=/app/.cargo rust:1.29 cargo build --manifest-path /app/Cargo.toml --token "$CRATES_KEY" --features tls --release
+    - docker run --rm -i --name samotop-build --mount type=bind,source="$(pwd)",target=/app  -e CARGO_HOME=/app/.cargo rust:1.29 cargo build --manifest-path /app/Cargo.toml --features tls --release
     - docker build -t samotop .
   cache:
     policy: pull
