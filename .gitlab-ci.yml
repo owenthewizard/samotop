@@ -15,37 +15,53 @@ before_script:
   - docker run --rm -i --name samotop-build --mount type=bind,source="$(pwd)",target=/app rust:1.29 rustc --version
   - docker run --rm -i --name samotop-build --mount type=bind,source="$(pwd)",target=/app rust:1.29 cargo --version
 
-build:
+build-debug:
   stage: build
   script:
-    - docker run --rm -i --name samotop-build --mount type=bind,source="$(pwd)",target=/app  -e CARGO_HOME=/app/target/cargo rust:1.29 cargo build --manifest-path /app/Cargo.toml --features tls
+    - docker run --rm -i --name samotop-build --mount type=bind,source="$(pwd)",target=/app  -e CARGO_HOME=/app/.cargo rust:1.29 cargo build --manifest-path /app/Cargo.toml --features tls
   cache:
     paths:
       - target/
+      - .cargo/
+  except:
+    - tags
+
+build-release:
+  stage: build
+  script:
+    - docker run --rm -i --name samotop-build --mount type=bind,source="$(pwd)",target=/app  -e CARGO_HOME=/app/.cargo rust:1.29 cargo build --manifest-path /app/Cargo.toml --features tls --release
+  cache:
+    paths:
+      - target/
+      - .cargo/
   artifacts:
     paths:
       - target/release/samotop
       - Cargo.lock
+  only:
+    - master
   except:
     - tags
-
+    
 test-tls:
   stage: test
   script:
-    - docker run --rm -i --name samotop-build --mount type=bind,source="$(pwd)",target=/app  -e CARGO_HOME=/app/target/cargo rust:1.29 cargo test --manifest-path /app/Cargo.toml --all --features tls
+    - docker run --rm -i --name samotop-build --mount type=bind,source="$(pwd)",target=/app  -e CARGO_HOME=/app/.cargo rust:1.29 cargo test --manifest-path /app/Cargo.toml --all --features tls
   cache:
     paths:
       - target/
+      - .cargo/
   except:
     - tags
 
 test-notls:
   stage: test
   script:
-    - docker run --rm -i --name samotop-build --mount type=bind,source="$(pwd)",target=/app  -e CARGO_HOME=/app/target/cargo rust:1.29 cargo test --manifest-path /app/Cargo.toml --all
+    - docker run --rm -i --name samotop-build --mount type=bind,source="$(pwd)",target=/app  -e CARGO_HOME=/app/.cargo rust:1.29 cargo test --manifest-path /app/Cargo.toml --all
   cache:
     paths:
       - target/
+      - .cargo/
   except:
     - tags
 
@@ -56,9 +72,10 @@ publish:
   except:
     - schedules
   script:
-    - docker run --rm -i --name samotop-build --mount type=bind,source="$(pwd)",target=/app  -e CARGO_HOME=/app/target/cargo rust:1.29 cargo publish --manifest-path /app/Cargo.toml --token "$CRATES_KEY" --features tls
+    - docker run --rm -i --name samotop-build --mount type=bind,source="$(pwd)",target=/app  -e CARGO_HOME=/app/.cargo rust:1.29 cargo publish --manifest-path /app/Cargo.toml --token "$CRATES_KEY" --features tls --release
   cache:
     paths:
       - target/
+      - .cargo/
   except:
     - tags
