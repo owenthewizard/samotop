@@ -24,7 +24,7 @@ pub fn builder() -> SamotopBuilder<SamotopService<StatefulSessionService<Console
     let mail_svc = ConsoleMail::new("Samotop STARTTLS");
     let session_svc = StatefulSessionService::new(mail_svc);
     let tcp_svc = SamotopService::new(session_svc, Default::default());
-    SamotopBuilder::new("localhost:25", tcp_svc)
+    SamotopBuilder::new("localhost:12345", tcp_svc)
 }
 
 /// Resolve `SamotopServer` addr into `SamotopPort`s
