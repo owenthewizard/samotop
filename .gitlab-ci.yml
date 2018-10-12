@@ -48,6 +48,7 @@ test-tls:
   script:
     - docker run --rm -i --name samotop-build --mount type=bind,source="$(pwd)",target=/app  -e CARGO_HOME=/app/.cargo rust:1.29 cargo test --manifest-path /app/Cargo.toml --all --features tls
   cache:
+    policy: pull
     paths:
       - target/
       - .cargo/
@@ -59,6 +60,7 @@ test-notls:
   script:
     - docker run --rm -i --name samotop-build --mount type=bind,source="$(pwd)",target=/app  -e CARGO_HOME=/app/.cargo rust:1.29 cargo test --manifest-path /app/Cargo.toml --all
   cache:
+    policy: pull
     paths:
       - target/
       - .cargo/
@@ -74,6 +76,7 @@ publish:
   script:
     - docker run --rm -i --name samotop-build --mount type=bind,source="$(pwd)",target=/app  -e CARGO_HOME=/app/.cargo rust:1.29 cargo publish --manifest-path /app/Cargo.toml --token "$CRATES_KEY" --features tls --release
   cache:
+    policy: pull
     paths:
       - target/
       - .cargo/
