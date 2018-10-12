@@ -67,7 +67,7 @@ test-notls:
   except:
     - tags
 
-publish:
+publish-lib:
   stage: release
   only:
     - master
@@ -75,6 +75,23 @@ publish:
     - schedules
   script:
     - docker run --rm -i --name samotop-build --mount type=bind,source="$(pwd)",target=/app  -e CARGO_HOME=/app/.cargo rust:1.29 cargo publish --manifest-path /app/Cargo.toml --token "$CRATES_KEY" --features tls --release
+  cache:
+    policy: pull
+    paths:
+      - target/
+      - .cargo/
+  except:
+    - tags
+
+publish-server:
+  stage: release
+  only:
+    - master
+  except:
+    - schedules
+  script:
+    - docker run --rm -i --name samotop-build --mount type=bind,source="$(pwd)",target=/app  -e CARGO_HOME=/app/.cargo rust:1.29 cargo build --manifest-path /app/Cargo.toml --token "$CRATES_KEY" --features tls --release
+    - docker build -t samotop .
   cache:
     policy: pull
     paths:
