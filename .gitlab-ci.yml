@@ -11,7 +11,7 @@ stages:
   - release
 
 before_script:
-  - docker login -u gitlab-ci-token -p $CI_BUILD_TOKEN registry.gitlab.com
+  - docker login -u gitlab-ci-token -p "$CI_BUILD_TOKEN" registry.gitlab.com
   - docker run --rm -i --name samotop-build --mount type=bind,source="$(pwd)",target=/app rust:1.29 rustc --version
   - docker run --rm -i --name samotop-build --mount type=bind,source="$(pwd)",target=/app rust:1.29 cargo --version
 
@@ -90,8 +90,12 @@ publish-server:
   except:
     - schedules
   script:
+    - docker login -u "$DOCKER_USR" -p "$DOCKER_PWD" https://docker.io
     - docker run --rm -i --name samotop-build --mount type=bind,source="$(pwd)",target=/app  -e CARGO_HOME=/app/.cargo rust:1.29 cargo build --manifest-path /app/Cargo.toml --features tls --release
     - docker build -t samotop .
+    - export tag="docker.io/brightopen/samotop:$(docker run -t --rm samotop samotop -V | cut -d ' ' -f2)"
+    - docker tag "$tag" samotop
+    - docker push "$tag"
   cache:
     policy: pull
     paths:
