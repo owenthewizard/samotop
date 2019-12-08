@@ -27,7 +27,7 @@ impl Svc for MySvc {
 
 struct MyReceiver {
     name: String,
-    pending: Box<Future<Item = (), Error = ()> + Send>,
+    _pending: Box<dyn Future<Item = (), Error = ()> + Send>,
 }
 
 impl MyReceiver {
@@ -37,7 +37,7 @@ impl MyReceiver {
     fn new(name: impl ToString) -> Self {
         Self {
             name: name.to_string(),
-            pending: Box::new(future::ok(())),
+            _pending: Box::new(future::ok(())),
         }
     }
 }

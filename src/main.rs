@@ -1,7 +1,6 @@
 extern crate env_logger;
 extern crate samotop;
 extern crate tokio;
-#[macro_use]
 extern crate structopt;
 
 use std::path::PathBuf;
