@@ -25,6 +25,17 @@ build-debug:
   except:
     - tags
 
+build-nightly:
+  extends: build-debug
+  before_script:
+    - rustup default nightly
+  cache:
+    policy: pull
+    key: debug
+    paths:
+      - target/
+      - $CARGO_HOME
+
 build-release:
   stage: build
   script:
