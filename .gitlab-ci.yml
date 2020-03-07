@@ -16,10 +16,15 @@ before_script:
   - docker run --rm -i --name samotop-build --mount type=bind,source="$(pwd)",target=/app rust:1.29 cargo --version
 
 build-debug:
+  image: rust:latest
   stage: build
+  before_script:
+    - rustc --version
+    - cargo --version
   script:
-    - docker run --rm -i --name samotop-build --mount type=bind,source="$(pwd)",target=/app  -e CARGO_HOME=/app/.cargo rust:1.29 cargo build --manifest-path /app/Cargo.toml --features tls
+    - cargo build --features tls
   cache:
+    key: debug
     paths:
       - target/
       - .cargo/
