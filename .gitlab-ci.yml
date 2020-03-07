@@ -8,7 +8,7 @@ stages:
   - release
   
 variables:
-  CARGO_HOME:.cargo
+  CARGO_HOME: '.cargo'
 
 build-debug:
   stage: build
