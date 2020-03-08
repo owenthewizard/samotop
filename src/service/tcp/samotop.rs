@@ -30,7 +30,7 @@ where
     H: Sink<SinkItem = ServerControll, SinkError = io::Error>,
     H: Stream<Item = ClientControll, Error = io::Error>,
 {
-    type Future = Box<Future<Item = (), Error = ()> + Send>;
+    type Future = Box<dyn Future<Item = (), Error = ()> + Send>;
     fn handle(self, socket: TcpStream) -> Self::Future {
         let local = socket.local_addr().ok();
         let peer = socket.peer_addr().ok();
