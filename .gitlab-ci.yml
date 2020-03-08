@@ -10,108 +10,69 @@ stages:
 variables:
   CARGO_HOME: '.cargo'
 
-build-debug:
+build:
   stage: build
+  except:
+    - master
+  cache:
+    key: debug
+    paths:
+      - target/
+      - $CARGO_HOME
   before_script:
     - rustc --version
     - cargo --version
   script:
     - cargo build --features tls
-  cache:
-    key: debug
-    paths:
-      - target/
-      - $CARGO_HOME
-  except:
-    - tags
-
-build-nightly:
-  extends: build-debug
-  before_script:
-    - rustup default nightly
-  cache:
-    policy: pull
-    key: debug
-    paths:
-      - target/
-      - $CARGO_HOME
 
 build-release:
   stage: build
-  script:
-    - cargo build --features tls --release
-  cache:
-    paths:
-      - target/
-      - $CARGO_HOME
+  only:
+    - master
   artifacts:
     paths:
       - target/release/samotop
       - Cargo.lock
-  only:
-    - master
-  except:
-    - tags
+  script:
+    - cargo build --features tls --release
     
 test-tls:
   stage: test
+  cache:
+    key: debug
+    policy: pull
+    paths:
+      - target/
+      - $CARGO_HOME
   script:
     - cargo test --all --features tls
-  cache:
-    key: debug
-    policy: pull
-    paths:
-      - target/
-      - $CARGO_HOME
-  except:
-    - tags
 
 test-notls:
-  stage: test
+  extends: test-tls
   script:
     - cargo test --all
-  cache:
-    key: debug
-    policy: pull
-    paths:
-      - target/
-      - $CARGO_HOME
-  except:
-    - tags
+
+test-nightly:
+  extends: test-tls
+  before_script:
+    - rustup default nightly
 
 publish-lib:
   stage: release
   only:
     - master
-  except:
-    - schedules
   script:
     - cargo publish --token "$CRATES_KEY"
-  cache:
-    policy: pull
-    paths:
-      - target/
-      - $CARGO_HOME
-  except:
-    - tags
 
 publish-server:
   stage: release
   only:
     - master
-  except:
-    - schedules
   script:
-    - docker login -u "$DOCKER_USR" -p "$DOCKER_PWD" https://docker.io
     - cargo build --features tls --release
     - docker build -t samotop .
-    - export tag="docker.io/brightopen/samotop:$(docker run -t --rm samotop samotop -V | cut -d ' ' -f2)"
+    - docker login -u "$DOCKER_USR" -p "$DOCKER_PWD" https://docker.io
+    - tag="docker.io/brightopen/samotop:$(cargo run -- -V | cut -d ' ' -f2)"
+    - echo "$tag"
     - docker tag "$tag" samotop
     - docker push "$tag"
-  cache:
-    policy: pull
-    paths:
-      - target/
-      - $CARGO_HOME
-  except:
-    - tags
