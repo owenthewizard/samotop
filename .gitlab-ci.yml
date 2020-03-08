@@ -1,105 +1,78 @@
 # Official language image. Look for the different tagged releases at:
 # https://hub.docker.com/r/library/rust/tags/
-image: "docker:git"
-
-services:
-  - docker:dind
+image: "rust:latest"
 
 stages:
   - build
   - test
   - release
+  
+variables:
+  CARGO_HOME: '.cargo'
 
-before_script:
-  - docker login -u gitlab-ci-token -p "$CI_BUILD_TOKEN" registry.gitlab.com
-  - docker run --rm -i --name samotop-build --mount type=bind,source="$(pwd)",target=/app rust:1.39 rustc --version
-  - docker run --rm -i --name samotop-build --mount type=bind,source="$(pwd)",target=/app rust:1.39 cargo --version
-
-build-debug:
+build:
   stage: build
-  script:
-    - docker run --rm -i --name samotop-build --mount type=bind,source="$(pwd)",target=/app  -e CARGO_HOME=/app/.cargo rust:1.39 cargo build --manifest-path /app/Cargo.toml --features tls
+  except:
+    - master
   cache:
+    key: debug
     paths:
       - target/
-      - .cargo/
-  except:
-    - tags
+      - $CARGO_HOME
+  before_script:
+    - rustc --version
+    - cargo --version
+  script:
+    - cargo build --features tls
 
 build-release:
   stage: build
-  script:
-    - docker run --rm -i --name samotop-build --mount type=bind,source="$(pwd)",target=/app  -e CARGO_HOME=/app/.cargo rust:1.39 cargo build --manifest-path /app/Cargo.toml --features tls --release
-  cache:
-    paths:
-      - target/
-      - .cargo/
+  only:
+    - master
   artifacts:
     paths:
       - target/release/samotop
       - Cargo.lock
-  only:
-    - master
-  except:
-    - tags
+  script:
+    - cargo build --features tls --release
     
 test-tls:
   stage: test
-  script:
-    - docker run --rm -i --name samotop-build --mount type=bind,source="$(pwd)",target=/app  -e CARGO_HOME=/app/.cargo rust:1.39 cargo test --manifest-path /app/Cargo.toml --all --features tls
   cache:
+    key: debug
     policy: pull
     paths:
       - target/
-      - .cargo/
-  except:
-    - tags
+      - $CARGO_HOME
+  script:
+    - cargo test --all --features tls
 
 test-notls:
-  stage: test
+  extends: test-tls
   script:
-    - docker run --rm -i --name samotop-build --mount type=bind,source="$(pwd)",target=/app  -e CARGO_HOME=/app/.cargo rust:1.39 cargo test --manifest-path /app/Cargo.toml --all
-  cache:
-    policy: pull
-    paths:
-      - target/
-      - .cargo/
-  except:
-    - tags
+    - cargo test --all
+
+test-nightly:
+  extends: test-tls
+  before_script:
+    - rustup default nightly
 
 publish-lib:
   stage: release
   only:
     - master
-  except:
-    - schedules
   script:
-    - docker run --rm -i --name samotop-build --mount type=bind,source="$(pwd)",target=/app  -e CARGO_HOME=/app/.cargo rust:1.39 cargo publish --manifest-path /app/Cargo.toml --token "$CRATES_KEY"
-  cache:
-    policy: pull
-    paths:
-      - target/
-      - .cargo/
-  except:
-    - tags
+    - cargo publish --token "$CRATES_KEY"
 
 publish-server:
   stage: release
   only:
     - master
-  except:
-    - schedules
   script:
-    - docker login -u "$DOCKER_USR" -p "$DOCKER_PWD" https://docker.io
-    - docker run --rm -i --name samotop-build --mount type=bind,source="$(pwd)",target=/app  -e CARGO_HOME=/app/.cargo rust:1.39 cargo build --manifest-path /app/Cargo.toml --features tls --release
+    - cargo build --features tls --release
     - docker build -t samotop .
-    - export tag="docker.io/brightopen/samotop:$(docker run -t --rm samotop samotop -V | cut -d ' ' -f2)"
+    - docker login -u "$DOCKER_USR" -p "$DOCKER_PWD" https://docker.io
+    - tag="docker.io/brightopen/samotop:$(cargo run -- -V | cut -d ' ' -f2)"
+    - echo "$tag"
     - docker tag "$tag" samotop
     - docker push "$tag"
-  cache:
-    policy: pull
-    paths:
-      - target/
-      - .cargo/
-  except:
-    - tags
