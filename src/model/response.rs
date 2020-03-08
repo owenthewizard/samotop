@@ -276,19 +276,19 @@ impl SmtpReply {
     }
     pub fn class(&self) -> SmtpReplyClass {
         match self.code() {
-            0...299 => SmtpReplyClass::Info,
-            300...399 => SmtpReplyClass::Challenge,
-            400...499 => SmtpReplyClass::Error,
+            0..=299 => SmtpReplyClass::Info,
+            300..=399 => SmtpReplyClass::Challenge,
+            400..=499 => SmtpReplyClass::Error,
             _ => SmtpReplyClass::Failure,
         }
     }
     pub fn category(&self) -> SmtpReplyCategory {
         match self.code() % 100 {
-            0...9 => SmtpReplyCategory::Syntax,
-            10...19 => SmtpReplyCategory::Information,
-            20...29 => SmtpReplyCategory::Connections,
-            30...39 => SmtpReplyCategory::Reserved3,
-            40...49 => SmtpReplyCategory::Reserved4,
+            0..=9 => SmtpReplyCategory::Syntax,
+            10..=19 => SmtpReplyCategory::Information,
+            20..=29 => SmtpReplyCategory::Connections,
+            30..=39 => SmtpReplyCategory::Reserved3,
+            40..=49 => SmtpReplyCategory::Reserved4,
             _ => SmtpReplyCategory::System,
         }
     }
@@ -315,24 +315,24 @@ impl fmt::Display for SmtpReply {
         let items = self.items();
 
         if items.is_empty() {
-            try!(write_reply_end(&mut buf, code, &text));
+            write_reply_end(&mut buf, code, &text)?;
         } else {
-            try!(write_reply_continued(&mut buf, code, &text));
+            write_reply_continued(&mut buf, code, &text)?;
             for i in 0..items.len() {
                 if i == items.len() - 1 {
-                    try!(write_reply_end(&mut buf, code, &items[i]));
+                    write_reply_end(&mut buf, code, &items[i])?;
                 } else {
-                    try!(write_reply_continued(&mut buf, code, &items[i]));
+                    write_reply_continued(&mut buf, code, &items[i])?;
                 }
             }
         }
         Ok(())
     }
 }
-fn write_reply_end(buf: &mut fmt::Write, code: u16, text: &str) -> Result<(), fmt::Error> {
+fn write_reply_end(buf: &mut dyn fmt::Write, code: u16, text: &str) -> Result<(), fmt::Error> {
     write!(buf, "{} {}\r\n", code, text)
 }
-fn write_reply_continued(buf: &mut fmt::Write, code: u16, text: &str) -> Result<(), fmt::Error> {
+fn write_reply_continued(buf: &mut dyn fmt::Write, code: u16, text: &str) -> Result<(), fmt::Error> {
     write!(buf, "{}-{}\r\n", code, text)
 }
 
