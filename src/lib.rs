@@ -72,6 +72,7 @@ extern crate tokio;
 extern crate tokio_codec;
 extern crate uuid;
 extern crate secstr;
+extern crate peg;
 
 #[cfg(feature = "tls")]
 extern crate native_tls;
