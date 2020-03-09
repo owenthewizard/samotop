@@ -65,14 +65,14 @@ publish-lib:
     - cargo publish --token "$CRATES_KEY"
 
 publish-server:
+  image: "docker:git"
   stage: release
   only:
     - master
   script:
-    - cargo build --features tls --release
+    - tag="docker.io/brightopen/samotop:$(target/release/samotop -V | cut -d ' ' -f2)"
+    - echo "$tag"
     - docker build -t samotop .
     - docker login -u "$DOCKER_USR" -p "$DOCKER_PWD" https://docker.io
-    - tag="docker.io/brightopen/samotop:$(cargo run -- -V | cut -d ' ' -f2)"
-    - echo "$tag"
     - docker tag "$tag" samotop
     - docker push "$tag"
