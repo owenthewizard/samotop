@@ -73,7 +73,8 @@ publish-server:
     - docker:dind
   script:
     - docker build -t samotop .
-    - tag="docker.io/brightopen/samotop:$(docker run -t --rm samotop samotop -V | cut -d ' ' -f2)"
+    - docker run -t --rm samotop samotop -V | tee docker.log
+    - tag="docker.io/brightopen/samotop:$(cat docker.log | cut -d ' ' -f2)"
     - echo "$tag"
     - docker login -u "$DOCKER_USR" -p "$DOCKER_PWD" https://docker.io
     - docker tag "$tag" samotop
