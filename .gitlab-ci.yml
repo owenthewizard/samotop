@@ -65,10 +65,12 @@ publish-lib:
     - cargo publish --token "$CRATES_KEY"
 
 publish-server:
-  image: "docker:git"
   stage: release
   only:
     - master
+  image: "docker:git"
+  services:
+    - docker:dind
   script:
     - docker build -t samotop .
     - tag="docker.io/brightopen/samotop:$(docker run -t --rm samotop -- -V | cut -d ' ' -f2)"
