@@ -68,11 +68,14 @@ publish-server:
   stage: release
   only:
     - master
+  image: "docker:git"
+  services:
+    - docker:dind
   script:
-    - cargo build --features tls --release
     - docker build -t samotop .
-    - docker login -u "$DOCKER_USR" -p "$DOCKER_PWD" https://docker.io
-    - tag="docker.io/brightopen/samotop:$(cargo run -- -V | cut -d ' ' -f2)"
+    - docker run -t --rm samotop samotop -V | tee docker.log
+    - tag="brightopen/samotop:$(cat docker.log | cut -d ' ' -f2 | tr -d \\n\\r)"
     - echo "$tag"
-    - docker tag "$tag" samotop
+    - docker tag samotop "$tag"
+    - docker login -u "$DOCKER_USR" -p "$DOCKER_PWD"
     - docker push "$tag"
