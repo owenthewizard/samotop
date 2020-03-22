@@ -76,6 +76,6 @@ publish-server:
     - docker run -t --rm samotop samotop -V | tee docker.log
     - tag="brightopen/samotop:$(cat docker.log | cut -d ' ' -f2 | tr -d \\n\\r)"
     - echo "$tag"
-    - docker login -u "$DOCKER_USR" -p "$DOCKER_PWD" https://docker.io
     - docker tag samotop "$tag"
+    - docker login -u "$DOCKER_USR" -p "$DOCKER_PWD"
     - docker push "$tag"
