@@ -1,4 +1,4 @@
-use model::controll::*;
+use crate::model::controll::*;
 
 pub fn tls_capable<IO>(io: IO, _config: TlsWorker) -> TlsCapable<IO> {
     io

@@ -1,5 +1,5 @@
 use bytes::Bytes;
-use model::command::*;
+use crate::model::command::*;
 use std::net::{Ipv4Addr, Ipv6Addr};
 use std::str::FromStr;
 use peg;
@@ -226,11 +226,11 @@ peg::parser!{
 mod tests {
     use super::grammar::{host, script, session, command};
     use bytes::Bytes;
-    use model::command::SmtpCommand::*;
-    use model::command::SmtpHost::*;
-    use model::command::SmtpInput::Invalid;
-    use model::command::SmtpInput::*;
-    use model::command::*;
+    use crate::model::command::SmtpCommand::*;
+    use crate::model::command::SmtpHost::*;
+    use crate::model::command::SmtpInput::Invalid;
+    use crate::model::command::SmtpInput::*;
+    use crate::model::command::*;
 
     #[test]
     fn script_parses_unknown_command() {

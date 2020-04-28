@@ -11,7 +11,7 @@ homepage = "https://gitlab.com/BrightOpen/BackYard/Samotop/"
 repository = "https://gitlab.com/BrightOpen/BackYard/Samotop/"
 readme = "README.md"
 keywords = ["smtp", "tokio", "server", "parser", "PEG"]
-#edition = "2018"
+edition = "2018"
 
 # see crates.io/category_slugs
 categories = ["email", "asynchronous", "network-programming", "parser-implementations"]
