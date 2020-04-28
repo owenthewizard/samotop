@@ -1,7 +1,7 @@
 use futures::prelude::*;
 use futures::stream::{Forward, SplitSink, SplitStream};
 use futures::Async::*;
-use util::futu::*;
+use crate::util::futu::*;
 /**
  * Any `Streem` Self can be 'tee'd into another `Sink+Stream` J so that
  * items from stream A are forwarded into sink J and the resulting

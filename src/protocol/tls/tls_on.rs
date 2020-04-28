@@ -1,4 +1,4 @@
-use model::controll::*;
+use crate::model::controll::*;
 use native_tls::*;
 use std;
 use std::str;

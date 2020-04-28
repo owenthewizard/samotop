@@ -1,6 +1,6 @@
 use bytes::{BufMut, Bytes, BytesMut};
-use model::command::SmtpCommand;
-use model::controll::*;
+use crate::model::command::SmtpCommand;
+use crate::model::controll::*;
 use regex::bytes::Regex;
 use tokio::io;
 use tokio_codec::{Decoder, Encoder};
@@ -299,7 +299,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::DotState::*;
-    use protocol::smtp::dotstate;
+    use crate::protocol::smtp::dotstate;
 
     #[test]
     fn dotstate_handles_empty_line() {

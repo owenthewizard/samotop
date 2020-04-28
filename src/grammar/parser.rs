@@ -2,7 +2,7 @@
     Aim: wrap generated parser fns in struct
 */
 use super::smtp::grammar::{command, session};
-use model::command::{SmtpCommand, SmtpInput};
+use crate::model::command::{SmtpCommand, SmtpInput};
 use peg;
 
 static PARSER: SmtpParser = SmtpParser;

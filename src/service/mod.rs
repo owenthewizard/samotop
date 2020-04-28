@@ -2,8 +2,8 @@ pub mod mail;
 pub mod session;
 pub mod tcp;
 
-use model::controll::*;
-use model::mail::*;
+use crate::model::controll::*;
+use crate::model::mail::*;
 use tokio::net::TcpStream;
 use tokio::prelude::*;
 
@@ -55,7 +55,7 @@ pub trait TcpService {
 The service which implements this trait has a name.
 */
 pub trait NamedService {
-    fn name(&self) -> String;
+    fn name(&self) -> &str;
 }
 
 /**

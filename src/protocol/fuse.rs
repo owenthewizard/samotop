@@ -1,6 +1,6 @@
-use model::controll::ClientControll;
+use crate::model::controll::ClientControll;
 use tokio::prelude::*;
-use util::*;
+use crate::util::*;
 
 pub trait FuseShutdown
 where
