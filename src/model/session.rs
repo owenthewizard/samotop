@@ -1,8 +1,8 @@
 use bytes::Bytes;
-use model::command::*;
-use model::controll::*;
-use model::mail::*;
-use model::response::SmtpReply;
+use crate::model::command::*;
+use crate::model::controll::*;
+use crate::model::mail::*;
+use crate::model::response::SmtpReply;
 use std::collections::VecDeque;
 use std::net::SocketAddr;
 use uuid::Uuid;
@@ -69,7 +69,7 @@ impl Session {
             return ControllResult::Ended;
         }
 
-        use model::controll::ServerControll::*;
+        use crate::model::controll::ServerControll::*;
         match ctrl {
             PeerConnected { local, peer } => self.conn(local, peer),
             PeerShutdown => self.end(),
@@ -128,7 +128,7 @@ impl Session {
     pub fn rcpt_checked(&mut self, result: AcceptRecipientResult) -> &mut Self {
         if self.state == State::WaitForRcptCheck {
             self.state = State::Rcpt;
-            use model::mail::AcceptRecipientResult::*;
+            use crate::model::mail::AcceptRecipientResult::*;
             match result {
                 Failed => self.say_reply(SmtpReply::ProcesingError),
                 Rejected => self.say_recipient_not_accepted(),
@@ -204,7 +204,7 @@ impl Session {
         self
     }
     fn cmd(&mut self, cmd: SmtpCommand) -> &mut Self {
-        use model::command::SmtpCommand::*;
+        use crate::model::command::SmtpCommand::*;
         match cmd {
             Helo(from) => self.cmd_helo(from),
             Mail(mail) => self.cmd_mail(mail),

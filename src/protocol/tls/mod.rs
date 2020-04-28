@@ -8,7 +8,7 @@ pub use self::tls_off::*;
 #[cfg(feature = "tls")]
 pub use self::tls_on::*;
 
-use model::controll::*;
+use crate::model::controll::*;
 use tokio::prelude::*;
 
 impl<S> WillDoTls for S

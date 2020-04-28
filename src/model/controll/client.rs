@@ -1,4 +1,4 @@
-use model::response::SmtpReply;
+use crate::model::response::SmtpReply;
 
 /// Represents the instructions towards the client side of the stream.
 #[derive(Debug, Clone)]
