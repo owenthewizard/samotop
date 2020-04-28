@@ -1,5 +1,5 @@
 use bytes::Bytes;
-use model::command::SmtpCommand;
+use crate::model::command::SmtpCommand;
 use std::net::SocketAddr;
 
 /// Represents the instructions towards the server side of the stream.

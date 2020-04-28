@@ -1,13 +1,13 @@
-use grammar::SmtpParser;
-use model::controll::*;
-use protocol::WillDoTls;
-use protocol::*;
-use service::*;
+use crate::grammar::SmtpParser;
+use crate::model::controll::*;
+use crate::protocol::WillDoTls;
+use crate::protocol::*;
+use crate::service::*;
 use tokio::io;
 use tokio::net::TcpStream;
 use tokio::prelude::*;
 use tokio_codec::Decoder;
-use util::*;
+use crate::util::*;
 
 #[derive(Clone)]
 pub struct SamotopService<S> {

@@ -63,7 +63,7 @@ impl Sink for MyReceiver {
 }
 
 #[test]
-pub fn try() {
+pub fn test() {
     let svc = MySvc { name: "jOy".into() };
 
     let task = future::ok(svc)

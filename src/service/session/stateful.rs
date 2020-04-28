@@ -1,11 +1,11 @@
 use bytes::Bytes;
 use futures::prelude::*;
-use model::controll::*;
-use model::mail::*;
-use model::session::*;
-use service::*;
+use crate::model::controll::*;
+use crate::model::mail::*;
+use crate::model::session::*;
+use crate::service::*;
 use tokio::io;
-use util::*;
+use crate::util::*;
 
 #[derive(Clone)]
 pub struct StatefulSessionService<S> {
@@ -20,7 +20,8 @@ impl<S> StatefulSessionService<S> {
 
 impl<S, M, MFut, GFut> SessionService for StatefulSessionService<S>
 where
-    S: NamedService + Clone,
+    S: Clone,
+    S: NamedService,
     S: MailGuard<Future = GFut>,
     S: MailQueue<MailFuture = MFut, Mail = M>,
     MFut: Future<Item = Option<M>>,

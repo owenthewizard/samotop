@@ -53,7 +53,7 @@
       mail system vis-a-vis the requested transfer or other mail system
       action.
 */
-use model::response::SmtpReply::*;
+use crate::model::response::SmtpReply::*;
 use std::fmt;
 
 #[derive(Eq, PartialEq, Debug, Clone)]
