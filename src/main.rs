@@ -1,8 +1,10 @@
+extern crate log;
 extern crate env_logger;
 extern crate samotop;
-extern crate tokio;
 extern crate structopt;
+extern crate tokio;
 
+use log::trace;
 use std::path::PathBuf;
 use structopt::StructOpt;
 
@@ -18,10 +20,24 @@ fn main() {
     tlsconf.id.file = PathBuf::from(opt.identity_file);
 
     // Mail service, use a given name or default to host name
-    let mail = match opt.name {
-        None => samotop::service::mail::ConsoleMail::default(),
-        Some(name) => samotop::service::mail::ConsoleMail::new(name),
+    let name = match opt.name {
+        None => match hostname::get() {
+            Err(e) => {
+                trace!("Unable to get hostname, using default. {}", e);
+                "Samotop".into()
+            }
+            Ok(name) => match name.into_string() {
+                Err(e) => {
+                    trace!("Unable to use hostname, using default. {:?}", e);
+                    "Samotop".into()
+                }
+                Ok(name) => name,
+            },
+        },
+        Some(name) => name,
     };
+
+    let mail = samotop::service::mail::ConsoleMail::new(name);
 
     // Tcp service
     let tcp = samotop::service::tcp::SamotopService::new(
@@ -49,7 +65,12 @@ struct Opt {
     ports: Vec<String>,
 
     /// If TLS feature is enabled, use this identity file
-    #[structopt(short = "i", long = "identity-file", name = "file", default_value = "Samotop.pfx")]
+    #[structopt(
+        short = "i",
+        long = "identity-file",
+        name = "file",
+        default_value = "Samotop.pfx"
+    )]
     identity_file: String,
 
     /// Use the given name in SMTP greetings, or if absent, use hostname

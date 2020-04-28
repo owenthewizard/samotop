@@ -1,6 +1,5 @@
 use bytes::Bytes;
 use futures::{Async, AsyncSink, Poll, StartSend};
-use hostname::get_hostname;
 use model::mail::*;
 use service::*;
 use tokio::io;
@@ -9,29 +8,20 @@ use tokio::prelude::*;
 
 #[derive(Clone)]
 pub struct ConsoleMail {
-    name: Option<String>,
+    name: String,
 }
 
 impl ConsoleMail {
     pub fn new(name: impl ToString) -> Self {
         Self {
-            name: Some(name.to_string()),
+            name: name.to_string(),
         }
-    }
-    pub fn default() -> Self {
-        Self { name: None }
     }
 }
 
 impl NamedService for ConsoleMail {
-    fn name(&self) -> String {
-        match self.name {
-            None => match get_hostname() {
-                None => "Samotop".into(),
-                Some(name) => name,
-            },
-            Some(ref name) => name.clone(),
-        }
+    fn name(&self) -> &str {
+        self.name.as_str()
     }
 }
 
@@ -57,8 +47,7 @@ impl MailQueue for ConsoleMail {
                 mail: Some(ref mail),
                 ref id,
                 ref rcpts,
-            } if rcpts.len() != 0 =>
-            {
+            } if rcpts.len() != 0 => {
                 println!(
                     "Mail from {} (helo: {}, mailid: {}) (peer: {}) for {} on {} ({} <- {})",
                     mail.from(),

@@ -55,7 +55,7 @@ pub trait TcpService {
 The service which implements this trait has a name.
 */
 pub trait NamedService {
-    fn name(&self) -> String;
+    fn name(&self) -> &str;
 }
 
 /**
