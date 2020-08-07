@@ -1,11 +1,14 @@
-use bytes::Bytes;
-use futures::prelude::*;
-use crate::model::controll::*;
+use crate::model::io::*;
 use crate::model::mail::*;
 use crate::model::session::*;
-use crate::service::*;
-use tokio::io;
-use crate::util::*;
+use crate::model::{Error, Result};
+use crate::service::mail::*;
+use crate::service::session::*;
+use bytes::Bytes;
+use futures::prelude::*;
+use pin_project::pin_project;
+use std::pin::Pin;
+use std::task::{Context, Poll};
 
 #[derive(Clone)]
 pub struct StatefulSessionService<S> {
@@ -20,155 +23,175 @@ impl<S> StatefulSessionService<S> {
 
 impl<S, M, MFut, GFut> SessionService for StatefulSessionService<S>
 where
+    S: Send,
+    M: Send,
+    MFut: Send,
+    GFut: Send,
     S: Clone,
     S: NamedService,
     S: MailGuard<Future = GFut>,
     S: MailQueue<MailFuture = MFut, Mail = M>,
-    MFut: Future<Item = Option<M>>,
-    GFut: Future<Item = AcceptRecipientResult>,
+    MFut: Future<Output = Option<M>>,
+    GFut: Future<Output = AcceptRecipientResult>,
     M: Mail,
-    M: Sink<SinkItem = Bytes, SinkError = io::Error>,
+    M: Sink<Bytes, Error = Error>,
 {
     type Handler = StatefulSessionHandler<S, M, MFut, GFut>;
-    fn start(&self, tls_conf: TlsControll) -> Self::Handler {
+    fn start(&self) -> Self::Handler {
         let name = self.mail_service.name();
-        StatefulSessionHandler::new(name, self.mail_service.clone(), tls_conf)
+        StatefulSessionHandler::new(name, self.mail_service.clone())
     }
 }
 
+enum HandlerState<M, MFut, GFut> {
+    Ready,
+    MailRcptChecking(Pin<Box<GFut>>),
+    MailOpening(Pin<Box<MFut>>),
+    MailDataWriting(Pin<Box<M>>),
+    MailQueuing(Pin<Box<M>>),
+    Closed,
+}
+
+#[pin_project(project=HandlerProjection)]
+#[must_use = "streamsand sinks do nothing unless polled"]
 pub struct StatefulSessionHandler<S, M, MFut, GFut> {
     mail_service: S,
-    mail: Option<M>,
-    mail_fut: Option<MFut>,
-    mail_guard_fut: Option<GFut>,
     session: Session,
-    tls_conf: TlsControll,
+    state: HandlerState<M, MFut, GFut>,
 }
 
 impl<S, M, MFut, GFut> StatefulSessionHandler<S, M, MFut, GFut> {
-    pub fn new(name: impl ToString, mail_service: S, tls_conf: TlsControll) -> Self {
+    pub fn new(name: impl ToString, mail_service: S) -> Self {
         Self {
             mail_service,
-            mail: None,
-            mail_fut: None,
-            mail_guard_fut: None,
             session: Session::new(name),
-            tls_conf,
+            state: HandlerState::Ready,
         }
     }
 }
 
-impl<S, M, MFut, GFut> Sink for StatefulSessionHandler<S, M, MFut, GFut>
+impl<S, M, MFut, GFut> Sink<ReadControl> for StatefulSessionHandler<S, M, MFut, GFut>
 where
     S: MailGuard<Future = GFut>,
     S: MailQueue<MailFuture = MFut, Mail = M>,
-    MFut: Future<Item = Option<M>, Error = io::Error>,
-    GFut: Future<Item = AcceptRecipientResult, Error = io::Error>,
+    MFut: Future<Output = Option<M>>,
+    GFut: Future<Output = AcceptRecipientResult>,
     M: Mail,
-    M: Sink<SinkItem = Bytes, SinkError = io::Error>,
+    M: Sink<Bytes, Error = Error>,
 {
-    type SinkItem = ServerControll;
-    type SinkError = io::Error;
-    fn poll_complete(&mut self) -> Poll<(), Self::SinkError> {
-        let mut poll = Ok(Async::Ready(()));
-        let pending = || Ok(Async::NotReady);
+    type Error = Error;
+    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
+        self.poll_ready(cx)
+    }
+    fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
+        self.poll_flush(cx)
+    }
+    fn poll_ready(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
+        let pending = || Poll::Pending;
+        let ok = || Poll::Ready(Ok(()));
+        let HandlerProjection { session, state, .. } = self.project();
 
-        // poll pending mail send
-        poll = match self.mail_fut.take() {
-            None => poll,
-            Some(mut f) => match f.poll() {
-                Ok(Async::NotReady) => {
-                    self.mail_fut = Some(f);
-                    trace!("mail_fut not ready.");
-                    pending()
-                }
-                Err(e) => {
-                    warn!("Sending mail failed {:?}", e);
-                    self.session.mail_sending(MailSendResult::Failed);
-                    poll
-                }
-                Ok(Async::Ready(Some(mail))) => {
-                    if self.mail.is_some() {
-                        // This should not happen. Something is wrong with synchronization.
-                        warn!("Got a new mail while another is in progress. Bummer!");
-                        // We will not be going ahead with this new mail.
-                        self.session.mail_sending(MailSendResult::Failed);
-                        poll
-                    } else {
-                        trace!("mail_fut ready and accepted!");
-                        self.mail = Some(mail);
-                        self.session.mail_sending(MailSendResult::Ok);
-                        poll
+        let mut poll = match state {
+            HandlerState::Closed => ok(),
+            HandlerState::Ready => ok(),
+            HandlerState::MailRcptChecking(mail_guard_fut) => {
+                // poll pending rcpt check
+                match mail_guard_fut.as_mut().poll(cx) {
+                    Poll::Pending => {
+                        trace!("rcpt check not ready.");
+                        pending()
+                    }
+                    Poll::Ready(result) => {
+                        trace!("rcpt check ready!");
+                        session.rcpt_checked(result);
+                        *state = HandlerState::Ready;
+                        ok()
                     }
                 }
-                Ok(Async::Ready(None)) => {
-                    trace!("mail_fut ready and rejected!");
-                    self.session.mail_sending(MailSendResult::Rejected);
-                    poll
+            }
+            HandlerState::MailOpening(mail_fut) => {
+                // poll pending mail send
+                match mail_fut.as_mut().poll(cx) {
+                    Poll::Pending => {
+                        trace!("mail_fut not ready.");
+                        pending()
+                    }
+                    Poll::Ready(None) => {
+                        trace!("mail_fut ready and rejected!");
+                        session.mail_sending(MailSendResult::Rejected);
+                        *state = HandlerState::Ready;
+                        ok()
+                    }
+                    Poll::Ready(Some(mail)) => {
+                        trace!("mail_fut ready and accepted!");
+                        session.mail_sending(MailSendResult::Ok);
+                        *state = HandlerState::MailDataWriting(Box::pin(mail));
+                        ok()
+                    }
                 }
-            },
-        };
-
-        // poll the mail data sink
-        poll = match self.mail.take() {
-            None => poll,
-            Some(mut h) => match h.poll_complete() {
-                Ok(Async::NotReady) => {
-                    trace!("mail sink not ready.");
-                    self.mail = Some(h);
+            }
+            HandlerState::MailDataWriting(mail) => {
+                // poll the mail data sink
+                match mail.as_mut().poll_flush(cx) {
+                    Poll::Pending => {
+                        trace!("mail sink not ready.");
+                        pending()
+                    }
+                    Poll::Ready(Err(e)) => {
+                        warn!("Sending mail data failed. {:?}", e);
+                        session.error_sending_data();
+                        *state = HandlerState::Ready;
+                        ok()
+                    }
+                    Poll::Ready(Ok(())) => {
+                        trace!("mail sink ready!");
+                        ok()
+                    }
+                }
+            }
+            HandlerState::MailQueuing(mail) => match mail.as_mut().poll_close(cx) {
+                Poll::Ready(Ok(())) => {
+                    let id = mail.queue_id();
+                    info!("Mail queued with ID {}", id);
+                    session.mail_queued(QueueResult::QueuedWithId(id.to_string()));
+                    *state = HandlerState::Ready;
+                    ok()
+                }
+                Poll::Ready(Err(e)) => {
+                    warn!("Mail queue with ID {} failed", mail.queue_id());
+                    *state = HandlerState::Closed;
+                    return Poll::Ready(Err(e));
+                }
+                Poll::Pending => {
+                    trace!("mail sink close pending!");
                     pending()
                 }
-                Err(e) => {
-                    warn!("Sending mail data failed. {:?}", e);
-                    self.session.error_sending_data();
-                    poll
-                }
-                Ok(Async::Ready(())) => {
-                    trace!("mail sink ready!");
-                    self.mail = Some(h);
-                    poll
-                }
             },
         };
 
-        // poll pending rcpt check
-        poll = match self.mail_guard_fut.take() {
-            None => poll,
-            Some(mut f) => match f.poll() {
-                Err(e) => {
-                    warn!("Checking mail recipient failed. {:?}", e);
-                    self.session.rcpt_checked(AcceptRecipientResult::Failed);
-                    poll
-                }
-                Ok(Async::NotReady) => {
-                    trace!("rcpt check not ready.");
-                    self.mail_guard_fut = Some(f);
-                    pending()
-                }
-                Ok(Async::Ready(result)) => {
-                    trace!("rcpt check ready!");
-                    self.session.rcpt_checked(result);
-                    poll
-                }
-            },
-        };
-
+        if let Poll::Ready(Ok(())) = poll {
+            if !session.is_ready() {
+                trace!("session is not ready yet.");
+                poll = pending();
+            }
+        }
         poll
     }
-    fn start_send(&mut self, item: Self::SinkItem) -> StartSend<Self::SinkItem, Self::SinkError> {
-        let dbg = format!("controll sink item: {:?}", item);
-        match self.session.controll(item) {
-            ControllResult::Wait(item) => Ok(AsyncSink::NotReady(item)),
-            ControllResult::Ok => {
+
+    fn start_send(self: Pin<&mut Self>, item: ReadControl) -> Result<()> {
+        let dbg = format!("control sink item: {:?}", item);
+        match self.project().session.control(item) {
+            Ok(()) => {
                 trace!("{}", dbg);
-                Ok(AsyncSink::Ready)
+                Ok(())
             }
-            ControllResult::Ended => {
+            Err(ControlResult::Wait) => {
+                warn!("session was not ready when {} came", dbg);
+                Err(format!("The session is not ready!").into())
+            }
+            Err(ControlResult::Ended) => {
                 warn!("session already ended when {} came", dbg);
-                Err(io::Error::new(
-                    io::ErrorKind::NotConnected,
-                    format!("The session is over!"),
-                ))
+                Err(format!("The session is over!").into())
             }
         }
     }
@@ -177,117 +200,128 @@ impl<S, M, MFut, GFut> Stream for StatefulSessionHandler<S, M, MFut, GFut>
 where
     S: MailGuard<Future = GFut>,
     S: MailQueue<MailFuture = MFut, Mail = M>,
-    MFut: Future<Item = Option<M>, Error = io::Error>,
-    GFut: Future<Item = AcceptRecipientResult, Error = io::Error>,
+    MFut: Future<Output = Option<M>>,
+    GFut: Future<Output = AcceptRecipientResult>,
     M: Mail,
-    M: Sink<SinkItem = Bytes, SinkError = io::Error>,
+    M: Sink<Bytes, Error = Error>,
 {
-    type Item = ClientControll;
-    type Error = io::Error;
-    fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
+    type Item = Result<WriteControl>;
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        trace!("Polling next session answer.");
         // Pick an answer only in one place while passing the poll to the sink.
         // Whenever we later change the state we want to come back here right away
-        // so we return a ClientControll::Noop and the consumer will come back for more.
+        // so we return a WriteControl::NoOp and the consumer will come back for more.
         let answer = match self.session.get_answer() {
-            None => match self.poll_complete() {
-                Ok(Async::Ready(())) => match self.session.get_answer() {
-                    None => return none(),
-                    Some(answer) => answer,
-                },
-                Ok(Async::NotReady) => {
-                    trace!("waiting for an answer.");
-                    return pending();
+            None => match self.session.is_closed() {
+                true => {
+                    trace!("No answer, the session is closed.");
+                    return Poll::Ready(None);
                 }
-                Err(e) => return Err(e),
+                false => {
+                    trace!("No answer, pending.");
+                    return Poll::Pending;
+                }
             },
             Some(answer) => answer,
         };
 
-        trace!("session controll answer: {:?}", answer);
+        trace!("session control answer: {:?}", answer);
+
+        let ok = |v| Poll::Ready(Some(Ok(v)));
 
         // process the answer
         match answer {
-            SessionControll::Reply(reply) => ok(ClientControll::Reply(reply)),
-            SessionControll::CheckRcpt(request) => {
-                if self.mail_guard_fut.is_some() {
-                    // This should not happen. Something is wrong with synchronization.
-                    warn!("Asked to check Rcpt while another check is in progress. Bummer!");
-                    // We will not be adding this RCPT.
-                    self.session.rcpt_checked(AcceptRecipientResult::Failed);
-                    ok(ClientControll::Noop)
-                } else {
-                    self.mail_guard_fut = Some(self.mail_service.accept(request));
-                    // we did something, but want to be called again
-                    ok(ClientControll::Noop)
-                }
-            }
-            SessionControll::SendMail(envelope) => {
-                if self.mail.is_some() {
-                    warn!("Asked to send mail while another one is in progress. Bummer!");
-                    // I'm going to be very strict here. This should not happen.
-                    self.session.mail_sending(MailSendResult::Failed);
-                    // we did something, but want to be called again
-                    ok(ClientControll::Noop)
-                } else {
-                    self.mail_fut = Some(self.mail_service.mail(envelope));
-                    // we did something, but want to be called again
-                    ok(ClientControll::Noop)
-                }
-            }
-            SessionControll::Data(data) => {
-                match self.mail {
-                    None => {
-                        warn!("Asked to write mail data without a handler. Bummer!");
-                        self.session.error_sending_data();
+            SessionControl::Reply(reply) => ok(WriteControl::Reply(reply)),
+            SessionControl::CheckRcpt(request) => {
+                match self.state {
+                    HandlerState::Ready => {
+                        self.state = HandlerState::MailRcptChecking(Box::pin(
+                            self.mail_service.accept(request),
+                        ));
                         // we did something, but want to be called again
-                        ok(ClientControll::Noop)
+                        ok(WriteControl::NoOp)
                     }
-                    Some(ref mut h) => {
-                        match h.start_send(data) {
-                            Ok(AsyncSink::Ready) => {
-                                /*Yay! Good stuff... */
-                                ok(ClientControll::Noop)
-                            }
-                            Ok(AsyncSink::NotReady(data)) => {
-                                /*Push back from the sink!*/
-                                self.session.push_back(SessionControll::Data(data));
-                                ok(ClientControll::Noop)
-                            }
-                            Err(e) => {
+                    _ => {
+                        // This should not happen. Something is wrong with synchronization.
+                        warn!("Asked to check Rcpt in a wrong state. Bummer!");
+                        // We will not be adding this RCPT.
+                        self.session.rcpt_checked(AcceptRecipientResult::Failed);
+                        ok(WriteControl::NoOp)
+                    }
+                }
+            }
+            SessionControl::SendMail(envelope) => {
+                match self.state {
+                    HandlerState::Ready => {
+                        self.state =
+                            HandlerState::MailOpening(Box::pin(self.mail_service.mail(envelope)));
+                        // we did something, but want to be called again
+                        ok(WriteControl::NoOp)
+                    }
+                    _ => {
+                        warn!("Asked to send mail win a wrongstate. Bummer!");
+                        // I'm going to be very strict here. This should not happen.
+                        self.session.mail_sending(MailSendResult::Failed);
+                        // we did something, but want to be called again
+                        ok(WriteControl::NoOp)
+                    }
+                }
+            }
+            SessionControl::Data(data) => {
+                match self.state {
+                    HandlerState::MailDataWriting(ref mut h) => {
+                        match h.as_mut().poll_ready(cx) {
+                            Poll::Ready(Ok(())) => match h.as_mut().start_send(data) {
+                                Ok(()) => {
+                                    /*Yay! Good stuff... */
+                                    ok(WriteControl::NoOp)
+                                }
+                                Err(e) => {
+                                    warn!("Mail data write error. {:?}", e);
+                                    self.session.error_sending_data();
+                                    ok(WriteControl::NoOp)
+                                }
+                            },
+                            Poll::Ready(Err(e)) => {
                                 warn!("Mail data write error. {:?}", e);
                                 self.session.error_sending_data();
-                                ok(ClientControll::Noop)
+                                ok(WriteControl::NoOp)
+                            }
+                            Poll::Pending => {
+                                /*Push back from the sink!*/
+                                self.session.push_back(SessionControl::Data(data));
+                                ok(WriteControl::NoOp)
                             }
                         }
                     }
+                    _ => {
+                        warn!("Asked to write mail data in a wrong state. Bummer!");
+                        self.session.error_sending_data();
+                        // we did something, but want to be called again
+                        ok(WriteControl::NoOp)
+                    }
                 }
             }
-            SessionControll::QueueMail => {
-                match self.mail.take() {
-                    None => {
-                        warn!("Asked to queue mail without a handler. Bummer!");
+            SessionControl::QueueMail => {
+                let state = std::mem::replace(&mut self.state, HandlerState::Closed);
+                match state {
+                    HandlerState::MailDataWriting(h) => {
+                        self.state = HandlerState::MailQueuing(h);
+                        // we did something, but want to be called again
+                        ok(WriteControl::NoOp)
+                    }
+                    _ => {
+                        warn!("Asked to queue mail in a wrong state. Bummer!");
                         self.session.mail_queued(QueueResult::Failed);
                         // we did something, but want to be called again
-                        ok(ClientControll::Noop)
-                    }
-                    Some(h) => {
-                        let result = h.queue();
-                        self.session.mail_queued(result);
-                        // we did something, but want to be called again
-                        ok(ClientControll::Noop)
+                        ok(WriteControl::NoOp)
                     }
                 }
             }
-            SessionControll::AcceptStartTls => {
-                self.tls_conf.start_tls();
-                ok(ClientControll::Noop)
-            }
-            SessionControll::AcceptMailData(accept) => ok(ClientControll::AcceptData(accept)),
-            SessionControll::EndOfSession => ok(ClientControll::Shutdown),
-            SessionControll::Fail => Err(io::Error::new(
-                io::ErrorKind::Other,
-                format!("Mail session failed"),
-            )),
+            SessionControl::AcceptStartTls => ok(WriteControl::StartTls),
+            SessionControl::AcceptMailData => ok(WriteControl::StartData),
+            SessionControl::EndOfSession => ok(WriteControl::Shutdown),
+            SessionControl::Fail => Poll::Ready(Some(Err(format!("Mail session failed").into()))),
         }
     }
 }
