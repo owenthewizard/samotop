@@ -28,7 +28,7 @@ peg::parser! {
             { ReadControl::Command( c) }
         pub rule inp_none() -> ReadControl
             =  s:$(NL() / __* NL())
-            { ReadControl::NoOp }
+            { ReadControl::Empty(Bytes::copy_from_slice(s)) }
         pub rule inp_invalid() -> ReadControl
             =  s:$( quiet!{ str_invalid() / str_incomplete() } / expected!("invalid input") )
             { ReadControl::Raw( Bytes::copy_from_slice(s)) }
@@ -273,7 +273,13 @@ mod tests {
     #[test]
     fn script_parses_whitespace_line() {
         let result = script(b"   \r\n\t\t\r\n").unwrap();
-        assert_eq!(result, vec![ReadControl::NoOp, ReadControl::NoOp,]);
+        assert_eq!(
+            result,
+            vec![
+                ReadControl::Empty(b("   \r\n")),
+                ReadControl::Empty(b("\t\t\r\n")),
+            ]
+        );
     }
 
     #[test]

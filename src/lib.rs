@@ -1,10 +1,6 @@
 //! # Status
 //!
-//! The API is still very much subject to change. Until you see the release of version 1.0.0, don't expect much stability.
-//! See the README.md file and project open issues for current status.
-//!
-//! The use case of running the server as a standalone application should be described in the README.md (tbd)
-//! Here we focus on using the library.
+//! Reaching stable. The API builds on async/await to offer a convenient asynchronous interface.
 //!
 //! # Installation
 //!
@@ -19,18 +15,43 @@
 //!
 //! # Usage
 //!
-//! There are a few interesting provisions one could take away here:
+//! There are a few interesting provisions one could take away from Samotop:
 //! * The server (through `samotop::server::Server`) - it takes IP:port's to listen `on()` and you can then `serve()` your own implementation of a `TcpService`.
-//! * The SMTP service (`SmtpService`) - it takes a `async_std::io::net::TcpStream` into the `Sink` created by `start()`.
-//! * The low level `SmtpCodec` - it implements `futures_codec::Encoder` and `futures_codec::Decoder`. It handles SMTP mail data as well.
+//! * The SMTP service (`SmtpService`) - it takes an async IO and provides an SMTP service defined by `SessionService`.
+//! * The low level `SmtpCodec` - it translates between IO and a `Stram` of `ReadControl` and a `Sink` of `WriteControl`. It handles SMTP mail data as well.
 //! * The SMTP session parser (`SmtpParser`) - it takes `&str` and returns parsed commands or session.
-//! * The SMTP session and domain model (`model::session`, `model::command`, `model::response`) - these describe the domain and behavior.
+//! * The SMTP session and domain model (`samotop::model::session`, `samotop::model::smtp`) - these describe the domain and behavior.
 //! * The mail handling stuff that is yet to be written (`MailService`)...
 //!
-//! The individual components may later be split out into their own crates, but we shall have the samotop crate re-export them then.
+//! # SMTP Server
 //!
-//! # Server
+//! You can run a plaintext SMTP service without support for STARTTLS.
+//! 
+//! ```no_run
+//! extern crate async_std;
+//! extern crate env_logger;
+//! extern crate samotop;
+//!
+//! use samotop::server::Server;
+//! use samotop::service::tcp::DummyTcpService;
+//!
+//! fn main() {
+//!     env_logger::init();    
+//!     let mail = samotop::service::mail::ConsoleMail::new("Aloha");
+//!     let sess = samotop::service::session::StatefulSessionService::new(mail);
+//!     let svc = samotop::service::tcp::SmtpService::new(sess);
+//!     let svc = samotop::service::tcp::TlsEnabled::no(svc); //TLS disabled
+//!     let srv = samotop::server::Server::on("localhost:25").serve(svc);
+//!     async_std::task::block_on(srv).unwrap()
+//! }
+//! ```
+//! 
+//! To enable TLS, provide a rustls TlsAcceptor. 
+//! Alternatively, implement TlsEnabled for another TLS library.
+//!
+//! # Dummy server
 //! Any TCP service can be served. See the docs for `TcpService`.
+//! Use this to understand how networking IO is handled.
 //!
 //! ```no_run
 //! extern crate async_std;
@@ -42,8 +63,8 @@
 //!
 //! fn main() {
 //!     env_logger::init();
-//!     let mut srv = Server::on("localhost:0");
-//!     async_std::task::block_on(srv.serve(DummyTcpService)).unwrap()
+//!     let mut srv = Server::on("localhost:0").serve(DummyTcpService);
+//!     async_std::task::block_on(srv).unwrap()
 //! }
 //! ```
 
@@ -76,6 +97,7 @@ mod common {
 pub mod test_util {
 
     pub use crate::common::*;
+    use crate::protocol::TlsCapableIO;
     use std::collections::VecDeque;
 
     pub fn cx() -> Context<'static> {
@@ -110,33 +132,39 @@ pub mod test_util {
 
     #[pin_project]
     pub struct TestIO {
-        pub data: Vec<u8>,
-        pub split: usize,
+        pub input: Vec<u8>,
+        pub output: Vec<u8>,
         pub read: usize,
         pub read_chunks: VecDeque<usize>,
     }
     impl TestIO {
-        // Pretend reading chunks of input of given sizes. 0 => Pending
-        pub fn read_chunks(&mut self, parts: impl IntoIterator<Item = usize>) {
-            self.read_chunks = parts.into_iter().collect()
-        }
         pub fn written(&self) -> &[u8] {
-            &self.data[self.split..]
+            &self.output[..]
         }
         pub fn read(&self) -> &[u8] {
-            &self.data[..self.read]
+            &self.input[..self.read]
+        }
+        pub fn unread(&self) -> &[u8] {
+            &self.input[self.read..]
+        }
+        pub fn new() -> Self {
+            TestIO {
+                output: vec![],
+                input: vec![],
+                read: 0,
+                read_chunks: vec![].into(),
+            }
+        }
+        // Pretend reading chunks of input of given sizes. 0 => Pending
+        pub fn add_read_chunk(mut self, chunk: impl AsRef<[u8]>) -> Self {
+            self.input.extend_from_slice(chunk.as_ref());
+            self.read_chunks.push_back(chunk.as_ref().len());
+            self
         }
     }
-    impl<T: IntoIterator<Item = u8>> From<T> for TestIO {
+    impl<T: AsRef<[u8]>> From<T> for TestIO {
         fn from(data: T) -> Self {
-            let data: Vec<u8> = data.into_iter().collect();
-            let len = data.len();
-            TestIO {
-                split: len,
-                read: 0,
-                data,
-                read_chunks: vec![len].into(),
-            }
+            Self::new().add_read_chunk(data)
         }
     }
     impl Read for TestIO {
@@ -149,7 +177,7 @@ pub mod test_util {
             match proj.read_chunks.pop_front() {
                 None => Poll::Ready(Ok(0)),
                 Some(max) => {
-                    let len = usize::min(max, *proj.split - *proj.read);
+                    let len = usize::min(max, proj.input.len() - *proj.read);
                     let len = usize::min(len, buf.len());
                     if len != max {
                         proj.read_chunks.push_front(max - len);
@@ -157,7 +185,8 @@ pub mod test_util {
                     if len == 0 {
                         Poll::Pending
                     } else {
-                        (&mut buf[..len]).copy_from_slice(&proj.data[*proj.read..*proj.read + len]);
+                        (&mut buf[..len])
+                            .copy_from_slice(&proj.input[*proj.read..*proj.read + len]);
                         *proj.read += len;
                         Poll::Ready(Ok(len))
                     }
@@ -172,14 +201,19 @@ pub mod test_util {
             buf: &[u8],
         ) -> Poll<std::io::Result<usize>> {
             let proj = self.project();
-            proj.data.push(buf[0]);
-            Poll::Ready(Ok(1))
+            proj.output.extend_from_slice(buf);
+            Poll::Ready(Ok(buf.len()))
         }
         fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
             Poll::Ready(Ok(()))
         }
         fn poll_close(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
             Poll::Ready(Ok(()))
+        }
+    }
+    impl TlsCapableIO for TestIO {
+        fn start_tls(self: Pin<&mut Self>) -> Result<()> {
+            Err("TLS not supported".into())
         }
     }
 }

@@ -1,16 +1,18 @@
 use crate::common::*;
 use crate::model::io::*;
+use crate::protocol::TlsCapableIO;
 use bytes::{Buf, BufMut};
+use std::collections::VecDeque;
 
 #[pin_project(project=SmtpCodecProj)]
 pub struct SmtpCodec<IO> {
     /// the underlying IO, such as TcpStream
     #[pin]
     io: IO,
+    /// server to client encoded responses buffer
+    s2c_pending: VecDeque<PendingWrite>,
     /// client to server reading buffer
     c2s_buffer: BytesMut,
-    /// server to client encoded responses
-    s2c_encoded: Vec<Bytes>,
     read_data: Option<bool>,
 }
 
@@ -22,12 +24,12 @@ impl<IO: Read + Write> SmtpCodec<IO> {
         SmtpCodec {
             io,
             c2s_buffer: BytesMut::with_capacity(c2s_buffer_size),
-            s2c_encoded: vec![],
             read_data: None,
+            s2c_pending: vec![].into(),
         }
     }
 }
-impl<IO: Read + Write> SmtpCodec<IO> {
+impl<IO: Read + Write + TlsCapableIO> SmtpCodec<IO> {
     fn poll_read_buffer(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
         let projection = self.project();
 
@@ -117,11 +119,17 @@ impl<IO: Read + Write> SmtpCodec<IO> {
                 let bytes = consume(projection.c2s_buffer, 2);
                 Poll::Ready(Some(Ok(ReadControl::MailDataChunk(bytes))))
             }
-            GoOn => match memchr::memchr2(b'\r', b'\n', projection.c2s_buffer.bytes()) {
+            GoOn => match memchr::memchr(b'\r', projection.c2s_buffer.bytes()) {
                 Some(found) => {
-                    *projection.read_data = Some(false);
-                    let bytes = consume(projection.c2s_buffer, found);
-                    Poll::Ready(Some(Ok(ReadControl::MailDataChunk(bytes))))
+                    if let [b'\r', b'\n', ..] = projection.c2s_buffer[found..] {
+                        *projection.read_data = Some(true);
+                        let bytes = consume(projection.c2s_buffer, found + 2);
+                        Poll::Ready(Some(Ok(ReadControl::MailDataChunk(bytes))))
+                    } else {
+                        *projection.read_data = Some(false);
+                        let bytes = consume(projection.c2s_buffer, found);
+                        Poll::Ready(Some(Ok(ReadControl::MailDataChunk(bytes))))
+                    }
                 }
                 None => {
                     *projection.read_data = Some(false);
@@ -203,7 +211,7 @@ where
 
 impl<IO> Stream for SmtpCodec<IO>
 where
-    IO: Read + Write,
+    IO: Read + Write + TlsCapableIO,
 {
     type Item = Result<ReadControl>;
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
@@ -213,53 +221,68 @@ where
 
 impl<IO> Sink<WriteControl> for SmtpCodec<IO>
 where
-    IO: Write,
+    IO: Write + TlsCapableIO,
 {
     type Error = Error;
 
     fn start_send(self: Pin<&mut Self>, item: WriteControl) -> Result<()> {
         trace!("Encoding {:?}", item);
+        let projection = self.project();
         match item {
-            WriteControl::Reply(reply) => {
-                Ok(self.project().s2c_encoded.push(reply.to_string().into()))
+            WriteControl::Shutdown => {}
+            WriteControl::Reply(reply) => projection
+                .s2c_pending
+                .push_back(PendingWrite::Data(reply.to_string().into())),
+            WriteControl::StartTls(reply) => {
+                projection
+                    .s2c_pending
+                    .push_back(PendingWrite::Data(reply.to_string().into()));
+                projection.s2c_pending.push_back(PendingWrite::StartTls);
             }
-            WriteControl::NoOp => Ok(()),
-            WriteControl::Shutdown => Ok(()),
-            WriteControl::StartTls => Ok(()),
-            WriteControl::StartData => Ok(*self.project().read_data = Some(true)),
+            WriteControl::StartData(reply) => {
+                projection
+                    .s2c_pending
+                    .push_back(PendingWrite::Data(reply.to_string().into()));
+                projection.s2c_pending.push_back(PendingWrite::StartData);
+            }
         }
+        Ok(())
     }
     fn poll_ready(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
         trace!("Polling ready");
-        if self.s2c_encoded.is_empty() {
-            return Poll::Ready(Ok(()));
-        }
-
         let mut projection = self.project();
 
-        while !projection.s2c_encoded.is_empty() {
-            // dequeue item to write
-            let mut buf = projection.s2c_encoded.remove(0);
-            // write data to the IO
-            trace!("writing {} bytes", buf.len());
-            match projection.io.as_mut().poll_write(cx, &buf[..])? {
-                Poll::Pending => {
-                    trace!("write not ready");
-                    // not ready, return the whole buffer to the queue
-                    projection.s2c_encoded.insert(0, buf);
-                    return Poll::Pending;
-                }
-                Poll::Ready(len) => {
-                    trace!("wrote {} bytes", len);
-                    let _consumed = buf.split_to(len);
-                    if buf.len() != 0 {
-                        // written partially, consume written buffer and return it to the queue
-                        projection.s2c_encoded.insert(0, buf);
+        while let Some(pending) = projection.s2c_pending.pop_front() {
+            // save bytes for next iteration
+            match pending {
+                PendingWrite::StartData => *projection.read_data = Some(true),
+                PendingWrite::StartTls => projection.io.as_mut().start_tls()?,
+                PendingWrite::Data(mut pending) => {
+                    // write data to the IO
+                    trace!("writing {} bytes", pending.len());
+                    match projection.io.as_mut().poll_write(cx, &pending[..])? {
+                        Poll::Pending => {
+                            trace!("write not ready");
+                            // not ready, return the whole buffer to the queue
+                            projection
+                                .s2c_pending
+                                .push_front(PendingWrite::Data(pending));
+                            return Poll::Pending;
+                        }
+                        Poll::Ready(len) => {
+                            trace!("wrote {} bytes", len);
+                            let _consumed = pending.split_to(len);
+                            if pending.len() != 0 {
+                                // written partially, consume written buffer and return it to the queue
+                                projection
+                                    .s2c_pending
+                                    .push_front(PendingWrite::Data(pending));
+                            }
+                        }
                     }
                 }
             }
         }
-
         Poll::Ready(Ok(()))
     }
     fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
@@ -278,6 +301,12 @@ where
         ready!(projection.io.poll_close(cx))?;
         Poll::Ready(Ok(()))
     }
+}
+
+enum PendingWrite {
+    Data(Bytes),
+    StartTls,
+    StartData,
 }
 
 #[cfg(test)]
@@ -360,6 +389,7 @@ QUIT
 
 #[cfg(test)]
 mod codec_tests {
+    use crate::model::smtp::SmtpReply;
     use crate::test_util::*;
 
     use super::*;
@@ -367,8 +397,9 @@ mod codec_tests {
 
     #[test]
     fn decode_takes_first_line() -> Result<()> {
-        let mut io = TestIO::from(b"helo there\r\nquit\r\n".to_vec());
-        io.read_chunks(vec![12, 6]);
+        let mut io = TestIO::new()
+            .add_read_chunk("helo there\r\n")
+            .add_read_chunk("quit\r\n");
         let mut sut = SmtpCodec::new(&mut io);
 
         assert_eq!(
@@ -427,14 +458,14 @@ mod codec_tests {
         let mut sut = SmtpCodec::new(io);
 
         assert_eq!(Pin::new(&mut sut).poll_ready(&mut cx())?, Poll::Ready(()));
-        assert_eq!(Pin::new(&mut sut).start_send(WriteControl::StartData)?, ());
         assert_eq!(
-            Pin::new(&mut sut).poll_next(&mut cx())?,
-            Poll::Ready(Some(MailDataChunk(b("something"))))
+            Pin::new(&mut sut)
+                .start_send(WriteControl::StartData(SmtpReply::StartMailInputChallenge))?,
+            ()
         );
         assert_eq!(
             Pin::new(&mut sut).poll_next(&mut cx())?,
-            Poll::Ready(Some(MailDataChunk(b("\r\n"))))
+            Poll::Ready(Some(MailDataChunk(b("something\r\n"))))
         );
         assert_eq!(
             Pin::new(&mut sut).poll_next(&mut cx())?,
@@ -442,11 +473,7 @@ mod codec_tests {
         );
         assert_eq!(
             Pin::new(&mut sut).poll_next(&mut cx())?,
-            Poll::Ready(Some(MailDataChunk(b(".fun"))))
-        );
-        assert_eq!(
-            Pin::new(&mut sut).poll_next(&mut cx())?,
-            Poll::Ready(Some(MailDataChunk(b("\r\n"))))
+            Poll::Ready(Some(MailDataChunk(b(".fun\r\n"))))
         );
         assert_eq!(
             Pin::new(&mut sut).poll_next(&mut cx())?,
@@ -466,7 +493,11 @@ mod codec_tests {
         let mut sut = SmtpCodec::new(io);
 
         assert_eq!(Pin::new(&mut sut).poll_ready(&mut cx())?, Poll::Ready(()));
-        assert_eq!(Pin::new(&mut sut).start_send(WriteControl::StartData)?, ());
+        assert_eq!(
+            Pin::new(&mut sut)
+                .start_send(WriteControl::StartData(SmtpReply::StartMailInputChallenge))?,
+            ()
+        );
 
         assert_eq!(
             Pin::new(&mut sut).poll_next(&mut cx())?,

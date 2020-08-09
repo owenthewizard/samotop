@@ -6,7 +6,7 @@ use rustls::ServerConfig;
 use samotop::server::Server;
 use samotop::service::mail::ConsoleMail;
 use samotop::service::session::StatefulSessionService;
-use samotop::service::tcp::SmtpService;
+use samotop::service::tcp::{SmtpService, TlsEnabled};
 use structopt::StructOpt;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
@@ -26,10 +26,11 @@ async fn main_fut() -> Result<()> {
     let mail_service = ConsoleMail::new(name.as_str());
     let session_service = StatefulSessionService::new(mail_service);
     //let session_service = samotop::service::session::dummy::DummySessionService::new(mail_service);
-    let smtp_service = SmtpService::new(session_service, tls_acceptor);
+    let smtp_service = SmtpService::new(session_service);
+    let tls_smtp_service = TlsEnabled::new(smtp_service, tls_acceptor);
 
     info!("I am {}", name);
-    Server::on_all(ports).serve(smtp_service).await
+    Server::on_all(ports).serve(tls_smtp_service).await
 }
 
 async fn get_tls_config(opt: &Opt) -> Result<Option<ServerConfig>> {

@@ -27,8 +27,8 @@ pub enum SessionControl {
     SendMail(Envelope),
     CheckRcpt(AcceptRecipientRequest),
     EndOfSession,
-    AcceptMailData,
-    AcceptStartTls,
+    StartData(SmtpReply),
+    StartTls(SmtpReply),
     Reply(SmtpReply),
     Data(Bytes),
     Fail,
@@ -93,17 +93,16 @@ impl Session {
             return Err(ControlResult::Ended);
         }
 
-        use ReadControl::*;
+        // Todo: handle delayed banner
         match ctrl {
-            PeerConnected(conn) => self.conn(conn),
-            PeerShutdown => self.end(),
-            Raw(_) => self.say_syntax_error(),
-            Command(cmd) => self.cmd(cmd),
-            MailDataChunk(data) => self.data_chunk(data),
-            EscapeDot(_data) => self,
-            EndOfMailData(_data) => self.data_end(),
-            // Todo: handle delayed banner
-            NoOp => self,
+            ReadControl::PeerConnected(conn) => self.conn(conn),
+            ReadControl::PeerShutdown => self.end(),
+            ReadControl::Raw(_) => self.say_syntax_error(),
+            ReadControl::Command(cmd) => self.cmd(cmd),
+            ReadControl::MailDataChunk(data) => self.data_chunk(data),
+            ReadControl::EscapeDot(_data) => self,
+            ReadControl::EndOfMailData(_data) => self.data_end(),
+            ReadControl::Empty(_data) => self,
         };
         Ok(())
     }
@@ -132,8 +131,9 @@ impl Session {
             match result {
                 MailSendResult::Ok => {
                     self.state = State::DataStreaming;
-                    self.say_reply(SmtpReply::StartMailInputChallenge)
-                        .say(SessionControl::AcceptMailData)
+                    self.say(SessionControl::StartData(
+                        SmtpReply::StartMailInputChallenge,
+                    ))
                 }
                 MailSendResult::Failed => self.rst().say_mail_queue_failed(),
                 MailSendResult::Rejected => self.rst().say_mail_not_accepted(),
@@ -293,8 +293,7 @@ impl Session {
             // you cannot STARTTLS twice so we only advertise it before first use
             if let Some(_) = self.remove_extension(SmtpExtension::StartTls) {
                 // TODO: better message response
-                self.say_reply(SmtpReply::ServiceReadyInfo(name))
-                    .say(SessionControl::AcceptStartTls)
+                self.say(SessionControl::StartTls(SmtpReply::ServiceReadyInfo(name)))
             } else {
                 self.say_not_implemented()
             }

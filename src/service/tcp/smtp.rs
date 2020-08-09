@@ -5,7 +5,6 @@ use crate::protocol::*;
 use crate::service::session::*;
 use crate::service::tcp::TcpService;
 use async_std::task;
-use async_tls::TlsAcceptor;
 
 /// `SmtpService` provides an SMTP service on a TCP conection
 /// using the given `SessionService` which:
@@ -19,16 +18,12 @@ use async_tls::TlsAcceptor;
 ///
 #[derive(Clone)]
 pub struct SmtpService<S> {
-    tls_acceptor: Option<TlsAcceptor>,
     session_service: S,
 }
 
 impl<S> SmtpService<S> {
-    pub fn new(session_service: S, tls_acceptor: Option<TlsAcceptor>) -> Self {
-        Self {
-            session_service,
-            tls_acceptor,
-        }
+    pub fn new(session_service: S) -> Self {
+        Self { session_service }
     }
 }
 
@@ -36,15 +31,14 @@ impl<S, IO> TcpService<IO> for SmtpService<S>
 where
     S: SessionService + Clone + Send + Sync + 'static,
     S::Handler: Send,
-    IO: Read + Write + Unpin + Sync + Send + 'static,
+    IO: TlsCapableIO + Read + Write + Unpin + Sync + Send + 'static,
 {
     type Future = future::Ready<()>;
     fn handle(self, io: Result<IO>, conn: Connection) -> Self::Future {
-        let acceptor = self.tls_acceptor.clone();
         let session_service = self.session_service.clone();
         spawn_task_and_swallow_log_errors(
             format!("SMTP transmission {}", conn),
-            handle_smtp(session_service, conn, acceptor, io),
+            handle_smtp(session_service, conn, io),
         );
 
         future::ready(())
@@ -81,24 +75,20 @@ where
 async fn handle_smtp<IO, S>(
     session_service: S,
     connection: Connection,
-    tls_acceptor: Option<TlsAcceptor>,
     io: Result<IO>,
 ) -> Result<()>
 where
-    IO: Read + Write + Unpin,
+    IO: TlsCapableIO + Read + Write + Unpin,
     S: SessionService,
 {
     info!("New peer connection {}", connection);
-    let (tls_switch, io) = tls_capable(io?, tls_acceptor, TlsMode::StartTls);
-    let (dst, src) = crate::protocol::SmtpCodec::new(io).split();
+    let (dst, src) = crate::protocol::SmtpCodec::new(io?).split();
     let handler = session_service.start();
 
     src.parse(SmtpParser)
         .with_connection(connection)
         // the steream is passed through the session handler and back
         .through(handler)
-        // upgrade to TLS on STARTTLS
-        .tls_upgrade(tls_switch)
         // prevent polling after shutdown
         .fuse_shutdown()
         // prevent polling of completed stream
