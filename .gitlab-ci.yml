@@ -6,7 +6,6 @@ stages:
   - build
   - test
   - release
-  - docker
   
 variables:
   CARGO_HOME: '.cargo'
@@ -79,7 +78,7 @@ publish-lib:
     - cargo publish --token "$CRATES_KEY"
 
 build-server:
-  stage: docker
+  stage: release
   except:
     - master
   image: "docker:git"
@@ -101,7 +100,7 @@ publish-server:
     - cd docker/
     - docker build -t samotop .
     - docker run -t --rm samotop | tee docker.log
-    - tag="brightopen/samotop:$(cat docker.log | cut -d ' ' -f2 | tr -d \\n\\r)"
+    - tag="brightopen/samotop:$(cat docker.log | head -1 | cut -d ' ' -f2 | tr -d \\n\\r)"
     - echo "$tag"
     - docker tag samotop "$tag"
     - docker login -u "$DOCKER_USR" -p "$DOCKER_PWD"
