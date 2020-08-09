@@ -1,215 +1,159 @@
-use bytes::{BufMut, Bytes, BytesMut};
-use model::command::SmtpCommand;
-use model::controll::*;
-use regex::bytes::Regex;
-use tokio::io;
-use tokio_codec::{Decoder, Encoder};
+use crate::common::*;
+use crate::model::io::*;
+use crate::protocol::TlsCapableIO;
+use bytes::{Buf, BufMut};
+use std::collections::VecDeque;
 
-/**
- * Low level SMTP codec that handles command lines and data
- * on top of a raw byte stream
- *
- * Simple rule: return as soon as we have something certain
- * and return as much as we can of it. Keep uncertain bytes in the buffer.
- */
-pub struct SmtpCodec {
-    nl_lookup: Regex,
-    data_check: Regex,
-    sanity_check: Regex,
-    state: State,
-    confirm_switch_to_data: bool,
+#[pin_project(project=SmtpCodecProj)]
+pub struct SmtpCodec<IO> {
+    /// the underlying IO, such as TcpStream
+    #[pin]
+    io: IO,
+    /// server to client encoded responses buffer
+    s2c_pending: VecDeque<PendingWrite>,
+    /// client to server reading buffer
+    c2s_buffer: BytesMut,
+    read_data: Option<bool>,
 }
 
-/** Tracks the codec state */
-enum State {
-    /** Parsing command lines, (head and tail positions) */
-    Line(usize, usize),
-    /** Parsing data, (new line, position) */
-    Data(bool, usize),
+impl<IO: Read + Write> SmtpCodec<IO> {
+    pub fn new(io: IO) -> Self {
+        SmtpCodec::with_capacity(io, 1024)
+    }
+    pub fn with_capacity(io: IO, c2s_buffer_size: usize) -> Self {
+        SmtpCodec {
+            io,
+            c2s_buffer: BytesMut::with_capacity(c2s_buffer_size),
+            read_data: None,
+            s2c_pending: vec![].into(),
+        }
+    }
 }
+impl<IO: Read + Write + TlsCapableIO> SmtpCodec<IO> {
+    fn poll_read_buffer(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
+        let projection = self.project();
 
-impl SmtpCodec {
-    pub fn new() -> Self {
-        Self {
-            nl_lookup: Regex::new(r"\r?\n|\r$").unwrap(),
-            // performs basic sanity check on a command line
-            sanity_check: Regex::new(r"(?i)^([a-z]{4}|starttls)(\r?\n| )").unwrap(),
-            state: State::Line(0, 0),
-            // we detect data command in the codec and wait for confirmation
-            data_check: Regex::new(r"(?i)^data(\r?\n| )").unwrap(),
-            confirm_switch_to_data: false,
+        // fill the read buffer if all is read
+        if projection.c2s_buffer.remaining() == 0 {
+            // read more and decode new values
+            trace!("Reading");
+            if projection.c2s_buffer.remaining_mut() == 0 {
+                projection.c2s_buffer.reserve(1024);
+                trace!("Growing buffer to {}", projection.c2s_buffer.capacity());
+            }
+            let buf = projection.c2s_buffer.bytes_mut();
+            // this is safe as long as poll_read fulfills the contract
+            let buf = unsafe { std::mem::transmute(buf) };
+            let len = ready!(projection.io.poll_read(cx, buf))?;
+            trace!("Read {} bytes.", len);
+            // this is safe as long as poll_read fulfills the contract
+            unsafe { projection.c2s_buffer.advance_mut(len) };
+        }
+        Poll::Ready(Ok(()))
+    }
+
+    fn read_line(self: Pin<&mut Self>) -> Option<Bytes> {
+        trace!("Reading next line");
+        let projection = self.project();
+        // process the read buffer into items
+        let read = projection.c2s_buffer.bytes();
+        if read.len() == 0 {
+            None
+        } else {
+            let read = match memchr::memchr(b'\n', read) {
+                Some(len) => &read[..len + 1],
+                None => read,
+            };
+            let bytes = Bytes::copy_from_slice(read);
+            projection.c2s_buffer.advance(bytes.len());
+            Some(bytes)
         }
     }
 
-    pub fn decode_either(
-        &mut self,
-        buf: &mut BytesMut,
-    ) -> Result<Option<ServerControll>, io::Error> {
-        let (ctrl, state) = match self.state {
-            State::Data(nl, pos) => self.decode_data(buf, nl, pos),
-            State::Line(_, tail) => self.decode_line(buf, tail),
-        };
-        self.adjust(buf, state);
-        ctrl
+    fn read_line_poll(self: Pin<&mut Self>) -> Poll<Option<Result<ReadControl>>> {
+        Poll::Ready(self.read_line().map(|bytes| Ok(ReadControl::Raw(bytes))))
     }
-    fn decode_line(
-        &mut self,
-        buf: &mut BytesMut,
-        tail: usize,
-    ) -> (Result<Option<ServerControll>, io::Error>, State) {
-        // find next new line after tail
-        match self.nl_lookup.find_at(&buf.as_ref()[..], tail) {
-            None => (
-                // no new line was found
-                Ok(None),
-                // advance the tail for next round and carry on
-                State::Line(0, buf.len()),
-            ),
-            Some(found) => {
-                let tail = found.end();
-                // Split the buffer at the index of the '\n' + 1 to include the '\n'.
-                // `split_to` returns a new buffer with the contents up to the index.
-                // The buffer on which `split_to` is called will now start at this index.
-                let bytes = &buf[0..tail];
 
-                // advance to the tail
-                let state = State::Line(tail, tail);
-
-                if !self.sanity_check.is_match(bytes) {
-                    (Ok(Some(ServerControll::Invalid(Bytes::from(bytes)))), state)
-                } else {
-                    if self.data_check.is_match(bytes) {
-                        self.confirm_switch_to_data = true;
-                    }
-
-                    // Convert the bytes to a string and panic if the bytes are not valid utf-8.
-                    let line = String::from_utf8(bytes.to_vec());
-
-                    // Return Ok(Some(...)) to signal that a full frame has been produced.
-                    match line {
-                        Err(_) => (Ok(Some(ServerControll::Invalid(Bytes::from(bytes)))), state),
-                        Ok(line) => (
-                            Ok(Some(ServerControll::Command(SmtpCommand::Unknown(line)))),
-                            state,
-                        ),
+    fn read_data_poll(self: Pin<&mut Self>) -> Poll<Option<Result<ReadControl>>> {
+        let projection = self.project();
+        trace!(
+            "Reading next data from {} bytes",
+            projection.c2s_buffer.remaining()
+        );
+        let nl = projection
+            .read_data
+            .expect("the caller should check for Some");
+        if projection.c2s_buffer.remaining() == 0 {
+            *projection.read_data = Some(nl);
+            return Poll::Ready(None);
+        }
+        let consume = |buf: &mut BytesMut, len| {
+            let bytes = Bytes::copy_from_slice(&buf.bytes()[..len]);
+            buf.advance(len);
+            bytes
+        };
+        use DotState::*;
+        match dotstate(&mut projection.c2s_buffer.iter(), nl) {
+            Wait => {
+                trace!("dotstate Wait");
+                *projection.read_data = Some(nl);
+                Poll::Pending
+            }
+            End(end) => {
+                trace!("dotstate End {}", end);
+                // it is the data terminating line
+                *projection.read_data = None;
+                let bytes = consume(projection.c2s_buffer, end);
+                Poll::Ready(Some(Ok(ReadControl::EndOfMailData(bytes))))
+            }
+            EscapeDot => {
+                trace!("dotstate EscapeDot");
+                // the first byte is an escaping dot, send just the dot
+                *projection.read_data = Some(false);
+                let bytes = consume(projection.c2s_buffer, 1);
+                Poll::Ready(Some(Ok(ReadControl::EscapeDot(bytes))))
+            }
+            CRLF => {
+                trace!("dotstate CRLF");
+                *projection.read_data = Some(true);
+                let bytes = consume(projection.c2s_buffer, 2);
+                Poll::Ready(Some(Ok(ReadControl::MailDataChunk(bytes))))
+            }
+            GoOn => match memchr::memchr(b'\r', projection.c2s_buffer.bytes()) {
+                Some(found) => {
+                    if let [b'\r', b'\n', ..] = projection.c2s_buffer[found..] {
+                        *projection.read_data = Some(true);
+                        let bytes = consume(projection.c2s_buffer, found + 2);
+                        Poll::Ready(Some(Ok(ReadControl::MailDataChunk(bytes))))
+                    } else {
+                        *projection.read_data = Some(false);
+                        let bytes = consume(projection.c2s_buffer, found);
+                        Poll::Ready(Some(Ok(ReadControl::MailDataChunk(bytes))))
                     }
                 }
-            }
-        }
-    }
-
-    fn decode_data(
-        &mut self,
-        buf: &mut BytesMut,
-        nl: bool,
-        pos: usize,
-    ) -> (Result<Option<ServerControll>, io::Error>, State) {
-        if buf.len() == 0 {
-            return (Ok(None), State::Data(nl, pos));
-        }
-        use self::DotState::*;
-        match dotstate(&mut buf.iter(), nl) {
-            Wait => (Ok(None), State::Data(nl, pos)),
-            End(end) => (
-                // it is the data terminating line
-                Ok(Some(ServerControll::FinalDot(Bytes::from(&buf[..end])))),
-                State::Line(end, end),
-            ),
-            Escape(0) => (
-                // the first byte is an escaping dot, send just the dot
-                Ok(Some(ServerControll::EscapeDot(Bytes::from(&buf[..1])))),
-                State::Data(false, 1),
-            ),
-            Escape(pos) => (
-                // there is an escaping dot at pos, send data before pos
-                Ok(Some(ServerControll::DataChunk(Bytes::from(&buf[..pos])))),
-                State::Data(true, pos),
-            ),
-            LF => (
-                Ok(Some(ServerControll::DataChunk(Bytes::from(&b"\n"[..])))),
-                State::Data(true, 1),
-            ),
-            CRLF => (
-                Ok(Some(ServerControll::DataChunk(Bytes::from(&b"\r\n"[..])))),
-                State::Data(true, 2),
-            ),
-            GoOn => match self.nl_lookup.find(&buf.as_ref()[..]) {
-                Some(found) => (
-                    Ok(Some(ServerControll::DataChunk(Bytes::from(
-                        &buf[..found.start()],
-                    )))),
-                    State::Data(false, found.start()),
-                ),
-                None => (
-                    Ok(Some(ServerControll::DataChunk(Bytes::from(&buf[..])))),
-                    State::Data(false, buf.len()),
-                ),
+                None => {
+                    *projection.read_data = Some(false);
+                    let bytes = consume(projection.c2s_buffer, projection.c2s_buffer.remaining());
+                    Poll::Ready(Some(Ok(ReadControl::MailDataChunk(bytes))))
+                }
             },
         }
     }
 
-    fn adjust(&mut self, buf: &mut BytesMut, state: State) {
-        self.state = match state {
-            State::Line(head, tail) => {
-                assert!(tail <= buf.len());
-                assert!(head <= tail);
-                let _ = buf.split_to(head);
-                let tail = tail - head;
-                let head = 0;
-                State::Line(head, tail)
-            }
-            State::Data(nl, pos) => {
-                assert!(pos <= buf.len());
-                let _ = buf.split_to(pos);
-                let pos = 0;
-                State::Data(nl, pos)
-            }
-        }
-    }
-}
+    fn poll_read_either(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<Option<Result<ReadControl>>> {
+        // make sure any pending responses are written
+        ready!(self.as_mut().poll_flush(cx))?;
+        // fill the buffer if necessary
+        ready!(self.as_mut().poll_read_buffer(cx))?;
 
-impl Decoder for SmtpCodec {
-    type Item = ServerControll;
-    type Error = io::Error;
-    fn decode(&mut self, buf: &mut BytesMut) -> Result<Option<ServerControll>, io::Error> {
-        if self.confirm_switch_to_data {
-            Ok(Some(ServerControll::ConfirmSwitchToData))
+        if self.read_data.is_some() {
+            self.read_data_poll()
         } else {
-            self.decode_either(buf)
+            self.read_line_poll()
         }
-    }
-}
-
-impl Encoder for SmtpCodec {
-    type Item = ClientControll;
-    type Error = io::Error;
-    fn encode(&mut self, item: Self::Item, buf: &mut BytesMut) -> Result<(), Self::Error> {
-        let line = match item {
-            ClientControll::Noop => return Ok(()),
-            ClientControll::Shutdown => return Ok(()),
-            ClientControll::AcceptData(accept) => {
-                if accept {
-                    if let State::Line(_, tail) = self.state {
-                        self.state = State::Data(true, tail);
-                    }
-                }
-                self.confirm_switch_to_data = false;
-                return Ok(());
-            }
-            ClientControll::Reply(reply) => reply.to_string(),
-        };
-
-        // It's important to reserve the amount of space needed. The `bytes` API
-        // does not grow the buffers implicitly.
-        // Reserve the length of the string + 1 for the '\n'.
-        buf.reserve(line.len());
-
-        // String implements IntoBuf, a trait used by the `bytes` API to work with
-        // types that can be expressed as a sequence of bytes.
-        buf.put(line);
-
-        // Return ok to signal that no error occured.
-        Ok(())
     }
 }
 
@@ -220,9 +164,7 @@ pub enum DotState {
     /** Data ending dot has been found (\r\n.\r\n => 5) */
     End(usize),
     /** Escaping dot has been found at position (\r\n..\r\n => 2) */
-    Escape(usize),
-    /** Line feed was found and can be consumed => nl */
-    LF,
+    EscapeDot,
     /** Carriage return and line feed were found and can be consumed => nl */
     CRLF,
     /** It's not a dot situation at all */
@@ -244,51 +186,22 @@ where
         Some(b0) => match (nl, b0) {
             (true, b'.') => match iter.next() {
                 None => Wait,
-                Some(b'\n') => End(2),
                 Some(b'\r') => match iter.next() {
                     None => Wait,
                     Some(b'\n') => End(3),
-                    Some(_) => Escape(0),
+                    Some(_) => EscapeDot,
                 },
-                Some(_) => Escape(0),
+                Some(_) => EscapeDot,
             },
-            (true, b'\n') => LF,
             (true, b'\r') => match iter.next() {
                 None => Wait,
                 Some(b'\n') => CRLF,
                 Some(_) => GoOn,
             },
             (true, _) => GoOn,
-            (false, b'\n') => match iter.next() {
-                None => Wait,
-                Some(b'.') => match iter.next() {
-                    None => Wait,
-                    Some(b'\n') => End(3),
-                    Some(b'\r') => match iter.next() {
-                        None => Wait,
-                        Some(b'\n') => End(4),
-                        Some(_) => Escape(1),
-                    },
-                    Some(_) => Escape(1),
-                },
-                Some(_) => LF,
-            },
             (false, b'\r') => match iter.next() {
                 None => Wait,
-                Some(b'\n') => match iter.next() {
-                    None => Wait,
-                    Some(b'.') => match iter.next() {
-                        None => Wait,
-                        Some(b'\n') => End(4),
-                        Some(b'\r') => match iter.next() {
-                            None => Wait,
-                            Some(b'\n') => End(5),
-                            Some(_) => Escape(2),
-                        },
-                        Some(_) => Escape(2),
-                    },
-                    Some(_) => CRLF,
-                },
+                Some(b'\n') => CRLF,
                 Some(_) => GoOn,
             },
             (false, _) => GoOn,
@@ -296,35 +209,143 @@ where
     }
 }
 
+impl<IO> Stream for SmtpCodec<IO>
+where
+    IO: Read + Write + TlsCapableIO,
+{
+    type Item = Result<ReadControl>;
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        self.poll_read_either(cx)
+    }
+}
+
+impl<IO> Sink<WriteControl> for SmtpCodec<IO>
+where
+    IO: Write + TlsCapableIO,
+{
+    type Error = Error;
+
+    fn start_send(self: Pin<&mut Self>, item: WriteControl) -> Result<()> {
+        trace!("Encoding {:?}", item);
+        let projection = self.project();
+        match item {
+            WriteControl::Shutdown => {}
+            WriteControl::Reply(reply) => projection
+                .s2c_pending
+                .push_back(PendingWrite::Data(reply.to_string().into())),
+            WriteControl::StartTls(reply) => {
+                projection
+                    .s2c_pending
+                    .push_back(PendingWrite::Data(reply.to_string().into()));
+                projection.s2c_pending.push_back(PendingWrite::StartTls);
+            }
+            WriteControl::StartData(reply) => {
+                projection
+                    .s2c_pending
+                    .push_back(PendingWrite::Data(reply.to_string().into()));
+                projection.s2c_pending.push_back(PendingWrite::StartData);
+            }
+        }
+        Ok(())
+    }
+    fn poll_ready(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
+        trace!("Polling ready");
+        let mut projection = self.project();
+
+        while let Some(pending) = projection.s2c_pending.pop_front() {
+            // save bytes for next iteration
+            match pending {
+                PendingWrite::StartData => *projection.read_data = Some(true),
+                PendingWrite::StartTls => projection.io.as_mut().start_tls()?,
+                PendingWrite::Data(mut pending) => {
+                    // write data to the IO
+                    trace!("writing {} bytes", pending.len());
+                    match projection.io.as_mut().poll_write(cx, &pending[..])? {
+                        Poll::Pending => {
+                            trace!("write not ready");
+                            // not ready, return the whole buffer to the queue
+                            projection
+                                .s2c_pending
+                                .push_front(PendingWrite::Data(pending));
+                            return Poll::Pending;
+                        }
+                        Poll::Ready(len) => {
+                            trace!("wrote {} bytes", len);
+                            let _consumed = pending.split_to(len);
+                            if pending.len() != 0 {
+                                // written partially, consume written buffer and return it to the queue
+                                projection
+                                    .s2c_pending
+                                    .push_front(PendingWrite::Data(pending));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Poll::Ready(Ok(()))
+    }
+    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
+        ready!(self.as_mut().poll_ready(cx))?;
+
+        trace!("Polling flush");
+        let projection = self.project();
+        ready!(projection.io.poll_flush(cx))?;
+        Poll::Ready(Ok(()))
+    }
+    fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
+        ready!(self.as_mut().poll_flush(cx))?;
+
+        trace!("Polling close");
+        let projection = self.project();
+        ready!(projection.io.poll_close(cx))?;
+        Poll::Ready(Ok(()))
+    }
+}
+
+enum PendingWrite {
+    Data(Bytes),
+    StartTls,
+    StartData,
+}
+
 #[cfg(test)]
-mod tests {
+mod dotstate_tests {
+    use super::dotstate;
     use super::DotState::*;
-    use protocol::smtp::dotstate;
 
     #[test]
     fn dotstate_handles_empty_line() {
         let r = dotstate(&mut b".\r\n".iter(), true);
         assert_eq!(r, End(3));
-        let r = dotstate(&mut b"\n.\n".iter(), false);
-        assert_eq!(r, End(3));
         let r = dotstate(&mut b"\r\n.\r\n".iter(), false);
-        assert_eq!(r, End(5));
+        assert_eq!(r, CRLF);
+    }
+
+    #[test]
+    fn dotstate_ignores_lf_only() {
+        let r = dotstate(&mut b".\n".iter(), false);
+        assert_eq!(r, GoOn);
+        let r = dotstate(&mut b"\n.\n".iter(), false);
+        assert_eq!(r, GoOn);
     }
 
     #[test]
     fn dotstate_handles_escape_dot() {
         let r = dotstate(&mut b"..\r\n".iter(), true);
-        assert_eq!(r, Escape(0));
+        assert_eq!(r, EscapeDot);
+        let r = dotstate(&mut b"..xxx\r\n".iter(), true);
+        assert_eq!(r, EscapeDot);
         let r = dotstate(&mut b".xxx\r\n".iter(), true);
-        assert_eq!(r, Escape(0));
+        assert_eq!(r, EscapeDot);
         let r = dotstate(&mut b"\r\n..\r\n".iter(), false);
-        assert_eq!(r, Escape(2));
+        assert_eq!(r, CRLF);
         let r = dotstate(&mut b"\r\n.xxx\r\n".iter(), false);
-        assert_eq!(r, Escape(2));
+        assert_eq!(r, CRLF);
         let r = dotstate(&mut b"\n..\n".iter(), false);
-        assert_eq!(r, Escape(1));
+        assert_eq!(r, GoOn);
         let r = dotstate(&mut b"\n.xxx\n".iter(), false);
-        assert_eq!(r, Escape(1));
+        assert_eq!(r, GoOn);
     }
 
     #[test]
@@ -336,15 +357,13 @@ mod tests {
         let r = dotstate(&mut b"\r".iter(), false);
         assert_eq!(r, Wait);
         let r = dotstate(&mut b"\r\n".iter(), false);
-        assert_eq!(r, Wait);
+        assert_eq!(r, CRLF);
         let r = dotstate(&mut b"\r\n.".iter(), false);
-        assert_eq!(r, Wait);
+        assert_eq!(r, CRLF);
         let r = dotstate(&mut b"\r\n.\r".iter(), false);
-        assert_eq!(r, Wait);
+        assert_eq!(r, CRLF);
     }
-
 }
-
 
 /*
 
@@ -367,3 +386,123 @@ DRRRR
 QUIT
 
 */
+
+#[cfg(test)]
+mod codec_tests {
+    use crate::model::smtp::SmtpReply;
+    use crate::test_util::*;
+
+    use super::*;
+    use ReadControl::*;
+
+    #[test]
+    fn decode_takes_first_line() -> Result<()> {
+        let mut io = TestIO::new()
+            .add_read_chunk("helo there\r\n")
+            .add_read_chunk("quit\r\n");
+        let mut sut = SmtpCodec::new(&mut io);
+
+        assert_eq!(
+            Pin::new(&mut sut).poll_next(&mut cx())?,
+            Poll::Ready(Some(Raw(b("helo there\r\n"))))
+        );
+        assert_eq!(b(io.read()), b("helo there\r\n"));
+        Ok(())
+    }
+
+    #[test]
+    fn decode_returns_any_command_line() -> Result<()> {
+        let io = TestIO::from(b"he\r\n".to_vec());
+        let mut sut = SmtpCodec::new(io);
+
+        assert_eq!(
+            Pin::new(&mut sut).poll_next(&mut cx())?,
+            Poll::Ready(Some(Raw(b("he\r\n"))))
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn decode_handles_weird_command() -> Result<()> {
+        let io = TestIO::from(b"!@#\r\nquit\r\n".to_vec());
+        let mut sut = SmtpCodec::new(io);
+
+        assert_eq!(
+            Pin::new(&mut sut).poll_next(&mut cx())?,
+            Poll::Ready(Some(Raw(b("!@#\r\n"))))
+        );
+        assert_eq!(
+            Pin::new(&mut sut).poll_next(&mut cx())?,
+            Poll::Ready(Some(Raw(b("quit\r\n"))))
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn decode_handles_empty_data_buffer() -> Result<()> {
+        let io = TestIO::from(b"data\r\n".to_vec());
+        let mut sut = SmtpCodec::new(io);
+
+        assert_eq!(
+            Pin::new(&mut sut).poll_next(&mut cx())?,
+            Poll::Ready(Some(Raw(b("data\r\n"))))
+        );
+
+        assert_eq!(Pin::new(&mut sut).poll_next(&mut cx())?, Poll::Ready(None));
+        Ok(())
+    }
+
+    #[test]
+    fn decode_finds_data_dot() -> Result<()> {
+        let io = TestIO::from(b"something\r\n..fun\r\n.\r\nCOMMAND\r\n".to_vec());
+        let mut sut = SmtpCodec::new(io);
+
+        assert_eq!(Pin::new(&mut sut).poll_ready(&mut cx())?, Poll::Ready(()));
+        assert_eq!(
+            Pin::new(&mut sut)
+                .start_send(WriteControl::StartData(SmtpReply::StartMailInputChallenge))?,
+            ()
+        );
+        assert_eq!(
+            Pin::new(&mut sut).poll_next(&mut cx())?,
+            Poll::Ready(Some(MailDataChunk(b("something\r\n"))))
+        );
+        assert_eq!(
+            Pin::new(&mut sut).poll_next(&mut cx())?,
+            Poll::Ready(Some(EscapeDot(b("."))))
+        );
+        assert_eq!(
+            Pin::new(&mut sut).poll_next(&mut cx())?,
+            Poll::Ready(Some(MailDataChunk(b(".fun\r\n"))))
+        );
+        assert_eq!(
+            Pin::new(&mut sut).poll_next(&mut cx())?,
+            Poll::Ready(Some(EndOfMailData(b(b".\r\n"))))
+        );
+        assert_eq!(
+            Pin::new(&mut sut).poll_next(&mut cx())?,
+            Poll::Ready(Some(Raw(b(b"COMMAND\r\n"))))
+        );
+        assert_eq!(Pin::new(&mut sut).poll_next(&mut cx())?, Poll::Ready(None));
+        Ok(())
+    }
+
+    #[test]
+    fn decode_finds_data_dot_after_empty_data() -> Result<()> {
+        let io = TestIO::from(b".\r\n".to_vec());
+        let mut sut = SmtpCodec::new(io);
+
+        assert_eq!(Pin::new(&mut sut).poll_ready(&mut cx())?, Poll::Ready(()));
+        assert_eq!(
+            Pin::new(&mut sut)
+                .start_send(WriteControl::StartData(SmtpReply::StartMailInputChallenge))?,
+            ()
+        );
+
+        assert_eq!(
+            Pin::new(&mut sut).poll_next(&mut cx())?,
+            Poll::Ready(Some(EndOfMailData(b(b".\r\n"))))
+        );
+        Ok(())
+    }
+}

@@ -1,51 +1,46 @@
+//! Reference implementation of a mail service 
+//! simply delivering mail to server console log.
+//! 
+//! If you wish to implement your own mail service with Samotop,
+//! copy this file (`ConsoleMail`) and customize it.
+use crate::model::mail::*;
+use crate::model::Error;
+use crate::service::mail::*;
 use bytes::Bytes;
-use futures::{Async, AsyncSink, Poll, StartSend};
-use hostname::get_hostname;
-use model::mail::*;
-use service::*;
-use tokio::io;
-use tokio::prelude::future::FutureResult;
-use tokio::prelude::*;
+use futures::prelude::*;
+use std::pin::Pin;
+use std::task::{Context, Poll};
 
 #[derive(Clone)]
 pub struct ConsoleMail {
-    name: Option<String>,
+    name: String,
 }
 
 impl ConsoleMail {
     pub fn new(name: impl ToString) -> Self {
         Self {
-            name: Some(name.to_string()),
+            name: name.to_string(),
         }
-    }
-    pub fn default() -> Self {
-        Self { name: None }
     }
 }
 
 impl NamedService for ConsoleMail {
-    fn name(&self) -> String {
-        match self.name {
-            None => match get_hostname() {
-                None => "Samotop".into(),
-                Some(name) => name,
-            },
-            Some(ref name) => name.clone(),
-        }
+    fn name(&self) -> &str {
+        self.name.as_str()
     }
 }
 
 impl MailGuard for ConsoleMail {
-    type Future = FutureResult<AcceptRecipientResult, io::Error>;
+    type Future = futures::future::Ready<AcceptRecipientResult>;
     fn accept(&self, request: AcceptRecipientRequest) -> Self::Future {
         println!("Accepting recipient {:?}", request);
-        future::ok(AcceptRecipientResult::Accepted(request.rcpt))
+        future::ready(AcceptRecipientResult::Accepted(request.rcpt))
     }
 }
 
 impl MailQueue for ConsoleMail {
     type Mail = MailSink;
-    type MailFuture = FutureResult<Option<Self::Mail>, io::Error>;
+    type MailFuture = futures::future::Ready<Option<Self::Mail>>;
 
     fn mail(&self, envelope: Envelope) -> Self::MailFuture {
         match envelope {
@@ -57,8 +52,7 @@ impl MailQueue for ConsoleMail {
                 mail: Some(ref mail),
                 ref id,
                 ref rcpts,
-            } if rcpts.len() != 0 =>
-            {
+            } if rcpts.len() != 0 => {
                 println!(
                     "Mail from {} (helo: {}, mailid: {}) (peer: {}) for {} on {} ({} <- {})",
                     mail.from(),
@@ -72,11 +66,11 @@ impl MailQueue for ConsoleMail {
                     local,
                     peer
                 );
-                future::ok(Some(MailSink { id: id.clone() }))
+                future::ready(Some(MailSink { id: id.clone() }))
             }
             envelope => {
                 warn!("Incomplete envelope: {:?}", envelope);
-                future::ok(None)
+                future::ready(None)
             }
         }
     }
@@ -86,21 +80,25 @@ pub struct MailSink {
     id: String,
 }
 
-impl Sink for MailSink {
-    type SinkItem = Bytes;
-    type SinkError = io::Error;
-    fn start_send(&mut self, bytes: Self::SinkItem) -> StartSend<Self::SinkItem, Self::SinkError> {
+impl Sink<Bytes> for MailSink {
+    type Error = Error;
+    fn start_send(self: Pin<&mut Self>, bytes: Bytes) -> Result<(), Self::Error> {
         println!("Mail data for {}: {:?}", self.id, bytes);
-        Ok(AsyncSink::Ready)
+        Ok(())
     }
-    fn poll_complete(&mut self) -> Poll<(), Self::SinkError> {
-        Ok(Async::Ready(()))
+    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        self.poll_ready(cx)
+    }
+    fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        self.poll_flush(cx)
+    }
+    fn poll_ready(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        Poll::Ready(Ok(()))
     }
 }
 
 impl Mail for MailSink {
-    fn queue(self) -> QueueResult {
-        println!("Mail data finished for {}", self.id);
-        QueueResult::QueuedWithId(self.id)
+    fn queue_id(&self) -> &str {
+        self.id.as_ref()
     }
 }

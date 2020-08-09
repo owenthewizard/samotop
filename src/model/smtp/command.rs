@@ -1,55 +1,5 @@
-use self::SmtpInput::*;
-use bytes::Bytes;
 use std::fmt;
 use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
-
-#[derive(Eq, PartialEq, Debug, Clone)]
-pub enum SmtpInput {
-    Command(usize, usize, SmtpCommand),
-    Invalid(usize, usize, Bytes),
-    Incomplete(usize, usize, Bytes),
-    None(usize, usize, String),
-
-    Connect(SmtpConnection),
-    Disconnect,
-
-    StreamStart(usize),
-    StreamEnd(usize),
-    StreamData(usize, usize, Bytes),
-}
-
-impl SmtpInput {
-    pub fn len(&self) -> usize {
-        match self {
-            &Command(_, l, _) => l,
-            &Invalid(_, l, _) => l,
-            &Incomplete(_, l, _) => l,
-            &None(_, l, _) => l,
-
-            &Connect(_) => 0,
-            &Disconnect => 0,
-
-            &StreamStart(_) => 0,
-            &StreamEnd(_) => 0,
-            &StreamData(_, l, _) => l,
-        }
-    }
-    pub fn pos(self, pos: usize) -> Self {
-        match self {
-            Command(_, l, c) => SmtpInput::Command(pos, l, c),
-            Invalid(_, l, d) => SmtpInput::Invalid(pos, l, d),
-            Incomplete(_, l, d) => SmtpInput::Incomplete(pos, l, d),
-            None(_, l, s) => SmtpInput::None(pos, l, s),
-
-            Connect(c) => SmtpInput::Connect(c),
-            Disconnect => SmtpInput::Disconnect,
-
-            StreamStart(_) => SmtpInput::StreamStart(pos),
-            StreamEnd(_) => SmtpInput::StreamEnd(pos),
-            StreamData(_, l, d) => SmtpInput::StreamData(pos, l, d),
-        }
-    }
-}
 
 #[derive(Eq, PartialEq, Debug, Clone)]
 pub enum SmtpCommand {
@@ -65,7 +15,6 @@ pub enum SmtpCommand {
     Rset,
     Data,
     Turn,
-    Unknown(String),
 }
 
 #[derive(Eq, PartialEq, Debug, Clone)]
@@ -97,6 +46,13 @@ pub enum SmtpHelo {
 }
 
 impl SmtpHelo {
+    pub fn is_extended<'a>(&'a self) -> bool {
+        use self::SmtpHelo::*;
+        match self {
+            Helo(_) => false,
+            Ehlo(_) => true,
+        }
+    }
     pub fn host<'a>(&'a self) -> &'a SmtpHost {
         use self::SmtpHelo::*;
         match self {

@@ -1,6 +1,10 @@
-use model::controll::ClientControll;
-use tokio::prelude::*;
-use util::*;
+use crate::model::io::WriteControl;
+use crate::model::Result;
+use futures::prelude::*;
+use futures::ready;
+use pin_project::pin_project;
+use std::pin::Pin;
+use std::task::{Context, Poll};
 
 pub trait FuseShutdown
 where
@@ -14,35 +18,32 @@ where
     }
 }
 
-impl<S> FuseShutdown for S
-where
-    S: Stream,
-{
-}
+impl<S> FuseShutdown for S where S: Stream {}
 
+#[pin_project(project=FuseProjection)]
+#[derive(Debug)]
+#[must_use = "streams do nothing unless polled"]
 pub struct Fuse<S> {
+    #[pin]
     stream: S,
     trip: bool,
 }
 
 impl<S> Stream for Fuse<S>
 where
-    S: Stream<Item = ClientControll>,
+    S: Stream<Item = Result<WriteControl>>,
 {
-    type Item = ClientControll;
-    type Error = S::Error;
-    fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
-        if self.trip {
-            return none();
-        }
+    type Item = S::Item;
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let FuseProjection { stream, trip } = self.project();
 
-        match try_ready!(self.stream.poll()) {
-            None => none(),
-            Some(c @ ClientControll::Shutdown) => {
-                self.trip = true;
-                ok(c)
-            }
-            Some(c) => ok(c),
+        if *trip {
+            return Poll::Ready(None);
         }
+        let item = ready!(stream.poll_next(cx));
+        if let Some(Ok(WriteControl::Shutdown)) = item {
+            *trip = true;
+        }
+        Poll::Ready(item)
     }
 }
