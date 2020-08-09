@@ -74,7 +74,7 @@ where
 
 async fn handle_smtp<IO, S>(
     session_service: S,
-    connection: Connection,
+    mut connection: Connection,
     io: Result<IO>,
 ) -> Result<()>
 where
@@ -83,7 +83,7 @@ where
 {
     info!("New peer connection {}", connection);
     let (dst, src) = crate::protocol::SmtpCodec::new(io?).split();
-    let handler = session_service.start();
+    let handler = session_service.start(&mut connection);
 
     src.parse(SmtpParser)
         .with_connection(connection)

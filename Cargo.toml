@@ -1,6 +1,6 @@
 [package]
 name = "samotop"
-version = "0.8.0"
+version = "0.9.0"
 authors = ["jocutajar <tellnoone@robajz.info>"]
 exclude = ["downloads/*"]
 description = "SMTP server and library built on async-std"

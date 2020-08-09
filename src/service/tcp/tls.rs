@@ -1,5 +1,6 @@
 use crate::common::*;
 use crate::model::io::Connection;
+use crate::model::smtp::SmtpExtension;
 use crate::protocol::TlsCapable;
 use crate::service::tcp::TcpService;
 use async_tls::TlsAcceptor;
@@ -32,7 +33,10 @@ where
     IO: Read + Write + Unpin,
 {
     type Future = T::Future;
-    fn handle(self, io: Result<IO>, conn: Connection) -> Self::Future {
+    fn handle(self, io: Result<IO>, mut conn: Connection) -> Self::Future {
+        if self.acceptor.is_some() {
+            conn.enable(SmtpExtension::StartTls);
+        }
         let TlsEnabled { acceptor, wrapped } = self;
         let tls = io.map(|io| TlsCapable::new(io, acceptor));
         wrapped.handle(tls, conn)

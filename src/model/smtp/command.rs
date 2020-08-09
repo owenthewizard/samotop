@@ -108,19 +108,19 @@ pub struct SmtpConnection {
 
 #[derive(Eq, PartialEq, Debug, Clone)]
 pub enum SmtpMail {
-    Mail(SmtpPath),
-    Send(SmtpPath),
-    Saml(SmtpPath),
-    Soml(SmtpPath),
+    Mail(SmtpPath, Vec<String>),
+    Send(SmtpPath, Vec<String>),
+    Saml(SmtpPath, Vec<String>),
+    Soml(SmtpPath, Vec<String>),
 }
 
 impl SmtpMail {
     pub fn from(&self) -> &SmtpPath {
         match self {
-            SmtpMail::Mail(p) => &p,
-            SmtpMail::Send(p) => &p,
-            SmtpMail::Saml(p) => &p,
-            SmtpMail::Soml(p) => &p,
+            SmtpMail::Mail(p, _) => &p,
+            SmtpMail::Send(p, _) => &p,
+            SmtpMail::Saml(p, _) => &p,
+            SmtpMail::Soml(p, _) => &p,
         }
     }
 }

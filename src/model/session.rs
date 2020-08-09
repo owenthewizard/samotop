@@ -2,6 +2,7 @@ use crate::model::io::*;
 use crate::model::mail::*;
 use crate::model::smtp::*;
 use bytes::Bytes;
+use std::collections::HashSet;
 use std::collections::VecDeque;
 use std::net::SocketAddr;
 use std::result::Result;
@@ -18,7 +19,7 @@ pub struct Session {
     mailid: Uuid,
     rcpts: Vec<SmtpPath>,
     answers: VecDeque<SessionControl>,
-    extensions: Vec<SmtpExtension>,
+    extensions: HashSet<SmtpExtension>,
 }
 
 #[derive(Clone, Debug)]
@@ -59,11 +60,7 @@ impl Session {
             mailid: Uuid::new_v4(),
             rcpts: vec![],
             answers: vec![].into(),
-            extensions: vec![
-                SmtpExtension::StartTls,
-                SmtpExtension::EightBitMime,
-                SmtpExtension::Pipelining,
-            ],
+            extensions: HashSet::new(),
         }
     }
     pub fn get_answer(&mut self) -> Option<SessionControl> {
@@ -190,8 +187,9 @@ impl Session {
     }
     fn conn(&mut self, conn: Connection) -> &mut Self {
         self.rst_to_new();
-        self.local = conn.local_addr;
-        self.peer = conn.peer_addr;
+        self.local = conn.local_addr();
+        self.peer = conn.peer_addr();
+        self.extensions = conn.extensions();
         self.say_ready()
     }
     fn end(&mut self) -> &mut Self {
@@ -291,21 +289,13 @@ impl Session {
         } else {
             let name = self.name.clone();
             // you cannot STARTTLS twice so we only advertise it before first use
-            if let Some(_) = self.remove_extension(SmtpExtension::StartTls) {
+            if self.extensions.remove(&SmtpExtension::StartTls) {
                 // TODO: better message response
                 self.say(SessionControl::StartTls(SmtpReply::ServiceReadyInfo(name)))
             } else {
                 self.say_not_implemented()
             }
         }
-    }
-    fn remove_extension(&mut self, ext: SmtpExtension) -> Option<SmtpExtension> {
-        for i in 0..self.extensions.len() {
-            if self.extensions[i] == ext {
-                return Some(self.extensions.remove(i));
-            }
-        }
-        None
     }
 
     /// Returns a snapshot of the current mail session buffers.
@@ -360,7 +350,7 @@ impl Session {
     }
     fn say_ehlo(&mut self, remote: String) -> &mut Self {
         let local = self.name.clone();
-        let extensions = self.extensions.clone();
+        let extensions = self.extensions.iter().map(Clone::clone).collect();
         self.say_reply(SmtpReply::OkEhloInfo {
             local,
             remote,

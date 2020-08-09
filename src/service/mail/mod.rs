@@ -1,15 +1,23 @@
 mod console;
 pub use self::console::*;
-
+use crate::common::*;
+use crate::model::io::Connection;
 use crate::model::mail::*;
+use crate::model::smtp::SmtpExtension;
 use crate::model::Error;
-use futures::prelude::*;
 
 /**
 The service which implements this trait has a name.
 */
 pub trait NamedService {
     fn name(&self) -> &str;
+}
+
+/**
+The service which implements this trait has a name.
+*/
+pub trait EsmtpService {
+    fn extend(&self, connection: &mut Connection);
 }
 
 /**

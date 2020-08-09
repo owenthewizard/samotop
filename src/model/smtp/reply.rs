@@ -55,6 +55,7 @@
 */
 use crate::model::smtp::SmtpReply::*;
 use std::fmt;
+use std::hash::Hash;
 
 #[derive(Eq, PartialEq, Debug, Clone)]
 pub enum SmtpReply {
@@ -340,10 +341,9 @@ fn write_reply_continued(
     write!(buf, "{}-{}\r\n", code, text)
 }
 
-#[derive(Eq, PartialEq, Debug, Copy, Clone)]
+#[derive(Eq, PartialEq, Debug, Copy, Clone, Hash)]
 pub enum SmtpExtension {
     EightBitMime,
-    Size(usize),
     StartTls,
     Pipelining,
 }
@@ -355,13 +355,6 @@ impl fmt::Display for SmtpExtension {
             StartTls => fmt.write_str("STARTTLS"),
             Pipelining => fmt.write_str("PIPELINING"),
             EightBitMime => fmt.write_str("8BITMIME"),
-            Size(s) => {
-                if s == 0 {
-                    fmt.write_str("SIZE")
-                } else {
-                    fmt.write_fmt(format_args!("SIZE {}", s))
-                }
-            }
         }
     }
 }

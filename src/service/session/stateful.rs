@@ -1,6 +1,7 @@
 use crate::model::io::*;
 use crate::model::mail::*;
 use crate::model::session::*;
+use crate::model::smtp::SmtpExtension;
 use crate::model::{Error, Result};
 use crate::service::mail::*;
 use crate::service::session::*;
@@ -28,6 +29,7 @@ where
     MFut: Send,
     GFut: Send,
     S: Clone,
+    S: EsmtpService,
     S: NamedService,
     S: MailGuard<Future = GFut>,
     S: MailQueue<MailFuture = MFut, Mail = M>,
@@ -37,8 +39,10 @@ where
     M: Sink<Bytes, Error = Error>,
 {
     type Handler = StatefulSessionHandler<S, M, MFut, GFut>;
-    fn start(&self) -> Self::Handler {
+    fn start(&self, connection: &mut Connection) -> Self::Handler {
         let name = self.mail_service.name();
+        connection.enable(SmtpExtension::Pipelining);
+        self.mail_service.extend(connection);
         StatefulSessionHandler::new(name, self.mail_service.clone())
     }
 }
@@ -242,14 +246,14 @@ where
                                 self.mail_service.accept(request),
                             ));
                             // we did something, but no response yet
-                            continue
+                            continue;
                         }
                         _ => {
                             // This should not happen. Something is wrong with synchronization.
                             warn!("Asked to check Rcpt in a wrong state. Bummer!");
                             // We will not be adding this RCPT.
                             self.session.rcpt_checked(AcceptRecipientResult::Failed);
-                            continue
+                            continue;
                         }
                     }
                 }
@@ -260,14 +264,14 @@ where
                                 self.mail_service.mail(envelope),
                             ));
                             // we did something, but no response yet
-                            continue
+                            continue;
                         }
                         _ => {
                             warn!("Asked to send mail win a wrongstate. Bummer!");
                             // I'm going to be very strict here. This should not happen.
                             self.session.mail_sending(MailSendResult::Failed);
                             // we did something, but no response yet
-                            continue
+                            continue;
                         }
                     }
                 }
@@ -278,18 +282,18 @@ where
                                 Poll::Ready(Ok(())) => match h.as_mut().start_send(data) {
                                     Ok(()) => {
                                         /*Yay! Good stuff... */
-                                        continue
+                                        continue;
                                     }
                                     Err(e) => {
                                         warn!("Mail data write error. {:?}", e);
                                         self.session.error_sending_data();
-                                        continue
+                                        continue;
                                     }
                                 },
                                 Poll::Ready(Err(e)) => {
                                     warn!("Mail data write error. {:?}", e);
                                     self.session.error_sending_data();
-                                    continue
+                                    continue;
                                 }
                                 Poll::Pending => {
                                     warn!("Push back from the sink!");
@@ -302,7 +306,7 @@ where
                             warn!("Asked to write mail data in a wrong state. Bummer!");
                             self.session.error_sending_data();
                             // we did something, but no response yet
-                            continue
+                            continue;
                         }
                     }
                 }
@@ -312,13 +316,13 @@ where
                         HandlerState::MailDataWriting(h) => {
                             self.state = HandlerState::MailQueuing(h);
                             // we did something, but no response yet
-                            continue
+                            continue;
                         }
                         _ => {
                             warn!("Asked to queue mail in a wrong state. Bummer!");
                             self.session.mail_queued(QueueResult::Failed);
                             // we did something, but no response yet
-                            continue
+                            continue;
                         }
                     }
                 }
@@ -326,7 +330,7 @@ where
                 SessionControl::Fail => {
                     Poll::Ready(Some(Err(format!("Mail session failed").into())))
                 }
-            }
+            };
         }
     }
 }
