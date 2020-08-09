@@ -31,6 +31,7 @@ build:
     
 build-release:
   extends: build
+  except: []
   only:
     - master
   cache:
@@ -92,6 +93,7 @@ build-server:
 
 publish-server:
   extends: build-server
+  except: []
   only:
     - master
   script:
