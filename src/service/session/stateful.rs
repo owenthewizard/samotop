@@ -207,121 +207,126 @@ where
 {
     type Item = Result<WriteControl>;
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        trace!("Polling next session answer.");
-        // Pick an answer only in one place while passing the poll to the sink.
-        // Whenever we later change the state we want to come back here right away
-        // so we return a WriteControl::NoOp and the consumer will come back for more.
-        let answer = match self.session.get_answer() {
-            None => match self.session.is_closed() {
-                true => {
-                    trace!("No answer, the session is closed.");
-                    return Poll::Ready(None);
-                }
-                false => {
-                    trace!("No answer, pending.");
-                    return Poll::Pending;
-                }
-            },
-            Some(answer) => answer,
-        };
+        loop {
+            trace!("Polling next session answer.");
+            // Pick an answer only in one place while passing the poll to the sink.
+            // Whenever we later change the state we want to come back here right away
+            // so we return a WriteControl::NoOp and the consumer will come back for more.
+            let answer = match self.session.get_answer() {
+                None => match self.session.is_closed() {
+                    true => {
+                        trace!("No answer, the session is closed.");
+                        return Poll::Ready(None);
+                    }
+                    false => {
+                        trace!("No answer, pending.");
+                        return Poll::Pending;
+                    }
+                },
+                Some(answer) => answer,
+            };
 
-        trace!("session control answer: {:?}", answer);
+            trace!("session control answer: {:?}", answer);
 
-        let ok = |v| Poll::Ready(Some(Ok(v)));
+            let ok = |v| Poll::Ready(Some(Ok(v)));
 
-        // process the answer
-        match answer {
-            SessionControl::Reply(reply) => ok(WriteControl::Reply(reply)),
-            SessionControl::CheckRcpt(request) => {
-                match self.state {
-                    HandlerState::Ready => {
-                        self.state = HandlerState::MailRcptChecking(Box::pin(
-                            self.mail_service.accept(request),
-                        ));
-                        // we did something, but want to be called again
-                        ok(WriteControl::NoOp)
-                    }
-                    _ => {
-                        // This should not happen. Something is wrong with synchronization.
-                        warn!("Asked to check Rcpt in a wrong state. Bummer!");
-                        // We will not be adding this RCPT.
-                        self.session.rcpt_checked(AcceptRecipientResult::Failed);
-                        ok(WriteControl::NoOp)
-                    }
-                }
-            }
-            SessionControl::SendMail(envelope) => {
-                match self.state {
-                    HandlerState::Ready => {
-                        self.state =
-                            HandlerState::MailOpening(Box::pin(self.mail_service.mail(envelope)));
-                        // we did something, but want to be called again
-                        ok(WriteControl::NoOp)
-                    }
-                    _ => {
-                        warn!("Asked to send mail win a wrongstate. Bummer!");
-                        // I'm going to be very strict here. This should not happen.
-                        self.session.mail_sending(MailSendResult::Failed);
-                        // we did something, but want to be called again
-                        ok(WriteControl::NoOp)
-                    }
-                }
-            }
-            SessionControl::Data(data) => {
-                match self.state {
-                    HandlerState::MailDataWriting(ref mut h) => {
-                        match h.as_mut().poll_ready(cx) {
-                            Poll::Ready(Ok(())) => match h.as_mut().start_send(data) {
-                                Ok(()) => {
-                                    /*Yay! Good stuff... */
-                                    ok(WriteControl::NoOp)
-                                }
-                                Err(e) => {
-                                    warn!("Mail data write error. {:?}", e);
-                                    self.session.error_sending_data();
-                                    ok(WriteControl::NoOp)
-                                }
-                            },
-                            Poll::Ready(Err(e)) => {
-                                warn!("Mail data write error. {:?}", e);
-                                self.session.error_sending_data();
-                                ok(WriteControl::NoOp)
-                            }
-                            Poll::Pending => {
-                                /*Push back from the sink!*/
-                                self.session.push_back(SessionControl::Data(data));
-                                ok(WriteControl::NoOp)
-                            }
+            // process the answer
+            return match answer {
+                SessionControl::Reply(reply) => ok(WriteControl::Reply(reply)),
+                SessionControl::StartTls(reply) => ok(WriteControl::StartTls(reply)),
+                SessionControl::StartData(reply) => ok(WriteControl::StartData(reply)),
+                SessionControl::CheckRcpt(request) => {
+                    match self.state {
+                        HandlerState::Ready => {
+                            self.state = HandlerState::MailRcptChecking(Box::pin(
+                                self.mail_service.accept(request),
+                            ));
+                            // we did something, but no response yet
+                            continue
+                        }
+                        _ => {
+                            // This should not happen. Something is wrong with synchronization.
+                            warn!("Asked to check Rcpt in a wrong state. Bummer!");
+                            // We will not be adding this RCPT.
+                            self.session.rcpt_checked(AcceptRecipientResult::Failed);
+                            continue
                         }
                     }
-                    _ => {
-                        warn!("Asked to write mail data in a wrong state. Bummer!");
-                        self.session.error_sending_data();
-                        // we did something, but want to be called again
-                        ok(WriteControl::NoOp)
+                }
+                SessionControl::SendMail(envelope) => {
+                    match self.state {
+                        HandlerState::Ready => {
+                            self.state = HandlerState::MailOpening(Box::pin(
+                                self.mail_service.mail(envelope),
+                            ));
+                            // we did something, but no response yet
+                            continue
+                        }
+                        _ => {
+                            warn!("Asked to send mail win a wrongstate. Bummer!");
+                            // I'm going to be very strict here. This should not happen.
+                            self.session.mail_sending(MailSendResult::Failed);
+                            // we did something, but no response yet
+                            continue
+                        }
                     }
                 }
-            }
-            SessionControl::QueueMail => {
-                let state = std::mem::replace(&mut self.state, HandlerState::Closed);
-                match state {
-                    HandlerState::MailDataWriting(h) => {
-                        self.state = HandlerState::MailQueuing(h);
-                        // we did something, but want to be called again
-                        ok(WriteControl::NoOp)
-                    }
-                    _ => {
-                        warn!("Asked to queue mail in a wrong state. Bummer!");
-                        self.session.mail_queued(QueueResult::Failed);
-                        // we did something, but want to be called again
-                        ok(WriteControl::NoOp)
+                SessionControl::Data(data) => {
+                    match self.state {
+                        HandlerState::MailDataWriting(ref mut h) => {
+                            match h.as_mut().poll_ready(cx) {
+                                Poll::Ready(Ok(())) => match h.as_mut().start_send(data) {
+                                    Ok(()) => {
+                                        /*Yay! Good stuff... */
+                                        continue
+                                    }
+                                    Err(e) => {
+                                        warn!("Mail data write error. {:?}", e);
+                                        self.session.error_sending_data();
+                                        continue
+                                    }
+                                },
+                                Poll::Ready(Err(e)) => {
+                                    warn!("Mail data write error. {:?}", e);
+                                    self.session.error_sending_data();
+                                    continue
+                                }
+                                Poll::Pending => {
+                                    warn!("Push back from the sink!");
+                                    self.session.push_back(SessionControl::Data(data));
+                                    Poll::Pending
+                                }
+                            }
+                        }
+                        _ => {
+                            warn!("Asked to write mail data in a wrong state. Bummer!");
+                            self.session.error_sending_data();
+                            // we did something, but no response yet
+                            continue
+                        }
                     }
                 }
+                SessionControl::QueueMail => {
+                    let state = std::mem::replace(&mut self.state, HandlerState::Closed);
+                    match state {
+                        HandlerState::MailDataWriting(h) => {
+                            self.state = HandlerState::MailQueuing(h);
+                            // we did something, but no response yet
+                            continue
+                        }
+                        _ => {
+                            warn!("Asked to queue mail in a wrong state. Bummer!");
+                            self.session.mail_queued(QueueResult::Failed);
+                            // we did something, but no response yet
+                            continue
+                        }
+                    }
+                }
+                SessionControl::EndOfSession => ok(WriteControl::Shutdown),
+                SessionControl::Fail => {
+                    Poll::Ready(Some(Err(format!("Mail session failed").into())))
+                }
             }
-            SessionControl::AcceptStartTls => ok(WriteControl::StartTls),
-            SessionControl::AcceptMailData => ok(WriteControl::StartData),
-            SessionControl::EndOfSession => ok(WriteControl::Shutdown),
-            SessionControl::Fail => Poll::Ready(Some(Err(format!("Mail session failed").into()))),
         }
     }
 }

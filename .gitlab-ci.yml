@@ -23,20 +23,9 @@ build:
     - rustc --version
     - cargo --version
   script:
-    - cargo build --features tls
-
-build-release:
-  stage: build
-  only:
-    - master
-  artifacts:
-    paths:
-      - target/release/samotop
-      - Cargo.lock
-  script:
-    - cargo build --features tls --release
+    - cargo build
     
-test-tls:
+test-stable:
   stage: test
   cache:
     key: debug
@@ -45,15 +34,10 @@ test-tls:
       - target/
       - $CARGO_HOME
   script:
-    - cargo test --all --features tls
-
-test-notls:
-  extends: test-tls
-  script:
     - cargo test --all
 
 test-nightly:
-  extends: test-tls
+  extends: test-stable
   before_script:
     - rustup default nightly
 
@@ -62,6 +46,7 @@ publish-lib:
   only:
     - master
   script:
+    - cargo test --all --release
     - cargo publish --token "$CRATES_KEY"
 
 publish-server:

@@ -1,8 +1,10 @@
 mod dummy;
 mod smtp;
+mod tls;
 
 pub use self::dummy::*;
 pub use self::smtp::*;
+pub use self::tls::*;
 
 use crate::model::io::*;
 use crate::model::Result;
