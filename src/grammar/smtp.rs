@@ -80,17 +80,17 @@ peg::parser! {
             { SmtpCommand::Turn }
 
         pub rule cmd_mail() -> SmtpCommand
-            = i("mail from:") p:path_reverse() NL()
-            { SmtpCommand::Mail(SmtpMail::Mail(p)) }
+            = i("mail from:") p:path_reverse() s:strparam()* NL()
+            { SmtpCommand::Mail(SmtpMail::Mail(p, s)) }
         pub rule cmd_send() -> SmtpCommand
-            = i("send from:") p:path_reverse() NL()
-            { SmtpCommand::Mail(SmtpMail::Send(p)) }
+            = i("send from:") p:path_reverse() s:strparam()* NL()
+            { SmtpCommand::Mail(SmtpMail::Send(p, s)) }
         pub rule cmd_soml() -> SmtpCommand
-            = i("soml from:") p:path_reverse() NL()
-            { SmtpCommand::Mail(SmtpMail::Soml(p)) }
+            = i("soml from:") p:path_reverse() s:strparam()* NL()
+            { SmtpCommand::Mail(SmtpMail::Soml(p, s)) }
         pub rule cmd_saml() -> SmtpCommand
-            = i("saml from:") p:path_reverse() NL()
-            { SmtpCommand::Mail(SmtpMail::Saml(p)) }
+            = i("saml from:") p:path_reverse() s:strparam()* NL()
+            { SmtpCommand::Mail(SmtpMail::Saml(p, s)) }
 
         pub rule cmd_rcpt() -> SmtpCommand
             = i("rcpt to:") p:path_forward() NL()
@@ -355,9 +355,13 @@ mod tests {
             result,
             vec![
                 Command(Helo(SmtpHelo::Helo(Domain("domain.com".to_string()))),),
-                Command(Mail(SmtpMail::Mail(SmtpPath::Direct(
-                    SmtpAddress::Mailbox("me".to_string(), Domain("there.net".to_string()),)
-                ))),),
+                Command(Mail(SmtpMail::Mail(
+                    SmtpPath::Direct(SmtpAddress::Mailbox(
+                        "me".to_string(),
+                        Domain("there.net".to_string()),
+                    )),
+                    vec![]
+                )),),
                 Command(Rcpt(SmtpPath::Relay(
                     vec![Domain("relay.net".to_string())],
                     SmtpAddress::Mailbox(

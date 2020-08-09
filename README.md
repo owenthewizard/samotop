@@ -35,8 +35,19 @@ The executable is not very useful yet except for debugging SMTP itself until com
 - [ ] Privacy: Leave no trace, no logs, obfuscated file dates...
 ## Company
 In Rust world I have so far found mostly SMTP clients.
-* [lettre](https://github.com/lettre/lettre) is an SMTP client, it seems to be alive and well!
-* [segimap](https://github.com/uiri/SEGIMAP) by **uiri**, that's actually an IMAP server.
+### SMTP server
+* [mailin](https://crates.io/crates/mailin) by **Saul Hazledine** is quite similar to samotop:
+    * same: recent activity (Mailin last commits: Feb 2020)
+    * same: enables writing SMTP servers in Rust.
+    * same: includes SMTP parsing, responding and an SMTP state machine.
+    * different: Samotop uses PEG, Mailin uses Nom to define the SMTP parser.
+    * different: Samotop is async while Mailin runs on bare std blocking IO. Async introduces more dependencies, but allows us to shift to the new IO paradigm. In Samotop, the SMTP session is handled as a stream of commands and responses. Mailin uses a threadpool to schedule work, Samotop can run on a single thread thanks to async.
+    * not too different: samotop includes a default TCP server and enables the user to implement it differently, mailin expects the user to provide a socket but a TCP server is available in mailin-embedded. Thanks to this, Mailin alone has much smaller dependency footprint. Samotop may follow suit to split the crates.
+    * ...
 * [rust-smtp](https://github.com/mneumann/rust-smtp) by **mneumann**, last commit 2014, parser coded manually, looks unfinished and abandoned.
 * [rust-smtp](https://github.com/synlestidae/rust-smtp) fork of the above with progress by **synlestidae** in 2016
+### Other
+* [lettre](https://github.com/lettre/lettre) is an SMTP client, it seems to be alive and well!
+* [segimap](https://github.com/uiri/SEGIMAP) by **uiri**, that's actually an IMAP server.
 * [ferric-mail](https://github.com/wraithan/ferric-mail) by **wraithan**, looks abandoned since 2014.
+* [new-tokio-smtp](https://crates.io/crates/new-tokio-smtp) is na SMTP client by **Philipp Korber**, now only pasively maintained

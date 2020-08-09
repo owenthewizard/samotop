@@ -4,8 +4,8 @@ mod stateful;
 pub use self::stateful::*;
 
 use crate::common::*;
-use crate::model::io::WriteControl;
-use crate::model::io::ReadControl;
+use crate::model::io::*;
+
 
 /**
 A session service handles the SMTP session.
@@ -18,5 +18,5 @@ relevant `WriteControl`s to send down the line in response.
 */
 pub trait SessionService {
     type Handler: Sink<ReadControl, Error = Error> + Stream<Item = Result<WriteControl>>;
-    fn start(&self) -> Self::Handler;
+    fn start(&self, connection: &mut Connection) -> Self::Handler;
 }

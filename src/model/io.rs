@@ -2,6 +2,7 @@ use crate::model::smtp::*;
 use async_std::net::TcpStream;
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
+use std::collections::HashSet;
 use std::net::SocketAddr;
 
 /// Represents the instructions for the client side of the stream.
@@ -38,11 +39,12 @@ pub enum ReadControl {
     Empty(Bytes),
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Connection {
-    pub local_addr: Option<SocketAddr>,
-    pub peer_addr: Option<SocketAddr>,
-    pub established: DateTime<Utc>,
+    local_addr: Option<SocketAddr>,
+    peer_addr: Option<SocketAddr>,
+    established: DateTime<Utc>,
+    extensions: HashSet<SmtpExtension>,
 }
 
 impl Connection {
@@ -55,10 +57,31 @@ impl Connection {
             local_addr: local.into(),
             peer_addr: peer.into(),
             established: Utc::now(),
+            extensions: HashSet::new(),
         }
     }
+    pub fn local_addr(&self) -> Option<SocketAddr> {
+        self.local_addr.clone()
+    }
+    pub fn peer_addr(&self) -> Option<SocketAddr> {
+        self.peer_addr.clone()
+    }
+    pub fn established(&self) -> DateTime<Utc> {
+        self.established.clone()
+    }
+    pub fn is_enabled(&self, extension: SmtpExtension) -> bool {
+        self.extensions.contains(&extension)
+    }
+    pub fn enable(&mut self, extension: SmtpExtension) -> bool {
+        self.extensions.insert(extension)
+    }
+    pub fn disable(&mut self, extension: SmtpExtension) -> bool {
+        self.extensions.remove(&extension)
+    }
+    pub fn extensions(&self) -> HashSet<SmtpExtension> {
+        self.extensions.clone()
+    }
 }
-
 impl From<&TcpStream> for Connection {
     fn from(stream: &TcpStream) -> Connection {
         Connection::new(stream.local_addr().ok(), stream.peer_addr().ok())
@@ -85,6 +108,7 @@ impl std::fmt::Display for Connection {
             write!(f, "Unknown")?;
         }
         write!(f, " established {}", self.established)?;
+        write!(f, " with extensions {:?}", self.extensions)?;
         Ok(())
     }
 }

@@ -26,7 +26,7 @@ where
     S: NamedService,
 {
     type Handler = DummySessionHandler;
-    fn start(&self) -> Self::Handler {
+    fn start(&self, _connection: &mut Connection) -> Self::Handler {
         let name = self.mail_service.name();
         DummySessionHandler::new(name)
     }
