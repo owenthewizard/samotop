@@ -1,4 +1,4 @@
-use model::command::*;
+use crate::model::smtp::*;
 use std::net::SocketAddr;
 
 /// Mail envelope before sending mail data

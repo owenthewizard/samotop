@@ -53,7 +53,7 @@
       mail system vis-a-vis the requested transfer or other mail system
       action.
 */
-use model::response::SmtpReply::*;
+use crate::model::smtp::SmtpReply::*;
 use std::fmt;
 
 #[derive(Eq, PartialEq, Debug, Clone)]
@@ -211,7 +211,7 @@ impl SmtpReply {
             StatusInfo(ref text) => format!("{}", text),
             HelpInfo(ref text) => format!("{}", text),
 
-            ServiceReadyInfo(ref domain) => format!("{} Service ready", domain),
+            ServiceReadyInfo(ref domain) => format!("Service ready: {}", domain),
             ClosingConnectionInfo(ref domain) => {
                 format!("{} Service closing transmission channel", domain)
             }
@@ -332,7 +332,11 @@ impl fmt::Display for SmtpReply {
 fn write_reply_end(buf: &mut dyn fmt::Write, code: u16, text: &str) -> Result<(), fmt::Error> {
     write!(buf, "{} {}\r\n", code, text)
 }
-fn write_reply_continued(buf: &mut dyn fmt::Write, code: u16, text: &str) -> Result<(), fmt::Error> {
+fn write_reply_continued(
+    buf: &mut dyn fmt::Write,
+    code: u16,
+    text: &str,
+) -> Result<(), fmt::Error> {
     write!(buf, "{}-{}\r\n", code, text)
 }
 
@@ -340,12 +344,16 @@ fn write_reply_continued(buf: &mut dyn fmt::Write, code: u16, text: &str) -> Res
 pub enum SmtpExtension {
     EightBitMime,
     Size(usize),
+    StartTls,
+    Pipelining,
 }
 
 impl fmt::Display for SmtpExtension {
     fn fmt<'a>(&self, fmt: &'a mut fmt::Formatter) -> Result<(), fmt::Error> {
         use self::SmtpExtension::*;
         match *self {
+            StartTls => fmt.write_str("STARTTLS"),
+            Pipelining => fmt.write_str("PIPELINING"),
             EightBitMime => fmt.write_str("8BITMIME"),
             Size(s) => {
                 if s == 0 {

@@ -27,7 +27,7 @@ build:
     - rustc --version
     - cargo --version
   script:
-    - cargo build --features tls
+    - cargo build
     
 build-release:
   extends: build
@@ -45,7 +45,7 @@ build-release:
   script:
     - cargo build --release
 
-test-tls:
+test-stable:
   stage: test
   except:
     - master
@@ -56,15 +56,10 @@ test-tls:
       - target/
       - $CARGO_HOME
   script:
-    - cargo test --all --features tls
-
-test-notls:
-  extends: test-tls
-  script:
     - cargo test --all
 
 test-nightly:
-  extends: test-tls
+  extends: test-stable
   before_script:
     - rustup default nightly
 
@@ -79,6 +74,7 @@ publish-lib:
       - target/
       - $CARGO_HOME
   script:
+    - cargo test --all --release
     - cargo publish --token "$CRATES_KEY"
 
 build-server:
