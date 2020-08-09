@@ -12,3 +12,5 @@ Cargo.lock
 *.pfx
 *.crt
 .cargo/
+docker/samotop
+docker/docker.log
