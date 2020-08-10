@@ -111,11 +111,9 @@ impl Session {
     pub fn mail_queued(&mut self, result: QueueResult) -> &mut Self {
         if self.state == State::WaitForQueue {
             match result {
-                QueueResult::QueuedWithId(id) => {
-                    self.rst().say_ok_info(format!("Queued as {}", id))
-                }
-                QueueResult::Failed => self.rst().say_mail_queue_failed(),
-                QueueResult::Refused => self.rst().say_mail_not_accepted(),
+                Ok(()) => self.say_mail_queued().rst(),
+                Err(QueueError::Failed) => self.say_mail_queue_failed_temporarily().rst(),
+                Err(QueueError::Refused) => self.say_mail_queue_refused().rst(),
             }
         } else {
             // Should never hapen. If it does, run.
@@ -123,17 +121,17 @@ impl Session {
             self.end()
         }
     }
-    pub fn mail_sending(&mut self, result: MailSendResult) -> &mut Self {
+    pub fn mail_sending(&mut self, result: QueueResult) -> &mut Self {
         if self.state == State::WaitForSendMail {
             match result {
-                MailSendResult::Ok => {
+                Ok(()) => {
                     self.state = State::DataStreaming;
                     self.say(SessionControl::StartData(
                         SmtpReply::StartMailInputChallenge,
                     ))
                 }
-                MailSendResult::Failed => self.rst().say_mail_queue_failed(),
-                MailSendResult::Rejected => self.rst().say_mail_not_accepted(),
+                Err(QueueError::Failed) => self.say_mail_queue_failed_temporarily().rst(),
+                Err(QueueError::Refused) => self.say_mail_queue_refused().rst(),
             }
         } else {
             // Should never hapen. If it does, run.
@@ -193,7 +191,7 @@ impl Session {
         self.say_ready()
     }
     fn end(&mut self) -> &mut Self {
-        self.rst_to_new().say_end_of_session().state = State::End;
+        self.say_end_of_session().rst_to_new().state = State::End;
         self
     }
     fn rst_to_new(&mut self) -> &mut Self {
@@ -228,9 +226,9 @@ impl Session {
     }
     fn cmd_quit(&mut self) -> &mut Self {
         let name = self.name.clone();
-        self.rst_to_new()
-            .say_reply(SmtpReply::ClosingConnectionInfo(name))
+        self.say_reply(SmtpReply::ClosingConnectionInfo(name))
             .say_end_of_session()
+            .rst_to_new()
     }
     fn cmd_data(&mut self) -> &mut Self {
         if self.state != State::Rcpt
@@ -278,7 +276,7 @@ impl Session {
         }
     }
     fn cmd_rset(&mut self) -> &mut Self {
-        self.rst().say_ok()
+        self.say_ok().rst()
     }
     fn cmd_noop(&mut self) -> &mut Self {
         self.say_ok()
@@ -375,10 +373,14 @@ impl Session {
     fn say_ok_recipient_not_local(&mut self, path: SmtpPath) -> &mut Self {
         self.say_reply(SmtpReply::UserNotLocalInfo(format!("{}", path)))
     }
-    fn say_mail_not_accepted(&mut self) -> &mut Self {
+    fn say_mail_queued(&mut self) -> &mut Self {
+        let info = format!("Queued as {}", self.mailid);
+        self.say_ok_info(info)
+    }
+    fn say_mail_queue_refused(&mut self) -> &mut Self {
         self.say_reply(SmtpReply::MailboxNotAvailableFailure)
     }
-    fn say_mail_queue_failed(&mut self) -> &mut Self {
+    fn say_mail_queue_failed_temporarily(&mut self) -> &mut Self {
         self.say_reply(SmtpReply::MailboxNotAvailableError)
     }
 }
@@ -386,10 +388,4 @@ impl Session {
 pub enum ControlResult {
     Wait,
     Ended,
-}
-
-pub enum MailSendResult {
-    Ok,
-    Rejected,
-    Failed,
 }

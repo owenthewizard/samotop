@@ -4,7 +4,7 @@ use futures::prelude::*;
 use log::*;
 use rustls::ServerConfig;
 use samotop::server::Server;
-use samotop::service::mail::ConsoleMail;
+use samotop::service::mail::SimpleDirMail;
 use samotop::service::session::StatefulSessionService;
 use samotop::service::tcp::{SmtpService, TlsEnabled};
 use structopt::StructOpt;
@@ -23,13 +23,13 @@ async fn main_fut() -> Result<()> {
     let ports = get_service_ports(&opt);
     let tls_config = get_tls_config(&opt).await?;
     let tls_acceptor = tls_config.map(|cfg| TlsAcceptor::from(std::sync::Arc::new(cfg)));
-    let mail_service = ConsoleMail::new(name.as_str());
+    let mail_service = SimpleDirMail::new(name, opt.dir.clone());
     let session_service = StatefulSessionService::new(mail_service);
     //let session_service = samotop::service::session::dummy::DummySessionService::new(mail_service);
     let smtp_service = SmtpService::new(session_service);
     let tls_smtp_service = TlsEnabled::new(smtp_service, tls_acceptor);
 
-    info!("I am {}", name);
+    info!("I am {}", get_my_name(&opt));
     Server::on_all(ports).serve(tls_smtp_service).await
 }
 
@@ -123,4 +123,13 @@ struct Opt {
     /// Use the given name in SMTP greetings, or if absent, use hostname
     #[structopt(short = "n", long = "name", name = "SMTP name")]
     name: Option<String>,
+
+    /// Where to store mail
+    #[structopt(
+        short = "d",
+        long = "dir",
+        name = "Storage directory",
+        default_value = "/var/lib/samotop/mail"
+    )]
+    dir: std::path::PathBuf,
 }
