@@ -1,10 +1,12 @@
 mod console;
-pub use self::console::*;
+mod dirmail;
 use crate::common::*;
 use crate::model::io::Connection;
 use crate::model::mail::*;
 use crate::model::smtp::SmtpExtension;
 use crate::model::Error;
+pub use console::*;
+pub use dirmail::*;
 
 /**
 The service which implements this trait has a name.
@@ -30,20 +32,11 @@ pub trait MailGuard {
 
 /**
 A mail queue allows us to queue an e-mail.
-We start with an envelope. Then, depending on implementation,
-the `Mail` implementation receives the e-mail body.
-Finally, the caller queues the mail by calling `Mail.queue()`.
+For a given mail envelope it produces a Sink that can receive mail data.
+Once the sink is closed successfully, the mail is queued.
 */
 pub trait MailQueue {
-    type Mail: Mail + Sink<bytes::Bytes, Error = Error>;
+    type Mail: Sink<bytes::Bytes, Error = Error>;
     type MailFuture: Future<Output = Option<Self::Mail>>;
     fn mail(&self, envelope: Envelope) -> Self::MailFuture;
-}
-
-/**
-The final step of sending a mail is queueing it for delivery.
-Calling queue should close any pending data and confirm that mail has been queued.
-*/
-pub trait Mail {
-    fn queue_id(&self) -> &str;
 }

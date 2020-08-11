@@ -35,7 +35,7 @@ where
     S: MailQueue<MailFuture = MFut, Mail = M>,
     MFut: Future<Output = Option<M>>,
     GFut: Future<Output = AcceptRecipientResult>,
-    M: Mail,
+    //M: Mail,
     M: Sink<Bytes, Error = Error>,
 {
     type Handler = StatefulSessionHandler<S, M, MFut, GFut>;
@@ -80,7 +80,7 @@ where
     S: MailQueue<MailFuture = MFut, Mail = M>,
     MFut: Future<Output = Option<M>>,
     GFut: Future<Output = AcceptRecipientResult>,
-    M: Mail,
+    //M: Mail,
     M: Sink<Bytes, Error = Error>,
 {
     type Error = Error;
@@ -95,9 +95,9 @@ where
         let ok = || Poll::Ready(Ok(()));
         let HandlerProjection { session, state, .. } = self.project();
 
-        let mut poll = match state {
-            HandlerState::Closed => ok(),
-            HandlerState::Ready => ok(),
+        while let Poll::Ready(()) = match state {
+            HandlerState::Ready => return ok(),
+            HandlerState::Closed => Err("session is closed")?,
             HandlerState::MailRcptChecking(mail_guard_fut) => {
                 // poll pending rcpt check
                 match mail_guard_fut.as_mut().poll(cx) {
@@ -122,20 +122,20 @@ where
                     }
                     Poll::Ready(None) => {
                         trace!("mail_fut ready and rejected!");
-                        session.mail_sending(MailSendResult::Rejected);
+                        session.mail_sending(Err(QueueError::Refused));
                         *state = HandlerState::Ready;
                         ok()
                     }
                     Poll::Ready(Some(mail)) => {
                         trace!("mail_fut ready and accepted!");
-                        session.mail_sending(MailSendResult::Ok);
+                        session.mail_sending(Ok(()));
                         *state = HandlerState::MailDataWriting(Box::pin(mail));
                         ok()
                     }
                 }
             }
             HandlerState::MailDataWriting(mail) => {
-                // poll the mail data sink
+                trace!("polling the mail data sink");
                 match mail.as_mut().poll_flush(cx) {
                     Poll::Pending => {
                         trace!("mail sink not ready.");
@@ -145,25 +145,23 @@ where
                         warn!("Sending mail data failed. {:?}", e);
                         session.error_sending_data();
                         *state = HandlerState::Ready;
-                        ok()
+                        Err(e)?
                     }
                     Poll::Ready(Ok(())) => {
                         trace!("mail sink ready!");
-                        ok()
+                        return ok();
                     }
                 }
             }
             HandlerState::MailQueuing(mail) => match mail.as_mut().poll_close(cx) {
                 Poll::Ready(Ok(())) => {
-                    let id = mail.queue_id();
-                    info!("Mail queued with ID {}", id);
-                    session.mail_queued(QueueResult::QueuedWithId(id.to_string()));
+                    session.mail_queued(Ok(()));
                     *state = HandlerState::Ready;
                     ok()
                 }
                 Poll::Ready(Err(e)) => {
-                    warn!("Mail queue with ID {} failed", mail.queue_id());
-                    *state = HandlerState::Closed;
+                    session.mail_queued(Err(QueueError::Failed));
+                    *state = HandlerState::Ready;
                     return Poll::Ready(Err(e));
                 }
                 Poll::Pending => {
@@ -171,19 +169,13 @@ where
                     pending()
                 }
             },
-        };
+        }? {}
 
-        if let Poll::Ready(Ok(())) = poll {
-            if !session.is_ready() {
-                trace!("session is not ready yet.");
-                poll = pending();
-            }
-        }
-        poll
+        pending()
     }
 
     fn start_send(self: Pin<&mut Self>, item: ReadControl) -> Result<()> {
-        let dbg = format!("control sink item: {:?}", item);
+        let dbg = format!("ReadControl sink item: {:?}", item);
         match self.project().session.control(item) {
             Ok(()) => {
                 trace!("{}", dbg);
@@ -206,12 +198,15 @@ where
     S: MailQueue<MailFuture = MFut, Mail = M>,
     MFut: Future<Output = Option<M>>,
     GFut: Future<Output = AcceptRecipientResult>,
-    M: Mail,
+    //M: Mail,
     M: Sink<Bytes, Error = Error>,
 {
     type Item = Result<WriteControl>;
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        trace!("Polling next.");
         loop {
+            ready!(self.as_mut().poll_ready(cx))?;
+
             trace!("Polling next session answer.");
             // Pick an answer only in one place while passing the poll to the sink.
             // Whenever we later change the state we want to come back here right away
@@ -269,7 +264,7 @@ where
                         _ => {
                             warn!("Asked to send mail win a wrongstate. Bummer!");
                             // I'm going to be very strict here. This should not happen.
-                            self.session.mail_sending(MailSendResult::Failed);
+                            self.session.mail_sending(Err(QueueError::Failed));
                             // we did something, but no response yet
                             continue;
                         }
@@ -320,7 +315,7 @@ where
                         }
                         _ => {
                             warn!("Asked to queue mail in a wrong state. Bummer!");
-                            self.session.mail_queued(QueueResult::Failed);
+                            self.session.mail_queued(Err(QueueError::Failed));
                             // we did something, but no response yet
                             continue;
                         }

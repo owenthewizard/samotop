@@ -101,8 +101,8 @@ impl Sink<Bytes> for MailSink {
     }
 }
 
-impl Mail for MailSink {
-    fn queue_id(&self) -> &str {
-        self.id.as_ref()
-    }
-}
+// impl Mail for MailSink {
+//     fn queue_id(&self) -> &str {
+//         self.id.as_ref()
+//     }
+// }

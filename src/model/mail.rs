@@ -1,5 +1,5 @@
 use crate::model::smtp::*;
-use std::net::SocketAddr;
+use async_std::net::SocketAddr;
 
 /// Mail envelope before sending mail data
 #[derive(Debug, Clone)]
@@ -48,10 +48,21 @@ pub enum AcceptRecipientResult {
     Accepted(SmtpPath),
 }
 
-/// Mail was queued with id
+pub type QueueResult = std::result::Result<(), QueueError>;
+
 #[derive(Debug, Clone)]
-pub enum QueueResult {
-    QueuedWithId(String),
+pub enum QueueError {
     Refused,
     Failed,
+}
+
+impl std::error::Error for QueueError {}
+
+impl std::fmt::Display for QueueError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
+        match self {
+            QueueError::Failed => write!(f, "Mail queue failed temporarily"),
+            QueueError::Refused => write!(f, "Mail was refused by the server"),
+        }
+    }
 }

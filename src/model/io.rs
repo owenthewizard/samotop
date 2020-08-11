@@ -108,7 +108,6 @@ impl std::fmt::Display for Connection {
             write!(f, "Unknown")?;
         }
         write!(f, " established {}", self.established)?;
-        write!(f, " with extensions {:?}", self.extensions)?;
         Ok(())
     }
 }
