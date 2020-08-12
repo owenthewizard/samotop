@@ -63,7 +63,7 @@ test-nightly:
   before_script:
     - rustup default nightly
 
-publish-lib:
+publish-crate:
   stage: release
   only:
     - master

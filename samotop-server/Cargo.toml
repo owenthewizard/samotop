@@ -20,7 +20,7 @@ gitlab = { repository = "BrightOpen/BackYard/Samotop", branch = "develop" }
 [dependencies.samotop]
 version = "*"
 path = "../samotop"
-features = ["rust-tls"]
+features = ["rust-tls", "spf"]
 
 [dependencies]
 log = "0.4"

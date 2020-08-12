@@ -1,8 +1,5 @@
 //! Reference implementation of a mail service
 //! simply delivering mail to server console log.
-//!
-//! If you wish to implement your own mail service with Samotop,
-//! copy this file (`ConsoleMail`) and customize it.
 use crate::common::*;
 use crate::model::io::Connection;
 use crate::model::mail::*;
@@ -10,31 +7,23 @@ use crate::model::Error;
 use crate::service::mail::*;
 
 #[derive(Clone)]
-pub struct ConsoleMail {
-    name: String,
-}
+pub struct DefaultMailService;
 
-impl ConsoleMail {
-    pub fn new(name: impl ToString) -> Self {
-        Self {
-            name: name.to_string(),
-        }
-    }
-}
-
-impl NamedService for ConsoleMail {
+impl NamedService for DefaultMailService {
     fn name(&self) -> &str {
-        self.name.as_str()
+        "samotop"
     }
 }
 
-impl EsmtpService for ConsoleMail {
+impl EsmtpService for DefaultMailService {
     fn extend(&self, connection: &mut Connection) {
-        connection.extensions_mut().enable(SmtpExtension::EIGHTBITMIME);
+        connection
+            .extensions_mut()
+            .enable(SmtpExtension::EIGHTBITMIME);
     }
 }
 
-impl MailGuard for ConsoleMail {
+impl MailGuard for DefaultMailService {
     type Future = futures::future::Ready<AcceptRecipientResult>;
     fn accept(&self, request: AcceptRecipientRequest) -> Self::Future {
         println!("Accepting recipient {:?}", request);
@@ -42,7 +31,7 @@ impl MailGuard for ConsoleMail {
     }
 }
 
-impl MailQueue for ConsoleMail {
+impl MailQueue for DefaultMailService {
     type Mail = MailSink;
     type MailFuture = futures::future::Ready<Option<Self::Mail>>;
 

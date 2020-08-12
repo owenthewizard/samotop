@@ -2,7 +2,6 @@
 name = "samotop"
 version = "0.9.0"
 authors = ["jocutajar <tellnoone@robajz.info>"]
-exclude = ["downloads/*"]
 description = "SMTP server and library built on async-std"
 documentation = "https://docs.rs/samotop/"
 homepage = "https://gitlab.com/BrightOpen/BackYard/Samotop/"
@@ -24,7 +23,8 @@ license = "MIT"
 gitlab = { repository = "BrightOpen/BackYard/Samotop", branch = "develop" }
 
 [features]
-default = ["rust-tls"]
+default = ["rust-tls", "spf"]
+spf = ["viaspf", "trust-dns-resolver"]
 rust-tls = ["async-tls"]
 #native-tls = ["async-native-tls"]
 
@@ -41,6 +41,8 @@ async-std = "1.6"
 async-tls = { version = "0.9", optional = true }
 #rustls = { version = "0.18", optional = true }
 async-native-tls = { version = "0.3", optional = true }
+viaspf = { version = "0", optional = true }
+trust-dns-resolver = { version = "0.19", optional = true, default-features = false, features = ["tokio-runtime"] }
 
 [dev-dependencies]
 futures-await-test = "0.3"
