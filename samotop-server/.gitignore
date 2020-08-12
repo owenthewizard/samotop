@@ -1,0 +1,6 @@
+*.key
+*.pfx
+*.crt
+docker/samotop
+docker/docker.log
+inmail/
