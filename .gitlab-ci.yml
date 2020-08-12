@@ -21,7 +21,7 @@ build:
       - $CARGO_HOME
   artifacts:
     paths:
-      - target/debug/samotop
+      - target/debug/samotop-server
   before_script:
     - rustc --version
     - cargo --version
@@ -40,7 +40,7 @@ build-release:
       - $CARGO_HOME
   artifacts:
     paths:
-      - target/release/samotop
+      - target/release/samotop-server
       - Cargo.lock
   script:
     - cargo build --release
@@ -75,7 +75,8 @@ publish-lib:
       - $CARGO_HOME
   script:
     - cargo test --all --release
-    - cargo publish --token "$CRATES_KEY"
+    - cargo publish -p samotop --token "$CRATES_KEY"
+    - cargo publish -p samotop-server --token "$CRATES_KEY"
 
 build-server:
   stage: release
@@ -85,8 +86,8 @@ build-server:
   services:
     - docker:dind
   script:
-    - cp target/debug/samotop docker/
-    - cd docker/
+    - cp target/debug/samotop-server samotop-server/docker/samotop
+    - cd samotop-server/docker/
     - docker build -t samotop .
     - docker run -t --rm samotop | tee docker.log
 
@@ -96,8 +97,8 @@ publish-server:
   only:
     - master
   script:
-    - cp target/release/samotop docker/
-    - cd docker/
+    - cp target/release/samotop-server samotop-server/docker/samotop
+    - cd samotop-server/docker/
     - docker build -t samotop .
     - docker run -t --rm samotop | tee docker.log
     - tag="brightopen/samotop:$(cat docker.log | head -1 | cut -d ' ' -f2 | tr -d \\n\\r)"
