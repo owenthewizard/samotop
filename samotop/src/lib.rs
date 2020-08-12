@@ -152,10 +152,10 @@ mod common {
     pub use crate::model::{Error, Result};
 
     //pub use futures::ready;
-    pub use async_std::io::prelude::{Read, ReadExt, Write, WriteExt};
     pub use bytes::{Bytes, BytesMut};
     pub use futures::{
-        future, ready, stream, Future, FutureExt, Sink, Stream, StreamExt, TryFutureExt,
+        future, ready, stream, AsyncRead as Read, AsyncReadExt as ReadExt, AsyncWrite as Write,
+        AsyncWriteExt as WriteExt, Future, FutureExt, Sink, Stream, StreamExt, TryFutureExt,
     };
     pub use pin_project::pin_project;
     pub use std::pin::Pin;

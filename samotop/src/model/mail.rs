@@ -1,5 +1,5 @@
 use crate::model::smtp::*;
-use async_std::net::SocketAddr;
+use std::net::SocketAddr;
 
 /// Mail envelope before sending mail data
 #[derive(Debug, Clone)]

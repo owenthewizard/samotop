@@ -37,6 +37,7 @@ openssl s_client -connect localhost:25 -debug -starttls smtp
 ```
  */
 
+use async_std::fs::File;
 use async_std::io::ReadExt;
 use async_std::task;
 use async_tls::TlsAcceptor;
@@ -96,8 +97,8 @@ impl Setup {
         let id_path = self.absolute_path(&opt.identity_file);
         let cert_path = self.absolute_path(&opt.cert_file);
 
-        let mut idfile = async_std::fs::File::open(id_path).await?;
-        let mut certfile = async_std::fs::File::open(cert_path).await?;
+        let mut idfile = File::open(id_path).await?;
+        let mut certfile = File::open(cert_path).await?;
 
         let mut idbuf = vec![];
         let _ = idfile.read_to_end(&mut idbuf).await?;

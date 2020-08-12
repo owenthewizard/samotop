@@ -1,14 +1,13 @@
+use crate::common::*;
 use crate::model::io::*;
 use crate::model::Result;
 use crate::service::tcp::TcpService;
-use async_std::{
-    net::{SocketAddr, TcpListener, TcpStream, ToSocketAddrs},
-    prelude::*,
-};
+use async_std::net::{TcpListener, TcpStream, ToSocketAddrs};
 use futures::{
     future::{BoxFuture, TryFutureExt},
-    stream::{FuturesUnordered, StreamExt},
+    stream::FuturesUnordered,
 };
+use std::net::SocketAddr;
 
 /// `Server` takes care of accepting TCP connections and passing them to `TcpService` to `handle()`.
 pub struct Server<'a> {
@@ -99,7 +98,7 @@ impl<'a> Server<'a> {
         info!("Listening on {:?}", listener.local_addr());
         while let Some(stream) = incoming.next().await {
             let conn = if let Ok(ref stream) = stream {
-                Connection::from(stream)
+                Connection::new(stream.local_addr().ok(), stream.peer_addr().ok())
             } else {
                 Connection::default()
             };

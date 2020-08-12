@@ -1,5 +1,4 @@
 use crate::model::smtp::*;
-use async_std::net::TcpStream;
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use std::net::SocketAddr;
@@ -47,7 +46,7 @@ pub struct Connection {
 }
 
 impl Connection {
-    fn new<L, P>(local: L, peer: P) -> Connection
+    pub fn new<L, P>(local: L, peer: P) -> Connection
     where
         L: Into<Option<SocketAddr>>,
         P: Into<Option<SocketAddr>>,
@@ -73,11 +72,6 @@ impl Connection {
     }
     pub fn extensions_mut(&mut self) -> &mut ExtensionSet {
         &mut self.extensions
-    }
-}
-impl From<&TcpStream> for Connection {
-    fn from(stream: &TcpStream) -> Connection {
-        Connection::new(stream.local_addr().ok(), stream.peer_addr().ok())
     }
 }
 impl Default for Connection {
