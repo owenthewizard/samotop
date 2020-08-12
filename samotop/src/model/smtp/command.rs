@@ -26,6 +26,18 @@ pub enum SmtpHost {
     Other { label: String, literal: String },
 }
 
+impl SmtpHost {
+    pub fn domain(&self) -> String {
+        match self {
+            SmtpHost::Domain(s) => s.clone(),
+            SmtpHost::Ipv4(ip) => format!("{}", ip),
+            SmtpHost::Ipv6(ip) => format!("{}", ip),
+            SmtpHost::Invalid { label, literal } => format!("{}:{}", label, literal),
+            SmtpHost::Other { label, literal } => format!("{}:{}", label, literal),
+        }
+    }
+}
+
 #[derive(Eq, PartialEq, Debug, Clone)]
 pub enum SmtpPath {
     Direct(SmtpAddress),

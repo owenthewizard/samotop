@@ -12,7 +12,7 @@ fn use_samotop_service() {
 
 #[test]
 fn builder_builds_task() {
-    let mail = samotop::service::mail::ConsoleMail::new("Aloha");
+    let mail = samotop::service::mail::default::DefaultMailService;
     let sess = samotop::service::session::StatefulSessionService::new(mail);
     let svc = samotop::service::tcp::SmtpService::new(sess);
     let svc = samotop::service::tcp::TlsEnabled::disabled(svc);

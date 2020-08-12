@@ -9,46 +9,52 @@ use async_std::fs::{create_dir_all, rename, File};
 use async_std::path::Path;
 use futures::future::TryFutureExt;
 
-#[derive(Clone)]
-pub struct SimpleDirMail<N, D> {
-    name: N,
+#[derive(Clone, Debug)]
+pub struct SimpleDirMail<D> {
     dir: D,
 }
 
-impl<N, D> SimpleDirMail<N, D>
+impl<D> SimpleDirMail<D>
 where
-    N: AsRef<str>,
     D: AsRef<Path>,
 {
-    pub fn new(name: N, dir: D) -> Self {
-        Self { name, dir }
+    pub fn new(dir: D) -> Self {
+        Self { dir }
     }
 }
 
-impl<N, D> NamedService for SimpleDirMail<N, D>
+impl<D, NS, ES, GS, QS> MailSetup<CompositeMailService<NS, ES, GS, QS>> for SimpleDirMail<D>
 where
-    N: AsRef<str>,
+    D: AsRef<Path>,
+    QS: MailQueue,
+    GS: MailGuard,
+    NS: NamedService,
+    ES: EsmtpService,
 {
-    fn name(&self) -> &str {
-        self.name.as_ref()
+    type Output = CompositeMailService<NS, EnableEightBit<ES>, GS, Self>;
+    fn setup(self, composite: CompositeMailService<NS, ES, GS, QS>) -> Self::Output {
+        composite
+            .replace_esmtp(|s| EnableEightBit(s))
+            .with_queue(self)
     }
 }
 
-impl<N, D> EsmtpService for SimpleDirMail<N, D> {
+#[derive(Clone, Debug)]
+pub struct EnableEightBit<T>(T);
+
+impl<T> EsmtpService for EnableEightBit<T>
+where
+    T: EsmtpService,
+{
     fn extend(&self, connection: &mut Connection) {
-        connection.extensions_mut().enable(SmtpExtension::EIGHTBITMIME);
+        self.0.extend(connection);
+        connection
+            .extensions_mut()
+            .enable(SmtpExtension::EIGHTBITMIME);
     }
 }
 
-impl<N, D> MailGuard for SimpleDirMail<N, D> {
-    type Future = futures::future::Ready<AcceptRecipientResult>;
-    fn accept(&self, request: AcceptRecipientRequest) -> Self::Future {
-        println!("Accepting recipient {:?}", request);
-        future::ready(AcceptRecipientResult::Accepted(request.rcpt))
-    }
-}
-
-impl<N, D> MailQueue for SimpleDirMail<N, D>
+impl<D> MailQueue for SimpleDirMail<D>
 where
     D: AsRef<Path>,
 {

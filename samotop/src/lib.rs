@@ -47,7 +47,7 @@ use samotop::server::Server;
 use samotop::service::tcp::DummyTcpService;
 fn main() {
     env_logger::init();
-    let mail = samotop::service::mail::ConsoleMail::new("Aloha");
+    let mail = samotop::service::mail::default::DefaultMailService;
     let sess = samotop::service::session::StatefulSessionService::new(mail);
     let svc = samotop::service::tcp::SmtpService::new(sess);
     let svc = samotop::service::tcp::TlsEnabled::disabled(svc);
@@ -90,24 +90,24 @@ The executable is not very useful yet except for debugging SMTP itself until com
 - [x] Parse SMTP commands and write responses according to RFCs
 - [x] SMTP state machine - helo, mail, rcpt*, data, rset, quit - must be in correct order according to RFCs
 - [x] DATA are handled and terminated correctly (escape dot, final dot).
-- [x] Simple SMTP MTA, logging smtp session to standard output but able to receive mail from common relays
-- [x] Privacy: TLS/STARTTLS supported using rustls
 - [x] Async/await with async-std backing
-- [x] Store mail in a folder so it can be processed further
+- [x] Privacy: TLS/STARTTLS supported using rustls
+- [x] MTA: Simple mail relay, logging smtp session to standard output but able to receive mail from common relays
+- [x] MDA: System-wide mailbox - mailbox for all unclaimed domains / addresses - store mail in a folder so it can be processed further
+- [x] Antispam: SPF (through viaspf, todo:async)
 
 ## To do
-- [ ] Antispam: Strict SMTP
+- [ ] Antispam: Strict SMTP (require CRLF, reject if client sends mail before banner or EHLO response)
 - [ ] Antispam: whitelist and blacklist
 - [ ] Antispam: greylisting
 - [ ] Antispam: white/black/grey list with UI - user decides new contact handling
 - [ ] Antispam: is it encrypted?
 - [ ] Antispam: reverse lookup
 - [ ] Antispam: DANE (DNSSEC) with UI - user verifies signatures
-- [ ] Antispam: SPF
 - [ ] Processing: Relay mail to another MTA
 - [ ] Processing: Store mail in Maildir (MDA)
-- [ ] MDA: User mailbox - mailbox for specific address or alias
 - [ ] MDA: Domain mailbox - mailbox for unclaimed addresses
+- [ ] MDA: User mailbox - mailbox for specific address or alias
 - [ ] MDA: Smart mailbox - multiple mailbox addresses by convention
 - [ ] Privacy: Refuse unencrypted session
 - [ ] Privacy: Encryption at rests, encrypt e-mails, only the recipient will be able to decrypt

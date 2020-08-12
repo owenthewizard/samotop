@@ -1,6 +1,6 @@
 [![Build Status](https://gitlab.com/BrightOpen/BackYard/Samotop/badges/develop/pipeline.svg)](https://gitlab.com/BrightOpen/BackYard/Samotop/commits/master)
 
-# samotop-server
+# samotop-server 1.0.0
 
 You can run your own privacy focussed, resource efficient mail server. [Samotop docker image](https://hub.docker.com/r/brightopen/samotop) is available for your convenience.
 
@@ -8,10 +8,11 @@ You can run your own privacy focussed, resource efficient mail server. [Samotop 
 
 ### Mail delivery agent (MDA)
 
-[x] The server will receive mail and write it to a given maildir folder. Another program can pick the folder andprocess it further.
-[x] STARTTLS can be configured if you provide a cert and identity file.
-[ ] Antispam features
-[ ] Privacy features
+- [x] The server will receive mail and write it to a given maildir folder. Another program can pick the folder andprocess it further.
+- [x] STARTTLS can be configured if you provide a cert and identity file.
+- [ ] Antispam features:
+       - [x] SPF
+- [ ] Privacy features
 
 ### Mail transfer agent (MTA)
 
@@ -38,4 +39,5 @@ Debug with STARTTLS:
 openssl s_client -connect localhost:25 -debug -starttls smtp
 ```
 
-License: MIT
+## License
+MIT

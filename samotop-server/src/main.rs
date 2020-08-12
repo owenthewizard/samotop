@@ -5,10 +5,11 @@ You can run your own privacy focussed, resource efficient mail server. [Samotop 
 
 ## Mail delivery agent (MDA)
 
-[x] The server will receive mail and write it to a given maildir folder. Another program can pick the folder andprocess it further.
-[x] STARTTLS can be configured if you provide a cert and identity file.
-[ ] Antispam features
-[ ] Privacy features
+- [x] The server will receive mail and write it to a given maildir folder. Another program can pick the folder andprocess it further.
+- [x] STARTTLS can be configured if you provide a cert and identity file.
+- [ ] Antispam features:
+       - [x] SPF
+- [ ] Privacy features
 
 ## Mail transfer agent (MTA)
 
@@ -42,7 +43,8 @@ use async_tls::TlsAcceptor;
 use log::*;
 use rustls::ServerConfig;
 use samotop::server::Server;
-use samotop::service::mail::SimpleDirMail;
+use samotop::service::mail::dirmail::SimpleDirMail;
+use samotop::service::mail::CompositeMailService;
 use samotop::service::session::StatefulSessionService;
 use samotop::service::tcp::{SmtpService, TlsEnabled};
 use std::path::{Path, PathBuf};
@@ -58,13 +60,14 @@ fn main() -> Result<()> {
 async fn main_fut() -> Result<()> {
     let setup = Setup::new();
 
-    let name = setup.get_my_name();
     let ports = setup.get_service_ports();
     let tls_config = setup.get_tls_config().await?;
     let tls_acceptor = tls_config.map(|cfg| TlsAcceptor::from(std::sync::Arc::new(cfg)));
-    let mail_service = SimpleDirMail::new(name, setup.get_mail_dir());
+    let mail_service = CompositeMailService::default()
+        .with_name(setup.get_my_name())
+        .using(SimpleDirMail::new(setup.get_mail_dir()))
+        .using(samotop::service::mail::spf::Config::default());
     let session_service = StatefulSessionService::new(mail_service);
-    //let session_service = samotop::service::session::dummy::DummySessionService::new(mail_service);
     let smtp_service = SmtpService::new(session_service);
     let tls_smtp_service = TlsEnabled::new(smtp_service, tls_acceptor);
 

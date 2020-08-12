@@ -3,3 +3,4 @@
 *.crt
 docker/samotop
 docker/docker.log
+inmail/
