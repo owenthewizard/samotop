@@ -1,0 +1,32 @@
+[package]
+name = "samotop-server"
+version = "1.0.0"
+authors = ["jocutajar <tellnoone@robajz.info>"]
+description = "SMTP server with focus on privacy"
+documentation = "https://docs.rs/samotop-server/"
+homepage = "https://gitlab.com/BrightOpen/BackYard/Samotop/"
+repository = "https://gitlab.com/BrightOpen/BackYard/Samotop/"
+readme = "README.md"
+keywords = ["smtp", "e-mail", "mail", "email", "server"]
+edition = "2018"
+
+# see crates.io/category_slugs
+categories = ["email", "asynchronous"]
+license = "MIT"
+
+[badges]
+gitlab = { repository = "BrightOpen/BackYard/Samotop", branch = "develop" }
+
+[dependencies.samotop]
+version = "*"
+path = "../samotop"
+features = ["rust-tls"]
+
+[dependencies]
+log = "0.4"
+env_logger = "0.7"
+structopt = "0.3"
+hostname = "0.3"
+async-std = "1.6"
+async-tls = "0.9"
+rustls = "0.18"
