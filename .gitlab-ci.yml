@@ -75,8 +75,11 @@ publish-crate:
       - $CARGO_HOME
   script:
     - cargo test --all --release
-    - cargo publish -p samotop --token "$CRATES_KEY"
-    - cargo publish -p samotop-server --token "$CRATES_KEY"
+    - pushd samotop
+    - cargo publish --token "$CRATES_KEY"
+    - popd
+    - cd samotop-server
+    - cargo publish --token "$CRATES_KEY"
 
 build-server:
   stage: release
