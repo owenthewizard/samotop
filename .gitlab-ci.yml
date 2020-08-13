@@ -1,108 +1,106 @@
-# Official language image. Look for the different tagged releases at:
-# https://hub.docker.com/r/library/rust/tags/
 image: "rust:latest"
 
 stages:
   - build
-  - test
   - release
-  
+
 variables:
-  CARGO_HOME: '.cargo'
+  CARGO_HOME: ".cargo"
 
 build:
   stage: build
   except:
     - master
   cache:
-    key: debug
-    paths:
+    paths: &cache-paths
       - target/
       - $CARGO_HOME
   artifacts:
     paths:
-      - target/debug/samotop-server
+      - target/samotop
+      - Cargo.lock
   before_script:
     - rustc --version
     - cargo --version
   script:
-    - cargo build
-    
-build-release:
-  extends: build
-  except: []
-  only:
-    - master
-  cache:
-    key: release
-    paths:
-      - target/
-      - $CARGO_HOME
-  artifacts:
-    paths:
-      - target/release/samotop-server
-      - Cargo.lock
-  script:
-    - cargo build --release
-
-test-stable:
-  stage: test
-  except:
-    - master
-  cache:
-    key: debug
-    policy: pull
-    paths:
-      - target/
-      - $CARGO_HOME
-  script:
-    - cargo test --all
+    # if it is a stable version, do a release build, otherwise debug build
+    - test "$CI_COMMIT_REF_NAME" == "master" || cargo build
+    - test "$CI_COMMIT_REF_NAME" != "master" || cargo build --release
+    # test in release mode for stable builds otherwise in debug
+    - test "$CI_COMMIT_REF_NAME" == "master" || cargo test --all
+    - test "$CI_COMMIT_REF_NAME" != "master" || cargo test --all --release
+    # copy either release or debug server as an artifact
+    - test "$CI_COMMIT_REF_NAME" == "master" || cp -fa target/debug/samotop-server target/samotop
+    - test "$CI_COMMIT_REF_NAME" != "master" || cp -fa target/release/samotop-server target/samotop
 
 test-nightly:
-  extends: test-stable
-  before_script:
-    - rustup default nightly
-
-publish-crate:
   stage: release
-  only:
-    - master
+  allow_failure: true
   cache:
-    key: release
-    policy: pull
-    paths:
-      - target/
-      - $CARGO_HOME
+    key: nightly
+    paths: *cache-paths
   script:
-    - cargo test --all --release
-    - cargo publish -p samotop --token "$CRATES_KEY"
-    - cargo publish -p samotop-server --token "$CRATES_KEY"
+    - rustup default nightly
+    - cargo test --all --verbose
 
-build-server:
+.publish-crate:
   stage: release
-  except:
-    - master
+  cache:
+    policy: pull
+    paths: *cache-paths
+  script:
+    # the job expects parameters
+    - echo "MANIFEST=${MANIFEST? missing parameter }"
+    # extract manifest version
+    - VER=$(cargo pkgid --manifest-path "$MANIFEST" | cut -d '#' -f2- | tr -d '\n')
+    # versions published from master must be stable.
+    # versions published from non-master must have a label.
+    - &testver |
+      test "$CI_COMMIT_REF_NAME" == "master" -a -z "${VER##+([0-9.])}" \
+        -o \( "$CI_COMMIT_REF_NAME" != "master" -a -n "${VER##+([0-9.])}" \) || \
+        ${WRONG_VERSION? Versions on master must be stable while others must be pre-release labeled. VER=$VER REF=$CI_GIT_REF }
+    - case "$CI_COMMIT_REF_NAME" in master|develop) cargo publish --manifest-path "$MANIFEST" --token "$CRATES_KEY" ;; *) echo Will only publish from master or develop branch, not from \'"$CI_COMMIT_REF_NAME"\' ;; esac
+
+publish-samotop:
+  extends: .publish-crate
+  variables:
+    MANIFEST: samotop/Cargo.toml
+
+publish-samotop-server:
+  extends: .publish-crate
+  # delay start so that hopefully, samotop crate is already published, while not wasting too much time
+  when: delayed
+  start_in: 2 minutes
+  variables:
+    MANIFEST: samotop-server/Cargo.toml
+
+publish-docker:
+  stage: release
   image: "docker:git"
   services:
     - docker:dind
   script:
-    - cp target/debug/samotop-server samotop-server/docker/samotop
-    - cd samotop-server/docker/
+    - cp -ra samotop-server/docker target/
+    # Copy either debug or release binary
+    - cp target/samotop target/docker/samotop
+    - cd target/docker/
     - docker build -t samotop .
-    - docker run -t --rm samotop | tee docker.log
-
-publish-server:
-  extends: build-server
-  except: []
-  only:
-    - master
-  script:
-    - cp target/release/samotop-server samotop-server/docker/samotop
-    - cd samotop-server/docker/
-    - docker build -t samotop .
-    - docker run -t --rm samotop | tee docker.log
-    - tag="brightopen/samotop:$(cat docker.log | head -1 | cut -d ' ' -f2 | tr -d \\n\\r)"
-    - echo "$tag"
-    - docker tag samotop "$tag"
+    - docker run -t --rm samotop --help
+    # extract version
+    - VER="$(docker run -t --rm samotop --version | cut -d ' ' -f2- | tr -d '\r\n')"
+    - echo "version=$VER"
+    # local tagging
+    - TAG_CURRENT="brightopen/samotop:$VER"
+    - TAG_MINOR="brightopen/samotop:${VER%.*}"
+    - TAG_MAJOR="brightopen/samotop:${VER%%.*}"
+    - TAG_LATEST="brightopen/samotop:latest"
+    - docker tag samotop "$TAG_CURRENT"
+    - docker tag samotop "$TAG_LATEST"
+    # remote docker hub push
     - docker login -u "$DOCKER_USR" -p "$DOCKER_PWD"
-    - docker push "$tag"
+    # test branch and label match
+    - *testver
+    # push current version
+    - case "$CI_COMMIT_REF_NAME" in master|develop) docker push "$TAG_CURRENT" ;; *) echo Will only push current from master or develop branch, not from \'"$CI_COMMIT_REF_NAME"\' ;; esac
+    # push stable version as latest
+    - case "$CI_COMMIT_REF_NAME" in master) docker push "$TAG_MINOR" && docker push "$TAG_MAJOR" && docker push "$TAG_LATEST" ;; *) echo Will only push latest from master branch, not from \'"$CI_COMMIT_REF_NAME"\' ;; esac

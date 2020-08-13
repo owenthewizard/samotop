@@ -18,7 +18,7 @@ license = "MIT"
 gitlab = { repository = "BrightOpen/BackYard/Samotop", branch = "develop" }
 
 [dependencies.samotop]
-version = "*"
+version = "0"
 path = "../samotop"
 features = ["rust-tls", "spf"]
 
