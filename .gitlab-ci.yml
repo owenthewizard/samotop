@@ -96,6 +96,8 @@ publish-docker:
     - TAG_MAJOR="brightopen/samotop:${VER%%.*}"
     - TAG_LATEST="brightopen/samotop:latest"
     - docker tag samotop "$TAG_CURRENT"
+    - docker tag samotop "$TAG_MINOR"
+    - docker tag samotop "$TAG_MAJOR"
     - docker tag samotop "$TAG_LATEST"
     # remote docker hub push
     - docker login -u "$DOCKER_USR" -p "$DOCKER_PWD"
