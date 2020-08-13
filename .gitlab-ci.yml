@@ -56,9 +56,10 @@ test-nightly:
     # versions published from master must be stable.
     # versions published from non-master must have a label.
     - &testver |
-      test "$CI_COMMIT_REF_NAME" == "master" -a -z "${VER##+([0-9.])}" \
-        -o \( "$CI_COMMIT_REF_NAME" != "master" -a -n "${VER##+([0-9.])}" \) || \
-        ${WRONG_VERSION? Versions on master must be stable while others must be pre-release labeled. VER=$VER REF=$CI_GIT_REF }
+      CHECK="Versions on master must be stable while others must be pre-release labeled. VER=$VER REF=$CI_COMMIT_REF_NAME"
+      test "$CI_COMMIT_REF_NAME" == "master" || test "${VER##+([0-9.])}" || ${WRONG_VERSION? $CHECK }
+      test "$CI_COMMIT_REF_NAME" != "master" || test ! "${VER##+([0-9.])}" || ${WRONG_VERSION? $CHECK }
+      echo "OK! VER=$VER REF=$CI_COMMIT_REF_NAME"
     - case "$CI_COMMIT_REF_NAME" in master|develop) cargo publish --manifest-path "$MANIFEST" --token "$CRATES_KEY" ;; *) echo Will only publish from master or develop branch, not from \'"$CI_COMMIT_REF_NAME"\' ;; esac
 
 publish-samotop:
