@@ -93,7 +93,9 @@ impl<'a> Server<'a> {
         S: TcpService<TcpStream> + Clone,
     {
         trace!("Binding on {}", addr);
-        let listener = TcpListener::bind(addr).await?;
+        let listener = TcpListener::bind(addr)
+            .await
+            .map_err(|e| format!("Unable to bind {}: {}", addr, e))?;
         let mut incoming = listener.incoming();
         info!("Listening on {:?}", listener.local_addr());
         while let Some(stream) = incoming.next().await {

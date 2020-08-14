@@ -7,13 +7,12 @@ use samotop::grammar::SmtpParser;
 
 fn main() {
     let input = String::new()
-        + "HELO there\r\n"
-        + "MAIL FROM:<a@b.c>\r\n"
+        + "EHLO there\r\n"
+        + "MAIL FROM:<a@b.c> param1=value1 param2=value2\r\n"
         + "RCPT TO:<x@y.z>\r\n"
         + "DATA\r\n"
         + "QUIT\r\n";
     let result = SmtpParser.script(input.as_bytes()).unwrap();
-    for r in result {
-        println!("Parsed: {:?}", r);
-    }
+
+    println!("Parsed: {:#?}", result);
 }

@@ -8,31 +8,68 @@ You can run your own privacy focussed, resource efficient mail server. [Samotop 
 - [x] The server will receive mail and write it to a given maildir folder. Another program can pick the folder andprocess it further.
 - [x] STARTTLS can be configured if you provide a cert and identity file.
 - [ ] Antispam features:
-       - [x] SPF
+  - [x] SPF - refuse mail with failing SPF check
 - [ ] Privacy features
 
 ## Mail transfer agent (MTA)
 
-[ ] Mail relay
+- [ ] Mail relay
+
+# Installation
+
+a) Using cargo:
+   ```bash
+   cargo install samotop-server
+   ```
+b) Using docker:
+   ```bash
+   docker pull brightopen/samotop
+   ```
 
 # Usage
 
-run `samotop --help` for command-line reference.
+a) locally, run `samotop-server --help` for command-line reference.
+b) in docker, run `docker run --rm -ti samotop`
+
+Both should produce a usage information not too different from this:
+
+    samotop 1.0.1
+
+    USAGE:
+        samotop-server [FLAGS] [OPTIONS] --cert-file <cert file path> --identity-file <identity file path>
+
+    FLAGS:
+        -h, --help       Prints help information
+            --no-tls     Disable TLS suport
+        -V, --version    Prints version information
+
+    OPTIONS:
+        -n, --name <SMTP service name>              Use the given name in SMTP greetings, or if absent, use hostname
+        -b, --base-dir <base dir path>              What is the base dir for other relative paths? [default: .]
+        -c, --cert-file <cert file path>            Use this cert file for TLS. If a relative path is given, it will be
+                                                    relative to base-dir
+        -i, --identity-file <identity file path>    Use this identity file for TLS. If a relative path is given, it will be
+                                                    relative to base-dir
+        -m, --mail-dir <mail dir path>              Where to store incoming mail? If a relative path is given, it will be
+                                                    relative to base-dir [default: inmail]
+        -p, --port <port>...                        SMTP server address:port, such as 127.0.0.1:25 or localhost:12345. The
+                                                    option can be set multiple times and the server will start on all given
+                                                    ports. If no ports are given, the default is to start on localhost:25
 
 # TLS
 
-Generate acert and ID with openssl:
-```
+Generate a cert and ID with openssl:
+```bash
 openssl req -new -newkey rsa:4096 -x509 -sha256 -days 365 -nodes -out Samotop.crt -keyout Samotop.key
 ```
 
 Test STARTTLS:
-```
+```bash
 openssl s_client -connect localhost:25 -starttls smtp
 ```
 
 Debug with STARTTLS:
-```
+```bash
 openssl s_client -connect localhost:25 -debug -starttls smtp
 ```
  */
@@ -90,34 +127,52 @@ impl Setup {
     pub async fn get_tls_config(&self) -> Result<Option<ServerConfig>> {
         let opt = &self.opt;
 
-        if opt.identity_file.is_empty() {
+        if opt.no_tls {
             return Ok(None);
         }
 
-        let id_path = self.absolute_path(&opt.identity_file);
-        let cert_path = self.absolute_path(&opt.cert_file);
+        let key = {
+            let id_path = self.absolute_path(
+                &opt.identity_file
+                    .as_ref()
+                    .expect("identity-file must be set unless --no-tls"),
+            );
+            let mut idfile = File::open(&id_path)
+                .await
+                .map_err(|e| format!("Could not load identity: {}", e))?;
+            let mut idbuf = vec![];
+            let _ = idfile.read_to_end(&mut idbuf).await?;
+            let mut idbuf = std::io::BufReader::new(&idbuf[..]);
+            let keys = rustls::internal::pemfile::pkcs8_private_keys(&mut idbuf)
+                .map_err(|_| format!("Could not load identity from {:?}", id_path))?;
+            //let key = rustls::PrivateKey(idbuf);
+            keys.first()
+                .ok_or(format!("No private key found in {:?}", id_path))?
+                .to_owned()
+        };
 
-        let mut idfile = File::open(id_path).await?;
-        let mut certfile = File::open(cert_path).await?;
-
-        let mut idbuf = vec![];
-        let _ = idfile.read_to_end(&mut idbuf).await?;
-        let mut idbuf = std::io::BufReader::new(&idbuf[..]);
-        let keys = rustls::internal::pemfile::pkcs8_private_keys(&mut idbuf)
-            .ok()
-            .ok_or("could not read private keys")?;
-        //let key = rustls::PrivateKey(idbuf);
-        let key = keys.first().ok_or("no private key found")?;
-
-        let mut certbuf = vec![];
-        let _ = certfile.read_to_end(&mut certbuf).await?;
-        let mut certbuf = std::io::BufReader::new(&certbuf[..]);
-        let certs = rustls::internal::pemfile::certs(&mut certbuf)
-            .ok()
-            .ok_or("could not read certificates")?;
+        let certs = {
+            let cert_path = self.absolute_path(
+                &opt.cert_file
+                    .as_ref()
+                    .expect("cert-file must be set unless --no-tls"),
+            );
+            let mut certfile = File::open(&cert_path)
+                .await
+                .map_err(|e| format!("Could not load certs: {}", e))?;
+            let mut certbuf = vec![];
+            let _ = certfile.read_to_end(&mut certbuf).await?;
+            let mut certbuf = std::io::BufReader::new(&certbuf[..]);
+            let certs = rustls::internal::pemfile::certs(&mut certbuf)
+                .map_err(|_| format!("Could not load certs from {:?}", cert_path))?;
+            certs
+                .first()
+                .ok_or(format!("No certs found in {:?}", cert_path))?;
+            certs
+        };
 
         let mut config = ServerConfig::new(rustls::NoClientAuth::new());
-        config.set_single_cert(certs, key.to_owned())?;
+        config.set_single_cert(certs, key)?;
         Ok(Some(config))
     }
 
@@ -171,36 +226,41 @@ struct Opt {
     /// The option can be set multiple times and
     /// the server will start on all given ports.
     /// If no ports are given, the default is to
-    /// start on localhost:25
+    /// start on localhost:25.
     #[structopt(short = "p", long = "port", name = "port")]
     ports: Vec<String>,
 
-    /// Use this identity file for TLS. If empty, TLS will be disabled.
-    /// If a relative path is given, it will be relative to base-dir
+    /// Disable TLS suport.
+    /// It is enabled by default to reduce accidents and remind operators of misconfiguration.
+    #[structopt(long = "no-tls")]
+    no_tls: bool,
+
+    /// Use this identity file for TLS. Disabled with --no-tls.
+    /// If a relative path is given, it will be relative to base-dir.
     #[structopt(
         short = "i",
         long = "identity-file",
         name = "identity file path",
-        default_value = "Samotop.key"
+        required_unless = "no-tls"
     )]
-    identity_file: String,
+    identity_file: Option<String>,
 
-    /// Use this cert file for TLS.
-    /// If a relative path is given, it will be relative to base-dir
+    /// Use this cert file for TLS. Disabled with --no-tls.
+    /// If a relative path is given, it will be relative to base-dir.
     #[structopt(
         short = "c",
         long = "cert-file",
         name = "cert file path",
-        default_value = "Samotop.crt"
+        required_unless = "no-tls"
     )]
-    cert_file: String,
+    cert_file: Option<String>,
 
-    /// Use the given name in SMTP greetings, or if absent, use hostname
+    /// Use the given name in SMTP greetings, or if absent, use hostname.
     #[structopt(short = "n", long = "name", name = "SMTP service name")]
     name: Option<String>,
 
     /// Where to store incoming mail?
-    /// If a relative path is given, it will be relative to base-dir
+    /// If a relative path is given, it will be relative to base-dir.
     #[structopt(
         short = "m",
         long = "mail-dir",
@@ -214,7 +274,7 @@ struct Opt {
         short = "b",
         long = "base-dir",
         name = "base dir path",
-        default_value = "/var/lib/samotop"
+        default_value = "."
     )]
     base_dir: PathBuf,
 }

@@ -1,11 +1,13 @@
 [![Build Status](https://gitlab.com/BrightOpen/BackYard/Samotop/badges/develop/pipeline.svg)](https://gitlab.com/BrightOpen/BackYard/Samotop/commits/master)
+![Maintenance](https://img.shields.io/badge/maintenance-activly--developed-brightgreen.svg)
 
-# samotop 0.9.0
+# samotop 0.9.1
 
 This is an SMTP server library with focus on privacy.
-There is also an actual SMTP server - see [samotop-server](https://gitlab.com/BrightOpen/BackYard/Samotop/-/tree/develop/samotop-server)
+There is also an actual SMTP server - see
+[samotop-server](https://crates.io/crates/samotop-server).
 
-SMTP Relay Server (MTA) library for Rust
+SMTP Server (Relay/MTA, Delivery/MDA) library for Rust
 with focus on spam elimination and privacy.
 The motivation is to revive e-mail infrastructure
 and architecture, address current problems
@@ -13,13 +15,48 @@ and allow new systems to integrate SMTP.
 It's called SaMoToP, which could be a nice Czech word.
 
 ## Status
-Reaching stable. The API builds on async/await to offer a convenient asynchronous interface.
+
+Reaching stable. You can implement your own mail service and plug it in,
+focusing on features and not the protocol itself or boilerplate.
+The API builds on async/await to offer a convenient asynchronous interface.
+We've got a decent SMTP command parser written as a PEG grammar.
+The model is tightly nit from the RFCs. An async-std based server
+will hear your SMTP commands, drive the SMTP state machine and
+correct you if you step aside. Once a mail session is ready,
+the mail data are currently dumped to the console. After that,
+you can do it again. See the [api dosc](https://docs.rs/samotop/).
+The [samotop crate is published on crates.io](https://crates.io/crates/samotop).
+
+### Done
+
+- [x] Parse SMTP commands and write responses according to RFCs
+- [x] SMTP state machine - helo, mail, rcpt*, data, rset, quit - must be in correct order according to RFCs
+- [x] DATA are handled and terminated correctly (escape dot, final dot).
+- [x] Async/await with async-std backing
+- [x] Privacy: TLS/STARTTLS supported using rustls
+- [x] MTA: Simple mail relay, logging smtp session to standard output but able to receive mail from common relays
+- [x] MDA: System-wide mailbox - mailbox for all unclaimed domains / addresses - store mail in a folder so it can be processed further
+- [x] Antispam: SPF (through viaspf, todo:async)
+
+### To do
+
+- [ ] Antispam: Strict SMTP (require CRLF, reject if client sends mail before banner or EHLO response)
+- [ ] Antispam: whitelist and blacklist
+- [ ] Antispam: greylisting
+- [ ] Antispam: white/black/grey list with UI - user decides new contact handling
+- [ ] Antispam: is it encrypted?
+- [ ] Antispam: reverse lookup
+- [ ] Antispam: DANE (DNSSEC) with UI - user verifies signatures
+- [ ] Processing: Relay mail to another MTA
+- [ ] Processing: Store mail in Maildir (MDA)
+- [ ] MDA: Domain mailbox - mailbox for unclaimed addresses
+- [ ] MDA: User mailbox - mailbox for specific address or alias
+- [ ] MDA: Smart mailbox - multiple mailbox addresses by convention
+- [ ] Privacy: Refuse unencrypted session
+- [ ] Privacy: Encryption at rests, encrypt e-mails, only the recipient will be able to decrypt
+- [ ] Privacy: Leave no trace, no logs, obfuscated file dates...
 
 ## Installation
-
-
-## Usage
-See the docs on [docs.rs](https://docs.rs/samotop).
 
 Add this to your `Cargo.toml`:
 
@@ -28,19 +65,34 @@ Add this to your `Cargo.toml`:
 version = "0"
 ```
 
+## Usage
+
+See the docs on [docs.rs](https://docs.rs/samotop).
+
 Note that the API is still unstable. Please use the latest release.
 
 There are a few interesting provisions one could take away from Samotop:
 * The server (through `samotop::server::Server`) - it takes IP:port's to listen `on()` and you can then `serve()` your own implementation of a `TcpService`.
 * The SMTP service (`SmtpService`) - it takes an async IO and provides an SMTP service defined by `SessionService`.
 * The low level `SmtpCodec` - it translates between IO and a `Stram` of `ReadControl` and a `Sink` of `WriteControl`. It handles SMTP mail data as well.
-* The SMTP session parser (`SmtpParser`) - it takes `&str` and returns parsed commands or session.
-* The SMTP session and domain model (`samotop::model::session`, `samotop::model::smtp`) - these describe the domain and behavior.
-* The mail handling stuff that is yet to be written (`MailService`)...
+* The SMTP session parser (`SmtpParser`) - it takes `&[u8]` and returns parsed commands or session.
+* The SMTP session and domain model (in `samotop::model`) - these describe the domain and behavior.
+* Extensible design - you can plug in or compose your own solution.
 
-### SMTP Server
+### SMTP Server (with STARTTLS)
 
-You can run a plaintext SMTP service without support for STARTTLS.
+Running an SMTP server with STARTTLS support is a bit more involved
+regarding setting up the TLS configuration. The library includes
+a `TlsProvider` implementation for async-tls and rustls.
+The samotop-server is a working reference for this TLS setup
+where you needto provide only the cert and key.
+You can also implement your own `TlsProvider` and plug it in.
+
+### SMTP Server (plaintext)
+
+You can easily run a plaintext SMTP service without support for STARTTLS.
+Replace `DefaultMailService` with your own implementation or compose
+a mail service with `CompositeMailService` and provided features.
 
 ```rust
 extern crate async_std;
@@ -59,14 +111,11 @@ fn main() {
 }
 ```
 
-To enable TLS, provide a rustls TlsAcceptor.
-Alternatively, implement TlsEnabled for another TLS library.
-See the samotop-server for fullexample with TLS enabled.
-
 ### Dummy server
 Any TCP service can be served. See the docs for `TcpService`.
 Run it with `RUST_LOG=trace` to display trace log.
 Use this to understand how networking IO is handled.
+Start here to build an SMTP service from scratch step by step.
 
 ```rust
 extern crate async_std;
@@ -80,46 +129,20 @@ fn main() {
     async_std::task::block_on(srv).unwrap()
 }
 ```
+
 ## Development
 
-Refresh README from docs:
-`$ cargo readme > README.md`
-
-## Status
-We've got a decent SMTP command parser written as a PEG grammar. The model is tightly nit from the RFCs. An async-std based server will hear your SMTP commands, drive the SMTP state machine and correct you if you step aside. Once a mail session is ready, the mail data are currently dumped to the console. After that, you can do it again. See the [crate documentation](https://docs.rs/samotop/) for API status. The [samotop crate is published on crates.io](https://crates.io/crates/samotop).
-The executable is not very useful yet except for debugging SMTP itself until common MDA/MTA features are implemented.
-
-### Done
-- [x] Parse SMTP commands and write responses according to RFCs
-- [x] SMTP state machine - helo, mail, rcpt*, data, rset, quit - must be in correct order according to RFCs
-- [x] DATA are handled and terminated correctly (escape dot, final dot).
-- [x] Async/await with async-std backing
-- [x] Privacy: TLS/STARTTLS supported using rustls
-- [x] MTA: Simple mail relay, logging smtp session to standard output but able to receive mail from common relays
-- [x] MDA: System-wide mailbox - mailbox for all unclaimed domains / addresses - store mail in a folder so it can be processed further
-- [x] Antispam: SPF (through viaspf, todo:async)
-
-### To do
-- [ ] Antispam: Strict SMTP (require CRLF, reject if client sends mail before banner or EHLO response)
-- [ ] Antispam: whitelist and blacklist
-- [ ] Antispam: greylisting
-- [ ] Antispam: white/black/grey list with UI - user decides new contact handling
-- [ ] Antispam: is it encrypted?
-- [ ] Antispam: reverse lookup
-- [ ] Antispam: DANE (DNSSEC) with UI - user verifies signatures
-- [ ] Processing: Relay mail to another MTA
-- [ ] Processing: Store mail in Maildir (MDA)
-- [ ] MDA: Domain mailbox - mailbox for unclaimed addresses
-- [ ] MDA: User mailbox - mailbox for specific address or alias
-- [ ] MDA: Smart mailbox - multiple mailbox addresses by convention
-- [ ] Privacy: Refuse unencrypted session
-- [ ] Privacy: Encryption at rests, encrypt e-mails, only the recipient will be able to decrypt
-- [ ] Privacy: Leave no trace, no logs, obfuscated file dates...
+* The usual rustup + cargo setup is required.
+* The software is automatically built, tested and published using Gitlab CI/CD pipelines.
+* README's are generated manually from rust docs using cargo-readme. Do not modify README's directly:
+  ```bash
+  $ cargo readme > README.md`
+  ```
 
 ## Company
 In Rust world I have so far found mostly SMTP clients.
 
-### SMTP server
+### SMTP server implementations and libs
 * [mailin](https://crates.io/crates/mailin) by **Saul Hazledine** is quite similar to samotop:
     * same: recent activity (Mailin last commits: Feb 2020)
     * same: enables writing SMTP servers in Rust.
