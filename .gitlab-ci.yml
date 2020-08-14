@@ -60,10 +60,10 @@ test-nightly:
       function exit_early() { echo "$CHECK"; exit 0; }
       case "$CI_COMMIT_REF_NAME" in
         master)
-          echo "$VER" | egrep '^[0-9.]+-.+$' || exit_early
+          echo "$VER" | egrep '^[0-9.]+$' || exit_early
           ;;
         *)
-          echo "$VER" | egrep '^[0-9.]+$' || exit_early
+          echo "$VER" | egrep '^[0-9.]+-.+$' || exit_early
           ;;
       esac
       echo "OK! VER=$VER REF=$CI_COMMIT_REF_NAME"
