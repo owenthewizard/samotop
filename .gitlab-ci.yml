@@ -57,13 +57,13 @@ test-nightly:
     # versions published from non-master must have a label.
     - &testver |
       CHECK="Exiting early. Versions on master must be stable while others must be pre-release labeled. VER=$VER REF=$CI_COMMIT_REF_NAME"
-      EXIT='echo $CHECK; exit 0;
+      function exit_early() { echo "$CHECK"; exit 0; }
       case "$CI_COMMIT_REF_NAME" in
         master)
-          echo "$VER" | egrep '^[0-9.]+-.+$' || $EXIT
+          echo "$VER" | egrep '^[0-9.]+-.+$' || exit_early
           ;;
         *)
-          echo "$VER" | egrep '^[0-9.]+$' || $EXIT
+          echo "$VER" | egrep '^[0-9.]+$' || exit_early
           ;;
       esac
       echo "OK! VER=$VER REF=$CI_COMMIT_REF_NAME"
