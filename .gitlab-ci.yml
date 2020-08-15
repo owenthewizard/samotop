@@ -73,6 +73,9 @@ publish-samotop:
   extends: .publish-crate
   variables:
     MANIFEST: samotop/Cargo.toml
+  only:
+    changes:
+      - samotop/Cargo.toml
 
 publish-samotop-server:
   extends: .publish-crate
@@ -81,12 +84,18 @@ publish-samotop-server:
   start_in: 2 minutes
   variables:
     MANIFEST: samotop-server/Cargo.toml
+  only:
+    changes:
+      - samotop-server/Cargo.toml
 
 publish-docker:
   stage: release
   image: "docker:git"
   services:
     - docker:dind
+  only:
+    changes:
+      - samotop-server/Cargo.toml
   script:
     - cp -ra samotop-server/docker target/
     # Copy either debug or release binary
