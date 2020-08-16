@@ -1046,7 +1046,7 @@ dependencies = [
 
 [[package]]
 name = "samotop-core"
-version = "0.10.0-preview.1"
+version = "0.10.0-preview.2"
 dependencies = [
  "futures",
  "log",

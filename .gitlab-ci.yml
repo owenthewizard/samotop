@@ -54,7 +54,7 @@ publish-crates:
         test -f "${MANIFEST:?cannot be empty}" || fail 2 "File does not exist - $MANIFEST" || return $?
         REF=${CI_COMMIT_BEFORE_SHA/0000000000000000000000000000000000000000/origin/develop}
         MODIFIED="$(git diff --name-only "$REF..HEAD" -- "$MANIFEST")"
-        test "$MODIFIED" && publish_modified || echo "Skipped unmodified $MANIFEST"
+        test ! "$MODIFIED" && echo "Skipped unmodified $MANIFEST" || publish_modified
       }
       function publish_modified() {
         echo "Checking modified ${MANIFEST:?cannot be empty}"
@@ -62,10 +62,10 @@ publish-crates:
         CHECK="Skipping $MANIFEST VER=$VER on REF=$CI_COMMIT_REF_NAME. Versions on master must be stable while others must be pre-release labeled."
         case "$CI_COMMIT_REF_NAME" in
           master)
-            echo "$VER" | egrep '^[0-9.]+$' && publish_checked || fail 3 "$CHECK"
+            if echo "$VER" | egrep '^[0-9.]+$'; then publish_checked; else fail 3 "$CHECK"; fi
             ;;
           develop)
-            echo "$VER" | egrep '^[0-9.]+-.+$' && publish_checked || fail 3 "$CHECK"
+            if echo "$VER" | egrep '^[0-9.]+-.+$'; then publish_checked; else fail 3 "$CHECK"; fi
             ;;
           *)
             echo "Will only publish stable from master or pre-release from develop"
@@ -83,8 +83,11 @@ publish-crates:
         return $err
       }
     - MANIFEST=samotop-model/Cargo.toml publish
+    - sleep 10
     - MANIFEST=samotop-core/Cargo.toml publish
+    - sleep 10
     - MANIFEST=samotop/Cargo.toml publish
+    - sleep 10
     - MANIFEST=samotop-server/Cargo.toml publish
 
 publish-docker:
