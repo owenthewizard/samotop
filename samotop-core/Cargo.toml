@@ -9,7 +9,7 @@ repository = "https://gitlab.com/BrightOpen/BackYard/Samotop/"
 keywords = ["smtp", "async", "server"]
 edition = "2018"
 
-# see crates.io/category_slugs
+# see crates.io/category_slugs 
 categories = [
     "email",
     "asynchronous",
