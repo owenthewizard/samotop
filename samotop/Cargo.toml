@@ -1,6 +1,6 @@
 [package]
 name = "samotop"
-version = "0.9.1"
+version = "0.10.0-preview.1"
 authors = ["jocutajar <tellnoone@robajz.info>"]
 description = "SMTP server and library built on async-std"
 documentation = "https://docs.rs/samotop/"
@@ -28,6 +28,10 @@ default = ["rust-tls", "spf"]
 spf = ["viaspf", "trust-dns-resolver"]
 rust-tls = ["async-tls"]
 #native-tls = ["async-native-tls"]
+
+[dependencies.samotop-core]
+version = "0.10.0-preview.1"
+path = "../samotop-core"
 
 [dependencies]
 log = "0.4"

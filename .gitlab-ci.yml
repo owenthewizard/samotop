@@ -43,50 +43,49 @@ test-nightly:
     - rustup default nightly
     - cargo test --all --verbose
 
-.publish-crate:
+publish-crates:
   stage: release
   cache:
     policy: pull
     paths: *cache-paths
   script:
-    # the job expects parameters
-    - echo "MANIFEST=${MANIFEST? missing parameter }"
-    # extract manifest version
-    - VER=$(cargo pkgid --manifest-path "$MANIFEST" | cut -d '#' -f2- | tr -d '\n')
-    # versions published from master must be stable.
-    # versions published from non-master must have a label.
-    - &testver |
-      CHECK="Exiting early. Versions on master must be stable while others must be pre-release labeled. VER=$VER REF=$CI_COMMIT_REF_NAME"
-      function exit_early() { echo "$CHECK"; exit 0; }
-      case "$CI_COMMIT_REF_NAME" in
-        master)
-          echo "$VER" | egrep '^[0-9.]+$' || exit_early
-          ;;
-        *)
-          echo "$VER" | egrep '^[0-9.]+-.+$' || exit_early
-          ;;
-      esac
-      echo "OK! VER=$VER REF=$CI_COMMIT_REF_NAME"
-    - case "$CI_COMMIT_REF_NAME" in master|develop) cargo publish --manifest-path "$MANIFEST" --token "$CRATES_KEY" ;; *) echo Will only publish from master or develop branch, not from \'"$CI_COMMIT_REF_NAME"\' ;; esac
-
-publish-samotop:
-  extends: .publish-crate
-  variables:
-    MANIFEST: samotop/Cargo.toml
-  only:
-    changes:
-      - samotop/Cargo.toml
-
-publish-samotop-server:
-  extends: .publish-crate
-  # delay start so that hopefully, samotop crate is already published, while not wasting too much time
-  when: delayed
-  start_in: 2 minutes
-  variables:
-    MANIFEST: samotop-server/Cargo.toml
-  only:
-    changes:
-      - samotop-server/Cargo.toml
+    - &lib |
+      function publish() {
+        test -f "${MANIFEST:?cannot be empty}" || fail 2 "File does not exist - $MANIFEST" || return $?
+        REF=${CI_COMMIT_BEFORE_SHA/0000000000000000000000000000000000000000/origin/develop}
+        MODIFIED="$(git diff --name-only "$REF..HEAD" -- "$MANIFEST")"
+        test "$MODIFIED" && publish_modified || echo "Skipped unmodified $MANIFEST"
+      }
+      function publish_modified() {
+        echo "Checking modified ${MANIFEST:?cannot be empty}"
+        VER=$(cargo pkgid --manifest-path "$MANIFEST" | cut -d '#' -f2- | tr -d '\n')
+        CHECK="Skipping $MANIFEST VER=$VER on REF=$CI_COMMIT_REF_NAME. Versions on master must be stable while others must be pre-release labeled."
+        case "$CI_COMMIT_REF_NAME" in
+          master)
+            echo "$VER" | egrep '^[0-9.]+$' && publish_checked || fail 3 "$CHECK"
+            ;;
+          develop)
+            echo "$VER" | egrep '^[0-9.]+-.+$' && publish_checked || fail 3 "$CHECK"
+            ;;
+          *)
+            echo "Will only publish stable from master or pre-release from develop"
+            ;;
+        esac
+      }
+      function publish_checked() {
+        echo "Publishing ${MANIFEST:?cannot be empty}"
+        cargo publish --manifest-path "$MANIFEST" --token "$CRATES_KEY" 
+      }
+      function fail() {
+        err=$1
+        shift
+        echo "$*"
+        return $err
+      }
+    - MANIFEST=samotop-model/Cargo.toml publish
+    - MANIFEST=samotop-core/Cargo.toml publish
+    - MANIFEST=samotop/Cargo.toml publish
+    - MANIFEST=samotop-server/Cargo.toml publish
 
 publish-docker:
   stage: release
@@ -94,14 +93,15 @@ publish-docker:
   services:
     - docker:dind
   only:
-    changes:
-      - samotop-server/Cargo.toml
+    - develop
+    - master
   script:
     - cp -ra samotop-server/docker target/
     # Copy either debug or release binary
     - cp target/samotop target/docker/samotop
-    - cd target/docker/
+    - pushd target/docker/
     - docker build -t samotop .
+    - popd
     - docker run -t --rm samotop --help
     # extract version
     - VER="$(docker run -t --rm samotop --version | cut -d ' ' -f2- | tr -d '\r\n')"
@@ -117,9 +117,12 @@ publish-docker:
     - docker tag samotop "$TAG_LATEST"
     # remote docker hub push
     - docker login -u "$DOCKER_USR" -p "$DOCKER_PWD"
-    # test branch and label match
-    - *testver
-    # push current version
-    - case "$CI_COMMIT_REF_NAME" in master|develop) docker push "$TAG_CURRENT" ;; *) echo Will only push current from master or develop branch, not from \'"$CI_COMMIT_REF_NAME"\' ;; esac
-    # push stable version as latest
-    - case "$CI_COMMIT_REF_NAME" in master) docker push "$TAG_MINOR" && docker push "$TAG_MAJOR" && docker push "$TAG_LATEST" ;; *) echo Will only push latest from master branch, not from \'"$CI_COMMIT_REF_NAME"\' ;; esac
+    - *lib
+    - | # override the publish fn
+      function publish_checked() {s
+        # push current version
+        case "$CI_COMMIT_REF_NAME" in master|develop) docker push "$TAG_CURRENT" ;; *) echo Will only push current from master or develop branch, not from \'"$CI_COMMIT_REF_NAME"\' ;; esac
+        # push stable version as latest
+        case "$CI_COMMIT_REF_NAME" in master) docker push "$TAG_MINOR" && docker push "$TAG_MAJOR" && docker push "$TAG_LATEST" ;; *) echo Will only push latest from master branch, not from \'"$CI_COMMIT_REF_NAME"\' ;; esac
+      }
+    - MANIFEST=samotop-server/Cargo.toml publish

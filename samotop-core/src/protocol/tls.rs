@@ -1,5 +1,5 @@
 use crate::common::*;
-use crate::service::tcp::TlsProvider;
+use crate::service::tcp::tls::TlsProvider;
 use std::ops::DerefMut;
 
 pub trait MayBeTls {

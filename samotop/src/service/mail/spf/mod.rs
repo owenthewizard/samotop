@@ -8,6 +8,10 @@ use lookup::*;
 pub use viaspf::Config;
 use viaspf::{evaluate_spf, SpfResult};
 
+pub fn provide_viaspf() -> Provider<Config> {
+    Provider(Config::default())
+}
+
 #[derive(Clone, Debug)]
 pub struct SpfService<T> {
     inner: T,
@@ -20,7 +24,7 @@ impl<T> SpfService<T> {
     }
 }
 
-impl<NS, ES, GS, QS> MailSetup<CompositeMailService<NS, ES, GS, QS>> for Config
+impl<NS, ES, GS, QS> MailSetup<NS, ES, GS, QS> for Provider<Config>
 where
     NS: NamedService,
     ES: EsmtpService,
@@ -28,9 +32,8 @@ where
     QS: MailQueue,
 {
     type Output = CompositeMailService<NS, ES, GS, SpfService<QS>>;
-    fn setup(self, composite: CompositeMailService<NS, ES, GS, QS>) -> Self::Output {
-        let (named, extend, guard, queue) = composite.into_components();
-        CompositeMailService::from_components(named, extend, guard, SpfService::new(queue, self))
+    fn setup(self, named: NS, extend: ES, guard: GS, queue: QS) -> Self::Output {
+        (named, extend, guard, SpfService::new(queue, self.0))
     }
 }
 

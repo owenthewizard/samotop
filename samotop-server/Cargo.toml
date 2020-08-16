@@ -1,6 +1,6 @@
 [package]
 name = "samotop-server"
-version = "1.0.1"
+version = "1.0.1-preview.1"
 authors = ["jocutajar <tellnoone@robajz.info>"]
 description = "SMTP server with focus on privacy"
 documentation = "https://docs.rs/samotop-server/"
@@ -18,7 +18,7 @@ license = "MIT"
 gitlab = { repository = "BrightOpen/BackYard/Samotop", branch = "develop" }
 
 [dependencies.samotop]
-version = "0"
+version = "0.10.0-preview.1"
 path = "../samotop"
 features = ["rust-tls", "spf"]
 

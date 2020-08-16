@@ -6,7 +6,7 @@ use crate::model::mail::*;
 use crate::model::Error;
 use crate::service::mail::*;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct DefaultMailService;
 
 impl NamedService for DefaultMailService {
@@ -16,17 +16,12 @@ impl NamedService for DefaultMailService {
 }
 
 impl EsmtpService for DefaultMailService {
-    fn extend(&self, connection: &mut Connection) {
-        connection
-            .extensions_mut()
-            .enable(SmtpExtension::EIGHTBITMIME);
-    }
+    fn extend(&self, _connection: &mut Connection) {}
 }
 
 impl MailGuard for DefaultMailService {
     type Future = futures::future::Ready<AcceptRecipientResult>;
     fn accept(&self, request: AcceptRecipientRequest) -> Self::Future {
-        println!("Accepting recipient {:?}", request);
         future::ready(AcceptRecipientResult::Accepted(request.rcpt))
     }
 }
@@ -36,36 +31,37 @@ impl MailQueue for DefaultMailService {
     type MailFuture = futures::future::Ready<Option<Self::Mail>>;
 
     fn mail(&self, envelope: Envelope) -> Self::MailFuture {
-        match envelope {
-            Envelope {
-                ref name,
-                peer: Some(ref peer),
-                local: Some(ref local),
-                helo: Some(ref helo),
-                mail: Some(ref mail),
-                ref id,
-                ref rcpts,
-            } if rcpts.len() != 0 => {
-                println!(
-                    "Mail from {} (helo: {}, mailid: {}) (peer: {}) for {} on {} ({} <- {})",
-                    mail.from(),
-                    helo.name(),
-                    id,
-                    peer,
-                    rcpts
-                        .iter()
-                        .fold(String::new(), |s, r| s + format!("{}, ", r).as_ref()),
-                    name,
-                    local,
-                    peer
-                );
-                future::ready(Some(MailSink { id: id.clone() }))
-            }
-            envelope => {
-                warn!("Incomplete envelope: {:?}", envelope);
-                future::ready(None)
-            }
-        }
+        let Envelope {
+            ref name,
+            ref peer,
+            ref local,
+            ref helo,
+            ref mail,
+            ref id,
+            ref rcpts,
+        } = envelope;
+        println!(
+            "Mail from {} (helo: {}, mailid: {}) (peer: {}) for {} on {} ({})",
+            mail.as_ref()
+                .map(|m| m.from().to_string())
+                .unwrap_or("None".to_owned()),
+            helo.as_ref()
+                .map(|h| h.name().to_string())
+                .unwrap_or("None".to_owned()),
+            id,
+            peer.as_ref()
+                .map(|m| m.to_string())
+                .unwrap_or("None".to_owned()),
+            rcpts
+                .iter()
+                .fold(String::new(), |s, r| s + format!("{}, ", r).as_ref()),
+            name,
+            local
+                .as_ref()
+                .map(|m| m.to_string())
+                .unwrap_or("None".to_owned())
+        );
+        future::ready(Some(MailSink { id: id.clone() }))
     }
 }
 

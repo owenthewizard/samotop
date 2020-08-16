@@ -409,7 +409,7 @@ QUIT
 #[cfg(test)]
 mod codec_tests {
     use crate::model::smtp::SmtpReply;
-    use crate::test_util::*;
+    use samotop_core::test_util::*;
 
     use super::*;
     use ReadControl::*;
