@@ -3,6 +3,7 @@
 use crate::common::*;
 use crate::model::io::Connection;
 use crate::model::mail::*;
+use crate::model::smtp::*;
 use crate::model::Error;
 use crate::service::mail::*;
 use async_std::fs::{create_dir_all, rename, File};
@@ -23,19 +24,17 @@ where
     }
 }
 
-impl<D, NS, ES, GS, QS> MailSetup<CompositeMailService<NS, ES, GS, QS>> for SimpleDirMail<D>
+impl<D, NS, ES, GS, QS> MailSetup<NS, ES, GS, QS> for SimpleDirMail<D>
 where
-    D: AsRef<Path>,
-    QS: MailQueue,
-    GS: MailGuard,
+    D: AsRef<Path> + Send + Sync,
     NS: NamedService,
     ES: EsmtpService,
+    GS: MailGuard,
+    QS: MailQueue,
 {
     type Output = CompositeMailService<NS, EnableEightBit<ES>, GS, Self>;
-    fn setup(self, composite: CompositeMailService<NS, ES, GS, QS>) -> Self::Output {
-        composite
-            .replace_esmtp(|s| EnableEightBit(s))
-            .with_queue(self)
+    fn setup(self, named: NS, extend: ES, guard: GS, _queue: QS) -> Self::Output {
+        (named, EnableEightBit(extend), guard, self)
     }
 }
 
@@ -56,7 +55,7 @@ where
 
 impl<D> MailQueue for SimpleDirMail<D>
 where
-    D: AsRef<Path>,
+    D: AsRef<Path> + Send + Sync,
 {
     type Mail = MailFile;
     type MailFuture = CreateMailFile;

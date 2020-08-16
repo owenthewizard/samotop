@@ -1,5 +1,7 @@
 [workspace]
 members = [
+    "samotop-model",
+    "samotop-core",
     "samotop",
     "samotop-server",
 ]

@@ -1,6 +1,6 @@
 /*!
 This is an SMTP server library with focus on privacy.
-There is also an actual SMTP server - see 
+There is also an actual SMTP server - see
 [samotop-server](https://crates.io/crates/samotop-server).
 
 SMTP Server (Relay/MTA, Delivery/MDA) library for Rust
@@ -12,15 +12,15 @@ It's called SaMoToP, which could be a nice Czech word.
 
 # Status
 
-Reaching stable. You can implement your own mail service and plug it in, 
+Reaching stable. You can implement your own mail service and plug it in,
 focusing on features and not the protocol itself or boilerplate.
 The API builds on async/await to offer a convenient asynchronous interface.
-We've got a decent SMTP command parser written as a PEG grammar. 
-The model is tightly nit from the RFCs. An async-std based server 
-will hear your SMTP commands, drive the SMTP state machine and 
-correct you if you step aside. Once a mail session is ready, 
-the mail data are currently dumped to the console. After that, 
-you can do it again. See the [api dosc](https://docs.rs/samotop/). 
+We've got a decent SMTP command parser written as a PEG grammar.
+The model is tightly nit from the RFCs. An async-std based server
+will hear your SMTP commands, drive the SMTP state machine and
+correct you if you step aside. Once a mail session is ready,
+the mail data are currently dumped to the console. After that,
+you can do it again. See the [api dosc](https://docs.rs/samotop/).
 The [samotop crate is published on crates.io](https://crates.io/crates/samotop).
 
 ## Done
@@ -101,7 +101,7 @@ fn main() {
     let mail = samotop::service::mail::default::DefaultMailService;
     let sess = samotop::service::session::StatefulSessionService::new(mail);
     let svc = samotop::service::tcp::SmtpService::new(sess);
-    let svc = samotop::service::tcp::TlsEnabled::disabled(svc);
+    let svc = samotop::service::tcp::tls::TlsEnabled::disabled(svc);
     let srv = samotop::server::Server::on("localhost:25").serve(svc);
     async_std::task::block_on(srv).unwrap()
 }
@@ -128,7 +128,7 @@ fn main() {
 
 # Development
 
-* The usual rustup + cargo setup is required. 
+* The usual rustup + cargo setup is required.
 * The software is automatically built, tested and published using Gitlab CI/CD pipelines.
 * README's are generated manually from rust docs using cargo-readme. Do not modify README's directly:
   ```bash
@@ -165,153 +165,21 @@ In Rust world I have so far found mostly SMTP clients.
 extern crate log;
 
 pub mod grammar;
-pub mod model;
 pub mod protocol;
 pub mod server;
 pub mod service;
 
-mod common {
-    pub use crate::model::{Error, Result};
+pub mod model {
+    pub use samotop_core::model::*;
 
-    //pub use futures::ready;
+    pub mod session;
+}
+
+mod common {
+    pub use crate::service::Provider;
     pub use bytes::{Bytes, BytesMut};
-    pub use futures::{
-        future, ready, stream, AsyncRead as Read, AsyncReadExt as ReadExt, AsyncWrite as Write,
-        AsyncWriteExt as WriteExt, Future, FutureExt, Sink, Stream, StreamExt, TryFutureExt,
-    };
-    pub use pin_project::pin_project;
-    pub use std::pin::Pin;
-    pub use std::sync::Arc;
-    pub use std::task::{Context, Poll};
+    pub use samotop_core::common::*;
 }
 
 #[cfg(test)]
-pub mod test_util {
-
-    pub use crate::common::*;
-    use crate::protocol::MayBeTls;
-    use std::collections::VecDeque;
-
-    pub fn cx() -> Context<'static> {
-        std::task::Context::from_waker(futures::task::noop_waker_ref())
-    }
-
-    pub fn b(bytes: impl AsRef<[u8]>) -> Bytes {
-        Bytes::copy_from_slice(bytes.as_ref())
-    }
-
-    #[pin_project]
-    pub struct TestStream<I> {
-        items: VecDeque<Poll<Option<I>>>,
-    }
-    impl<T: IntoIterator<Item = Poll<Option<I>>>, I> From<T> for TestStream<I> {
-        fn from(from: T) -> Self {
-            TestStream {
-                items: from.into_iter().collect(),
-            }
-        }
-    }
-    impl<I> Stream for TestStream<I> {
-        type Item = I;
-        fn poll_next(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-            if let Some(item) = self.project().items.pop_front() {
-                item
-            } else {
-                Poll::Ready(None)
-            }
-        }
-    }
-
-    #[pin_project]
-    pub struct TestIO {
-        pub input: Vec<u8>,
-        pub output: Vec<u8>,
-        pub read: usize,
-        pub read_chunks: VecDeque<usize>,
-    }
-    impl TestIO {
-        pub fn written(&self) -> &[u8] {
-            &self.output[..]
-        }
-        pub fn read(&self) -> &[u8] {
-            &self.input[..self.read]
-        }
-        pub fn unread(&self) -> &[u8] {
-            &self.input[self.read..]
-        }
-        pub fn new() -> Self {
-            TestIO {
-                output: vec![],
-                input: vec![],
-                read: 0,
-                read_chunks: vec![].into(),
-            }
-        }
-        // Pretend reading chunks of input of given sizes. 0 => Pending
-        pub fn add_read_chunk(mut self, chunk: impl AsRef<[u8]>) -> Self {
-            self.input.extend_from_slice(chunk.as_ref());
-            self.read_chunks.push_back(chunk.as_ref().len());
-            self
-        }
-    }
-    impl<T: AsRef<[u8]>> From<T> for TestIO {
-        fn from(data: T) -> Self {
-            Self::new().add_read_chunk(data)
-        }
-    }
-    impl Read for TestIO {
-        fn poll_read(
-            self: Pin<&mut Self>,
-            _cx: &mut Context<'_>,
-            buf: &mut [u8],
-        ) -> Poll<std::io::Result<usize>> {
-            let proj = self.project();
-            match proj.read_chunks.pop_front() {
-                None => Poll::Ready(Ok(0)),
-                Some(max) => {
-                    let len = usize::min(max, proj.input.len() - *proj.read);
-                    let len = usize::min(len, buf.len());
-                    if len != max {
-                        proj.read_chunks.push_front(max - len);
-                    }
-                    if len == 0 {
-                        Poll::Pending
-                    } else {
-                        (&mut buf[..len])
-                            .copy_from_slice(&proj.input[*proj.read..*proj.read + len]);
-                        *proj.read += len;
-                        Poll::Ready(Ok(len))
-                    }
-                }
-            }
-        }
-    }
-    impl Write for TestIO {
-        fn poll_write(
-            self: Pin<&mut Self>,
-            _cx: &mut Context<'_>,
-            buf: &[u8],
-        ) -> Poll<std::io::Result<usize>> {
-            let proj = self.project();
-            proj.output.extend_from_slice(buf);
-            Poll::Ready(Ok(buf.len()))
-        }
-        fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
-            Poll::Ready(Ok(()))
-        }
-        fn poll_close(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
-            Poll::Ready(Ok(()))
-        }
-    }
-    impl MayBeTls for TestIO {
-        fn start_tls(self: Pin<&mut Self>) -> std::io::Result<()> {
-            Err(std::io::Error::new(
-                std::io::ErrorKind::BrokenPipe,
-                "TLS not supported",
-            ))
-        }
-        fn supports_tls(&self) -> bool {
-            false
-        }
-    }
-}
+pub use samotop_core::test_util;

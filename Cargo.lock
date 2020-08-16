@@ -1024,7 +1024,7 @@ dependencies = [
 
 [[package]]
 name = "samotop"
-version = "0.9.1"
+version = "0.10.0-preview.1"
 dependencies = [
  "async-native-tls",
  "async-std",
@@ -1038,14 +1038,32 @@ dependencies = [
  "memchr",
  "peg",
  "pin-project",
+ "samotop-core",
  "trust-dns-resolver",
  "uuid",
  "viaspf",
 ]
 
 [[package]]
+name = "samotop-core"
+version = "0.10.0-preview.1"
+dependencies = [
+ "futures",
+ "log",
+ "pin-project",
+ "samotop-model",
+]
+
+[[package]]
+name = "samotop-model"
+version = "0.10.0-preview.1"
+dependencies = [
+ "bytes",
+]
+
+[[package]]
 name = "samotop-server"
-version = "1.0.1"
+version = "1.0.1-preview.1"
 dependencies = [
  "async-std",
  "async-tls",

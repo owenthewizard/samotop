@@ -1,7 +1,7 @@
 use crate::common::*;
 use crate::model::io::Connection;
 use crate::model::smtp::SmtpExtension;
-use crate::protocol::{TlsCapable, TlsDisabled};
+use crate::protocol::tls::{TlsCapable, TlsDisabled};
 use crate::service::tcp::TcpService;
 
 pub trait TlsProvider<IO> {
