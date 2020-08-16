@@ -6,7 +6,6 @@ description = "Base crate for Samotop extensions"
 documentation = "https://docs.rs/samotop/"
 homepage = "https://gitlab.com/BrightOpen/BackYard/Samotop/"
 repository = "https://gitlab.com/BrightOpen/BackYard/Samotop/"
-readme = "README.md"
 keywords = ["smtp", "async", "server"]
 edition = "2018"
 

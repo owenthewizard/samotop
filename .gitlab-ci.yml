@@ -83,8 +83,11 @@ publish-crates:
         return $err
       }
     - MANIFEST=samotop-model/Cargo.toml publish
+    - sleep 10
     - MANIFEST=samotop-core/Cargo.toml publish
+    - sleep 10
     - MANIFEST=samotop/Cargo.toml publish
+    - sleep 10
     - MANIFEST=samotop-server/Cargo.toml publish
 
 publish-docker:
@@ -99,9 +102,9 @@ publish-docker:
     - cp -ra samotop-server/docker target/
     # Copy either debug or release binary
     - cp target/samotop target/docker/samotop
-    - pushd target/docker/
+    - cd target/docker/
     - docker build -t samotop .
-    - popd
+    - cd ../../
     - docker run -t --rm samotop --help
     # extract version
     - VER="$(docker run -t --rm samotop --version | cut -d ' ' -f2- | tr -d '\r\n')"
