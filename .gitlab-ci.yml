@@ -122,7 +122,7 @@ publish-docker:
     - docker login -u "$DOCKER_USR" -p "$DOCKER_PWD"
     - *lib
     - | # override the publish fn
-      function publish_checked() {s
+      function publish_checked() {
         # push current version
         case "$CI_COMMIT_REF_NAME" in master|develop) docker push "$TAG_CURRENT" ;; *) echo Will only push current from master or develop branch, not from \'"$CI_COMMIT_REF_NAME"\' ;; esac
         # push stable version as latest
