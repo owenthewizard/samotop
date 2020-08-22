@@ -1,7 +1,7 @@
 use crate::common::*;
-use crate::grammar::SmtpParser;
 use crate::model::io::Connection;
 use crate::protocol::*;
+use crate::service::parser::SmtpParser;
 use crate::service::session::*;
 use crate::service::tcp::TcpService;
 use async_std::task;

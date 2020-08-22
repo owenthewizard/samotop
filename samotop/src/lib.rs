@@ -164,7 +164,6 @@ In Rust world I have so far found mostly SMTP clients.
 #[macro_use]
 extern crate log;
 
-pub mod grammar;
 pub mod protocol;
 pub mod server;
 pub mod service;

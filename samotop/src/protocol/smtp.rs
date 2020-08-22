@@ -56,7 +56,7 @@ impl<IO: Read + Write + MayBeTls> SmtpCodec<IO> {
         Poll::Ready(Ok(()))
     }
 
-    fn read_line(self: Pin<&mut Self>) -> Option<Bytes> {
+    fn read_line(self: Pin<&mut Self>) -> Option<Vec<u8>> {
         trace!("Reading next line");
         let projection = self.project();
         // process the read buffer into items
@@ -68,7 +68,7 @@ impl<IO: Read + Write + MayBeTls> SmtpCodec<IO> {
                 Some(len) => &read[..len + 1],
                 None => read,
             };
-            let bytes = Bytes::copy_from_slice(read);
+            let bytes = Vec::from(read);
             projection.c2s_buffer.advance(bytes.len());
             Some(bytes)
         }
@@ -92,7 +92,7 @@ impl<IO: Read + Write + MayBeTls> SmtpCodec<IO> {
             return Poll::Ready(None);
         }
         let consume = |buf: &mut BytesMut, len| {
-            let bytes = Bytes::copy_from_slice(&buf.bytes()[..len]);
+            let bytes = Vec::from(&buf.bytes()[..len]);
             buf.advance(len);
             bytes
         };

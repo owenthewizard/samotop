@@ -1,7 +1,6 @@
 use crate::smtp::*;
 use std::net::SocketAddr;
 use std::time::{Duration, Instant};
-pub use bytes::Bytes;
 
 /// Represents the instructions for the client side of the stream.
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -24,17 +23,17 @@ pub enum ReadControl {
     /** Peer disconnected */
     PeerShutdown,
     /** SMTP command line */
-    Command(SmtpCommand),
+    Command(SmtpCommand, Vec<u8>),
     /** raw input that could not be understood */
-    Raw(Bytes),
+    Raw(Vec<u8>),
     /** Available mail data without signalling dots */
-    MailDataChunk(Bytes),
+    MailDataChunk(Vec<u8>),
     /** The SMTP data terminating dot (. CR LF) is part of protocol signalling and not part of data  */
-    EndOfMailData(Bytes),
+    EndOfMailData(Vec<u8>),
     /** The SMTP data escape dot (.) is part of protocol signalling and not part of data */
-    EscapeDot(Bytes),
+    EscapeDot(Vec<u8>),
     /// Empty line or white space
-    Empty(Bytes),
+    Empty(Vec<u8>),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

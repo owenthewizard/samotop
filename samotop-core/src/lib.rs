@@ -9,7 +9,6 @@ pub mod model {
 }
 
 pub mod common {
-    pub use crate::model::io::Bytes;
     pub use crate::model::{Error, Result};
 
     pub use futures::{
@@ -32,8 +31,8 @@ pub mod test_util {
         std::task::Context::from_waker(futures::task::noop_waker_ref())
     }
 
-    pub fn b(bytes: impl AsRef<[u8]>) -> Bytes {
-        Bytes::copy_from_slice(bytes.as_ref())
+    pub fn b(bytes: impl AsRef<[u8]>) -> Vec<u8> {
+        Vec::from(bytes.as_ref())
     }
 
     #[pin_project]

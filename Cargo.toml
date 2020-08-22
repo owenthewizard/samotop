@@ -2,6 +2,7 @@
 members = [
     "samotop-model",
     "samotop-core",
+    "samotop-parser",
     "samotop",
     "samotop-server",
 ]

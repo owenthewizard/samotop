@@ -69,9 +69,9 @@ pub struct MailSink {
     id: String,
 }
 
-impl Sink<Bytes> for MailSink {
+impl Sink<Vec<u8>> for MailSink {
     type Error = Error;
-    fn start_send(self: Pin<&mut Self>, bytes: Bytes) -> Result<()> {
+    fn start_send(self: Pin<&mut Self>, bytes: Vec<u8>) -> Result<()> {
         println!("Mail data for {}: {:?}", self.id, bytes);
         Ok(())
     }
