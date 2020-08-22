@@ -1,7 +1,6 @@
 use crate::model::io::*;
 use crate::model::mail::*;
 use crate::model::smtp::*;
-use bytes::Bytes;
 use std::collections::VecDeque;
 use std::net::SocketAddr;
 use std::result::Result;
@@ -30,7 +29,7 @@ pub enum SessionControl {
     StartData(SmtpReply),
     StartTls(SmtpReply),
     Reply(SmtpReply),
-    Data(Bytes),
+    Data(Vec<u8>),
     Fail,
 }
 
@@ -94,7 +93,7 @@ impl Session {
             ReadControl::PeerConnected(conn) => self.conn(conn),
             ReadControl::PeerShutdown => self.end(),
             ReadControl::Raw(_) => self.say_syntax_error(),
-            ReadControl::Command(cmd) => self.cmd(cmd),
+            ReadControl::Command(cmd, _) => self.cmd(cmd),
             ReadControl::MailDataChunk(data) => self.data_chunk(data),
             ReadControl::EscapeDot(_data) => self,
             ReadControl::EndOfMailData(_data) => self.data_end(),
@@ -173,7 +172,7 @@ impl Session {
             self.end()
         }
     }
-    fn data_chunk(&mut self, data: Bytes) -> &mut Self {
+    fn data_chunk(&mut self, data: Vec<u8>) -> &mut Self {
         if self.state == State::DataStreaming {
             self.say(SessionControl::Data(data))
         } else {

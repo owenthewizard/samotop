@@ -33,9 +33,12 @@ rust-tls = ["async-tls"]
 version = "0.10.0-preview.1"
 path = "../samotop-core"
 
+[dependencies.samotop-parser]
+version = "0.10.0-preview.1"
+path = "../samotop-parser"
+
 [dependencies]
 log = "0.4"
-peg = "0.6"
 bytes = "0.5"
 uuid = { version = "0.8", features = ["v4"] }
 pin-project = "0.4"

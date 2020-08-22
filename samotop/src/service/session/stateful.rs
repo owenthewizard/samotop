@@ -5,7 +5,6 @@ use crate::model::smtp::SmtpExtension;
 use crate::model::{Error, Result};
 use crate::service::mail::*;
 use crate::service::session::*;
-use bytes::Bytes;
 use futures::prelude::*;
 use pin_project::pin_project;
 use std::pin::Pin;
@@ -35,8 +34,7 @@ where
     S: MailQueue<MailFuture = MFut, Mail = M>,
     MFut: Future<Output = Option<M>>,
     GFut: Future<Output = AcceptRecipientResult>,
-    //M: Mail,
-    M: Sink<Bytes, Error = Error>,
+    M: Sink<Vec<u8>, Error = Error>,
 {
     type Handler = StatefulSessionHandler<S, M, MFut, GFut>;
     fn start(&self) -> Self::Handler {
@@ -79,8 +77,7 @@ where
     S: MailQueue<MailFuture = MFut, Mail = M>,
     MFut: Future<Output = Option<M>>,
     GFut: Future<Output = AcceptRecipientResult>,
-    //M: Mail,
-    M: Sink<Bytes, Error = Error>,
+    M: Sink<Vec<u8>, Error = Error>,
 {
     type Error = Error;
     fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
@@ -206,8 +203,7 @@ where
     S: MailQueue<MailFuture = MFut, Mail = M>,
     MFut: Future<Output = Option<M>>,
     GFut: Future<Output = AcceptRecipientResult>,
-    //M: Mail,
-    M: Sink<Bytes, Error = Error>,
+    M: Sink<Vec<u8>, Error = Error>,
 {
     type Item = Result<WriteControl>;
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {

@@ -86,6 +86,8 @@ publish-crates:
     - sleep 10
     - MANIFEST=samotop-core/Cargo.toml publish
     - sleep 10
+    - MANIFEST=samotop-parser/Cargo.toml publish
+    - sleep 10
     - MANIFEST=samotop/Cargo.toml publish
     - sleep 10
     - MANIFEST=samotop-server/Cargo.toml publish

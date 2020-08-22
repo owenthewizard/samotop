@@ -1,20 +1,25 @@
 [package]
-name = "samotop-model"
+name = "samotop-parser"
 version = "0.10.0-preview.2"
 authors = ["jocutajar <tellnoone@robajz.info>"]
-description = "The domain model of Samotop - SMTP server and library built on async-std"
+description = "SMTP parser of Samotop - SMTP server and library built on async-std"
 documentation = "https://docs.rs/samotop/"
 homepage = "https://gitlab.com/BrightOpen/BackYard/Samotop/"
 repository = "https://gitlab.com/BrightOpen/BackYard/Samotop/"
-keywords = ["smtp", "model"]
+keywords = ["smtp", "parser", "PEG"]
 edition = "2018"
 
 # see crates.io/category_slugs
-categories = ["email"]
+categories = ["email", "network-programming", "parser-implementations"]
 license = "MIT"
 
 [badges]
 gitlab = { repository = "BrightOpen/BackYard/Samotop", branch = "develop" }
 maintenance = { status = "actively-developed" }
 
+[dependencies.samotop-core]
+version = "0.10.0-preview.1"
+path = "../samotop-core"
+
 [dependencies]
+peg = "0.6"

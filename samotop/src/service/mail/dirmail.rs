@@ -142,9 +142,9 @@ pub struct MailFile {
     target: Pin<Box<dyn Future<Output = std::io::Result<()>> + Send>>,
 }
 
-impl Sink<Bytes> for MailFile {
+impl Sink<Vec<u8>> for MailFile {
     type Error = Error;
-    fn start_send(mut self: Pin<&mut Self>, bytes: Bytes) -> Result<()> {
+    fn start_send(mut self: Pin<&mut Self>, bytes: Vec<u8>) -> Result<()> {
         println!("Mail data for {}: {} bytes", self.id, bytes.len());
         self.buffer.extend(bytes);
         Ok(())

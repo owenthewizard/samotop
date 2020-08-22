@@ -1,6 +1,6 @@
 use crate::common::*;
-use crate::grammar::Parser;
 use crate::model::io::ReadControl;
+use crate::service::parser::Parser;
 
 pub trait IntoParse
 where
@@ -76,7 +76,7 @@ where
                         let mut bytes2 = tail.to_vec();
                         bytes2.extend_from_slice(&bytes[..]);
                         // concat previous open ended line with new raw
-                        bytes = Bytes::from(bytes2);
+                        bytes = bytes2;
                     }
 
                     trace!("Parsing {} raw bytes as a script", bytes.len());
@@ -108,9 +108,9 @@ where
 
 #[cfg(test)]
 mod parse_tests {
-    use crate::grammar::SmtpParser;
     use crate::model::io::ReadControl::*;
     use crate::model::smtp::SmtpCommand::*;
+    use crate::service::parser::SmtpParser;
     use crate::test_util::*;
 
     use super::*;
@@ -135,7 +135,7 @@ mod parse_tests {
         let mut sut = setup.parse(SmtpParser);
         let res = Pin::new(&mut sut).poll_next(&mut cx());
 
-        assert_eq!(res?, Poll::Ready(Some(Command(Quit))));
+        assert_eq!(res?, Poll::Ready(Some(Command(Quit, b("quit\r\n")))));
         Ok(())
     }
 
@@ -145,10 +145,10 @@ mod parse_tests {
         let mut sut = setup.parse(SmtpParser);
 
         let res = Pin::new(&mut sut).poll_next(&mut cx());
-        assert_eq!(res?, Poll::Ready(Some(Command(Quit))));
+        assert_eq!(res?, Poll::Ready(Some(Command(Quit, b("quit\r\n")))));
 
         let res = Pin::new(&mut sut).poll_next(&mut cx());
-        assert_eq!(res?, Poll::Ready(Some(Command(Quit))));
+        assert_eq!(res?, Poll::Ready(Some(Command(Quit, b("quit\r\n")))));
 
         Ok(())
     }

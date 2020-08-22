@@ -1036,9 +1036,9 @@ dependencies = [
  "futures-await-test",
  "log",
  "memchr",
- "peg",
  "pin-project",
  "samotop-core",
+ "samotop-parser",
  "trust-dns-resolver",
  "uuid",
  "viaspf",
@@ -1046,7 +1046,7 @@ dependencies = [
 
 [[package]]
 name = "samotop-core"
-version = "0.10.0-preview.2"
+version = "0.10.0-preview.1"
 dependencies = [
  "futures",
  "log",
@@ -1056,9 +1056,14 @@ dependencies = [
 
 [[package]]
 name = "samotop-model"
-version = "0.10.0-preview.1"
+version = "0.10.0-preview.2"
+
+[[package]]
+name = "samotop-parser"
+version = "0.10.0-preview.2"
 dependencies = [
- "bytes",
+ "peg",
+ "samotop-core",
 ]
 
 [[package]]

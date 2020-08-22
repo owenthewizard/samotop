@@ -1,7 +1,6 @@
-use crate::model::io::ReadControl;
-use crate::model::smtp::*;
-use bytes::Bytes;
 use peg;
+use samotop_core::model::io::ReadControl;
+use samotop_core::model::smtp::*;
 use std::net::{Ipv4Addr, Ipv6Addr};
 use std::str::FromStr;
 
@@ -24,14 +23,14 @@ peg::parser! {
         pub rule input() -> ReadControl
             = inp_none() / inp_command() / inp_invalid() /// inp_incomplete()
         pub rule inp_command() -> ReadControl
-            =  c:command()
-            { ReadControl::Command( c) }
+            = start:position!() c:command() end:position!()
+            { ReadControl::Command( c, Vec::from(&__input[start..end])) }
         pub rule inp_none() -> ReadControl
             =  s:$(NL() / __* NL())
-            { ReadControl::Empty(Bytes::copy_from_slice(s)) }
+            { ReadControl::Empty(Vec::from(s)) }
         pub rule inp_invalid() -> ReadControl
             =  s:$( quiet!{ str_invalid() / str_incomplete() } / expected!("invalid input") )
-            { ReadControl::Raw( Bytes::copy_from_slice(s)) }
+            { ReadControl::Raw( Vec::from(s)) }
 
         rule str_invalid() = quiet!{ "\n" / (![b'\n'][_]) + "\n" } / expected!("invalid input")
         rule str_incomplete() = quiet!{ [_]+ } / expected!("incomplete input")
@@ -239,12 +238,11 @@ peg::parser! {
 #[cfg(test)]
 mod tests {
     use super::grammar::*;
-    use crate::model::io::ReadControl::{self, *};
-    use crate::model::smtp::SmtpCommand::*;
-    use crate::model::smtp::SmtpHost::*;
-    use crate::model::smtp::*;
-    use crate::test_util::*;
-    use bytes::Bytes;
+    use super::ReadControl::*;
+    use super::SmtpCommand::*;
+    use super::SmtpHost::*;
+    use super::*;
+    use samotop_core::test_util::*;
 
     #[test]
     fn script_parses_unknown_command() {
@@ -284,13 +282,15 @@ mod tests {
 
     #[test]
     fn session_parses_helo() {
-        let result = session(b"helo domain.com\r\n").unwrap();
+        let input = b"helo domain.com\r\n";
+        let result = session(input).unwrap();
 
         assert_eq!(
             result,
-            vec![Command(Helo(SmtpHelo::Helo(Domain(
-                "domain.com".to_string()
-            ))),)]
+            vec![Command(
+                Helo(SmtpHelo::Helo(Domain("domain.com".to_string()))),
+                b(input)
+            )]
         );
     }
 
@@ -301,7 +301,7 @@ mod tests {
         assert_eq!(
             result,
             vec![
-                Command(Data),
+                Command(Data, b(b"DATA\r\n")),
                 Raw(b(" ěšě\r\n")),
                 Raw(b("š\n")),
                 Raw(b("čš")),
@@ -315,7 +315,11 @@ mod tests {
 
         assert_eq!(
             result,
-            vec![Raw(b("QUIT\n")), Command(Quit), Command(Quit),]
+            vec![
+                Raw(b("QUIT\n")),
+                Command(Quit, b("QUIT\r\n")),
+                Command(Quit, b("quit\r\n")),
+            ]
         );
     }
 
@@ -323,13 +327,22 @@ mod tests {
     fn session_parses_incomplete_command() {
         let result = session(b"QUIT\r\nQUI").unwrap();
 
-        assert_eq!(result, vec![Command(Quit), Raw(Bytes::from("QUI"))]);
+        assert_eq!(
+            result,
+            vec![Command(Quit, b("QUIT\r\n")), Raw(Vec::from("QUI"))]
+        );
     }
 
     #[test]
     fn session_parses_valid_utf8() {
         let result = session("Help \"ěščř\"\r\n".as_bytes()).unwrap();
-        assert_eq!(result, vec![Command(Help(vec!["ěščř".to_string()])),]);
+        assert_eq!(
+            result,
+            vec![Command(
+                Help(vec!["ěščř".to_string()]),
+                b("Help \"ěščř\"\r\n")
+            ),]
+        );
     }
 
     #[test]
@@ -354,22 +367,31 @@ mod tests {
         assert_eq!(
             result,
             vec![
-                Command(Helo(SmtpHelo::Helo(Domain("domain.com".to_string()))),),
-                Command(Mail(SmtpMail::Mail(
-                    SmtpPath::Direct(SmtpAddress::Mailbox(
-                        "me".to_string(),
-                        Domain("there.net".to_string()),
+                Command(
+                    Helo(SmtpHelo::Helo(Domain("domain.com".to_string()))),
+                    b("helo domain.com\r\n")
+                ),
+                Command(
+                    Mail(SmtpMail::Mail(
+                        SmtpPath::Direct(SmtpAddress::Mailbox(
+                            "me".to_string(),
+                            Domain("there.net".to_string()),
+                        )),
+                        vec![]
                     )),
-                    vec![]
-                )),),
-                Command(Rcpt(SmtpPath::Relay(
-                    vec![Domain("relay.net".to_string())],
-                    SmtpAddress::Mailbox(
-                        "him".to_string(),
-                        Domain("unreachable.local".to_string()),
-                    ),
-                )),),
-                Command(Quit),
+                    b("mail from:<me@there.net>\r\n")
+                ),
+                Command(
+                    Rcpt(SmtpPath::Relay(
+                        vec![Domain("relay.net".to_string())],
+                        SmtpAddress::Mailbox(
+                            "him".to_string(),
+                            Domain("unreachable.local".to_string()),
+                        ),
+                    )),
+                    b("rcpt to:<@relay.net:him@unreachable.local>\r\n")
+                ),
+                Command(Quit, b("quit\r\n")),
             ]
         );
     }
