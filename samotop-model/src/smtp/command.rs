@@ -15,7 +15,7 @@ pub enum SmtpCommand {
     Rset,
     Data,
     Turn,
-    /// Commandoutside ofthe base implementation.
+    /// Command outside of the base implementation.
     /// First string is the command verb, next the parameters
     Other(String, Vec<String>),
 }
