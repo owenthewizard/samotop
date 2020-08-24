@@ -50,6 +50,10 @@ publish-crates:
     paths: *cache-paths
   script:
     - &lib |
+      function get_version() {
+        echo "Getting version of ${MANIFEST:?cannot be empty}"
+        cargo pkgid --manifest-path "$MANIFEST" | cut -d '#' -f2- | tr -d '\n'
+      }
       function publish() {
         test -f "${MANIFEST:?cannot be empty}" || fail 2 "File does not exist - $MANIFEST" || return $?
         REF=${CI_COMMIT_BEFORE_SHA/0000000000000000000000000000000000000000/origin/develop}
@@ -58,7 +62,7 @@ publish-crates:
       }
       function publish_modified() {
         echo "Checking modified ${MANIFEST:?cannot be empty}"
-        VER=$(cargo pkgid --manifest-path "$MANIFEST" | cut -d '#' -f2- | tr -d '\n')
+        VER=$(get_version)
         CHECK="Skipping $MANIFEST VER=$VER on REF=$CI_COMMIT_REF_NAME. Versions on master must be stable while others must be pre-release labeled."
         case "$CI_COMMIT_REF_NAME" in
           master)
@@ -119,7 +123,10 @@ publish-docker:
     # remote docker hub push
     - docker login -u "$DOCKER_USR" -p "$DOCKER_PWD"
     - *lib
-    - | # override the publish fn
+    - | # override the publish fns for docker
+      function get_version() {
+        echo "${VER:?cannot be empty}"
+      }
       function publish_checked() {
         # push current version
         case "$CI_COMMIT_REF_NAME" in master|develop) docker push "$TAG_CURRENT" ;; *) echo Will only push current from master or develop branch, not from \'"$CI_COMMIT_REF_NAME"\' ;; esac

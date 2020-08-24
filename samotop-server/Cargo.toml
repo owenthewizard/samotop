@@ -1,6 +1,6 @@
 [package]
 name = "samotop-server"
-version = "1.0.1-preview.2"
+version = "1.0.1-preview.3"
 authors = ["jocutajar <tellnoone@robajz.info>"]
 description = "SMTP server with focus on privacy"
 documentation = "https://docs.rs/samotop-server/"
