@@ -1,6 +1,6 @@
 [package]
 name = "samotop-model"
-version = "0.10.0-preview.3"
+version = "0.10.0"
 authors = ["jocutajar <tellnoone@robajz.info>"]
 description = "The domain model of Samotop - SMTP server and library built on async-std"
 documentation = "https://docs.rs/samotop/"
