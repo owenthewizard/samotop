@@ -41,7 +41,6 @@ path = "../samotop-parser"
 log = "0.4"
 bytes = "0.5"
 pin-project = "0.4"
-chrono = "0.4"
 futures = "0.3"
 async-std = "1.6"
 async-tls = { version = "0.9", optional = true }
