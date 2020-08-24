@@ -9,6 +9,8 @@ variables:
 
 build:
   stage: build
+  only:
+    - branches
   cache:
     paths: &cache-paths
       - target/
@@ -32,6 +34,8 @@ build:
 test-nightly:
   stage: build
   allow_failure: true
+  only:
+    - branches
   cache:
     key: nightly
     paths: *cache-paths
@@ -52,6 +56,7 @@ publish-crate:
     - VERSION="${COMPVER##$COMPONENT/}"
     - echo "Releasing component ${COMPONENT:?cannot be empty} v ${VERSION:?cannot be empty}"
     - test "$VERSION" == "$(cargo pkgid --manifest-path "$COMPONENT/Cargo.toml" | cut -d '#' -f2- | tr -d '\n')"
+    - cargo test --manifest-path "$COMPONENT/Cargo.toml" --release
     - cargo publish --manifest-path "$COMPONENT/Cargo.toml" --token "$CRATES_KEY"
 
 publish-docker:
