@@ -19,7 +19,7 @@ extern crate env_logger;
 extern crate samotop;
 
 use samotop::server::Server;
-use samotop::service::tcp::DummyTcpService;
+use samotop::service::tcp::dummy::DummyTcpService;
 
 fn main() {
     env_logger::init();

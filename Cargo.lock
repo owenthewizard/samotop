@@ -1035,12 +1035,10 @@ dependencies = [
  "futures",
  "futures-await-test",
  "log",
- "memchr",
  "pin-project",
  "samotop-core",
  "samotop-parser",
  "trust-dns-resolver",
- "uuid",
  "viaspf",
 ]
 
@@ -1048,10 +1046,13 @@ dependencies = [
 name = "samotop-core"
 version = "0.10.0-preview.1"
 dependencies = [
+ "bytes",
  "futures",
  "log",
+ "memchr",
  "pin-project",
  "samotop-model",
+ "uuid",
 ]
 
 [[package]]

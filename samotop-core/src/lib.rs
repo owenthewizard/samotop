@@ -1,12 +1,9 @@
 #[macro_use]
 extern crate log;
 
+pub mod model;
 pub mod protocol;
 pub mod service;
-
-pub mod model {
-    pub use samotop_model::*;
-}
 
 pub mod common {
     pub use crate::model::{Error, Result};
