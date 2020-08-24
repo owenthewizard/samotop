@@ -1,10 +1,6 @@
+use crate::common::*;
 use crate::model::io::WriteControl;
 use crate::model::Result;
-use futures::prelude::*;
-use futures::ready;
-use pin_project::pin_project;
-use std::pin::Pin;
-use std::task::{Context, Poll};
 
 pub trait FuseShutdown
 where

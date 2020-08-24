@@ -141,7 +141,7 @@ peg::parser! {
             { SmtpPath::Null }
 
         pub rule address() -> SmtpAddress
-            = s:string() "@" h:host()
+            = s:dot_string() "@" h:host()
             { SmtpAddress::Mailbox (s, h) }
 
         rule athost() -> SmtpHost
@@ -199,8 +199,15 @@ peg::parser! {
         pub rule string() -> String
             = str_quoted() / str_plain()
 
+        pub rule dot_string() -> String
+            = str_quoted() / str_dot_plain()
+
         rule str_plain() -> String
-            = s:(char()*)
+            = s:(chr()*)
+            {? utf8s(&s[..]) }
+
+        rule str_dot_plain() -> String
+            = s:(chr_dot()*)
             {? utf8s(&s[..]) }
 
         rule str_quoted() -> String
@@ -214,8 +221,10 @@ peg::parser! {
             = b:$(quiet!{!("\"" / "\\" / "\r" / "\n") [_]} / expected!("quoted character"))
             {debug_assert!(b.len()==1); b[0]}
 
-        rule char() -> u8
+        rule chr() -> u8
             = char_regular() / char_special()
+        rule chr_dot() -> u8
+            = char_regular() / char_special() / dot()
 
         rule char_regular() -> u8
             = b:$(quiet!{[b'-' | b'!' | b'#' | b'$' | b'%' | b'&' |
@@ -227,6 +236,10 @@ peg::parser! {
 
         rule char_special() -> u8
             = ignore:("\\") b:$(quiet!{[_]} / expected!("special character"))
+            {debug_assert!(b.len()==1); b[0]}
+
+        rule dot() -> u8
+            = b:$(".")
             {debug_assert!(b.len()==1); b[0]}
 
         rule NL() = quiet!{"\r\n"} / expected!("{NL}")
@@ -248,6 +261,21 @@ mod tests {
     fn script_parses_unknown_command() {
         let result = script(b"sOmE other command\r\n").unwrap();
         assert_eq!(result, vec![ReadControl::Raw(b("sOmE other command\r\n"),)]);
+    }
+
+    #[test]
+    fn cmd_parses_valid_mail_from() {
+        let result = command(b"mail from:<here.there@everywhere.net>\r\n").unwrap();
+        assert_eq!(
+            result,
+            SmtpCommand::Mail(SmtpMail::Mail(
+                SmtpPath::Direct(SmtpAddress::Mailbox(
+                    "here.there".to_owned(),
+                    SmtpHost::Domain("everywhere.net".to_owned())
+                )),
+                vec![]
+            ))
+        );
     }
 
     #[test]

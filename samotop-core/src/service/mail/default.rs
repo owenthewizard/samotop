@@ -5,6 +5,7 @@ use crate::model::io::Connection;
 use crate::model::mail::*;
 use crate::model::Error;
 use crate::service::mail::*;
+use uuid::Uuid;
 
 #[derive(Clone, Debug)]
 pub struct DefaultMailService;
@@ -20,9 +21,13 @@ impl EsmtpService for DefaultMailService {
 }
 
 impl MailGuard for DefaultMailService {
-    type Future = futures::future::Ready<AcceptRecipientResult>;
-    fn accept(&self, request: AcceptRecipientRequest) -> Self::Future {
+    type RecipientFuture = futures::future::Ready<AcceptRecipientResult>;
+    type SenderFuture = futures::future::Ready<AcceptSenderResult>;
+    fn accept_recipient(&self, request: AcceptRecipientRequest) -> Self::RecipientFuture {
         future::ready(AcceptRecipientResult::Accepted(request.rcpt))
+    }
+    fn accept_sender(&self, _request: AcceptSenderRequest) -> Self::SenderFuture {
+        future::ready(AcceptSenderResult::Accepted)
     }
 }
 
@@ -62,6 +67,9 @@ impl MailQueue for DefaultMailService {
                 .unwrap_or("None".to_owned())
         );
         future::ready(Some(MailSink { id: id.clone() }))
+    }
+    fn new_id(&self) -> String {
+        Uuid::new_v4().to_string()
     }
 }
 
