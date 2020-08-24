@@ -61,7 +61,7 @@ publish-docker:
     - docker:dind
   only:
     changes:
-      - samotop-server/
+      - samotop-server/**/*
     refs:
       - develop
       - master
