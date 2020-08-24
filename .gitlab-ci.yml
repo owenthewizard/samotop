@@ -81,17 +81,20 @@ publish-docker:
     - TAG_MINOR="brightopen/samotop:${VER%.*}"
     - TAG_MAJOR="brightopen/samotop:${VER%%.*}"
     - TAG_LATEST="brightopen/samotop:latest"
+    - |
+      echo "Tags
+        current: $TAG_CURRENT (willbe published only on develop or master)
+        minor: $TAG_MINOR (willbe published only on master)
+        major: $TAG_MAJOR (willbe published only on master)
+        latest: $TAG_LATEST (willbe published only on master)
+      "
     - docker tag samotop "$TAG_CURRENT"
     - docker tag samotop "$TAG_MINOR"
     - docker tag samotop "$TAG_MAJOR"
     - docker tag samotop "$TAG_LATEST"
     # remote docker hub push
     - docker login -u "$DOCKER_USR" -p "$DOCKER_PWD"
-    - |
-      function publish() {
-        # push current version
-        case "$CI_COMMIT_REF_NAME" in master|develop) docker push "$TAG_CURRENT" ;; *) echo Will only push current from master or develop branch, not from \'"$CI_COMMIT_REF_NAME"\' ;; esac
-        # push stable version as latest
-        case "$CI_COMMIT_REF_NAME" in master) docker push "$TAG_MINOR" && docker push "$TAG_MAJOR" && docker push "$TAG_LATEST" ;; *) echo Will only push latest from master branch, not from \'"$CI_COMMIT_REF_NAME"\' ;; esac
-      }
-    - MANIFEST=samotop-server/Cargo.toml publish
+    # push current version
+    - case "$CI_COMMIT_REF_NAME" in master|develop) docker push "$TAG_CURRENT" ;; *) echo Will only push current from master or develop branch, not from \'"$CI_COMMIT_REF_NAME"\' ;; esac
+    # push stable version as latest
+    - case "$CI_COMMIT_REF_NAME" in master) docker push "$TAG_MINOR" && docker push "$TAG_MAJOR" && docker push "$TAG_LATEST" ;; *) echo Will only push latest from master branch, not from \'"$CI_COMMIT_REF_NAME"\' ;; esac
