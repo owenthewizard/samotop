@@ -30,7 +30,7 @@ build:
     - case "$CI_COMMIT_REF_NAME" in master) cp -fa target/release/samotop-server target/samotop ;; *) cp -fa target/debug/samotop-server target/samotop ;; esac
 
 test-nightly:
-  stage: release
+  stage: build
   allow_failure: true
   cache:
     key: nightly
