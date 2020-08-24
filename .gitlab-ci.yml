@@ -74,7 +74,7 @@ publish-crates:
       }
       function publish_checked() {
         echo "Publishing ${MANIFEST:?cannot be empty}"
-        cargo publish --manifest-path "$MANIFEST" --token "$CRATES_KEY" 
+        cargo publish --manifest-path "$MANIFEST" --token "$CRATES_KEY" && sleep 10
       }
       function fail() {
         err=$1
@@ -83,13 +83,9 @@ publish-crates:
         return $err
       }
     - MANIFEST=samotop-model/Cargo.toml publish
-    - sleep 10
     - MANIFEST=samotop-core/Cargo.toml publish
-    - sleep 10
     - MANIFEST=samotop-parser/Cargo.toml publish
-    - sleep 10
     - MANIFEST=samotop/Cargo.toml publish
-    - sleep 10
     - MANIFEST=samotop-server/Cargo.toml publish
 
 publish-docker:

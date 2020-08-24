@@ -95,12 +95,12 @@ extern crate async_std;
 extern crate env_logger;
 extern crate samotop;
 use samotop::server::Server;
-use samotop::service::tcp::DummyTcpService;
+use samotop::service::tcp::dummy::DummyTcpService;
 fn main() {
     env_logger::init();
     let mail = samotop::service::mail::default::DefaultMailService;
-    let sess = samotop::service::session::StatefulSessionService::new(mail);
-    let svc = samotop::service::tcp::SmtpService::new(sess);
+    let parser = samotop::service::parser::SmtpParser;
+    let svc = samotop::service::tcp::smtp::SmtpService::new(mail, parser);
     let svc = samotop::service::tcp::tls::TlsEnabled::disabled(svc);
     let srv = samotop::server::Server::on("localhost:25").serve(svc);
     async_std::task::block_on(srv).unwrap()
@@ -118,7 +118,7 @@ extern crate async_std;
 extern crate env_logger;
 extern crate samotop;
 use samotop::server::Server;
-use samotop::service::tcp::DummyTcpService;
+use samotop::service::tcp::dummy::DummyTcpService;
 fn main() {
     env_logger::init();
     let mut srv = Server::on("localhost:0").serve(DummyTcpService);
@@ -164,16 +164,15 @@ In Rust world I have so far found mostly SMTP clients.
 #[macro_use]
 extern crate log;
 
-pub mod protocol;
+pub mod protocol{
+    pub use samotop_core::protocol::*;
+}
 pub mod server;
 pub mod service;
 
 pub mod model {
     pub use samotop_core::model::*;
-
-    pub mod session;
 }
-
 mod common {
     pub use crate::service::Provider;
     pub use bytes::{Bytes, BytesMut};

@@ -99,7 +99,7 @@ extern crate async_std;
 extern crate env_logger;
 extern crate samotop;
 use samotop::server::Server;
-use samotop::service::tcp::DummyTcpService;
+use samotop::service::tcp::dummy::DummyTcpService;
 fn main() {
     env_logger::init();
     let mail = samotop::service::mail::default::DefaultMailService;
@@ -122,7 +122,7 @@ extern crate async_std;
 extern crate env_logger;
 extern crate samotop;
 use samotop::server::Server;
-use samotop::service::tcp::DummyTcpService;
+use samotop::service::tcp::dummy::DummyTcpService;
 fn main() {
     env_logger::init();
     let mut srv = Server::on("localhost:0").serve(DummyTcpService);

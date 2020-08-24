@@ -3,6 +3,7 @@ use crate::model::io::*;
 use crate::model::Result;
 use crate::service::tcp::TcpService;
 use async_std::net::{TcpListener, TcpStream, ToSocketAddrs};
+use async_std::task;
 use futures::{
     future::{BoxFuture, TryFutureExt},
     stream::FuturesUnordered,
@@ -68,17 +69,18 @@ impl<'a> Server<'a> {
     }
     pub async fn serve<S>(mut self: Server<'a>, service: S) -> Result<()>
     where
-        S: TcpService<TcpStream> + Clone,
+        S: TcpService<TcpStream>,
     {
         Self::serve_ports(service, self.resolve_ports().await?).await
     }
     async fn serve_ports<S>(service: S, addrs: impl IntoIterator<Item = SocketAddr>) -> Result<()>
     where
-        S: TcpService<TcpStream> + Clone,
+        S: TcpService<TcpStream>,
     {
+        let svc = std::rc::Rc::new(service);
         addrs
             .into_iter()
-            .map(|a| Self::serve_port(service.clone(), a))
+            .map(|a| Self::serve_port(svc.clone(), a))
             .collect::<FuturesUnordered<_>>()
             .skip_while(|r| futures::future::ready(r.is_ok()))
             .take(1)
@@ -105,8 +107,39 @@ impl<'a> Server<'a> {
                 Connection::default()
             };
             let stream = stream.map_err(|e| e.into());
-            service.clone().handle(stream, conn).await;
+            let service = service.clone();
+            spawn_task_and_swallow_log_errors(
+                format!("TCP transmission {}", conn),
+                service.handle(stream, conn),
+            );
         }
         Ok(())
+    }
+}
+
+fn spawn_task_and_swallow_log_errors<F>(task_name: String, fut: F) -> task::JoinHandle<()>
+where
+    F: Future<Output = Result<()>> + Send + 'static,
+{
+    task::spawn(async move {
+        log_errors(task_name, fut).await.unwrap();
+        ()
+    })
+}
+
+async fn log_errors<F, T, E>(task_name: String, fut: F) -> F::Output
+where
+    F: Future<Output = std::result::Result<T, E>>,
+    E: std::fmt::Display,
+{
+    match fut.await {
+        Err(e) => {
+            error!("Error in {}: {}", task_name, e);
+            Err(e)
+        }
+        Ok(r) => {
+            info!("{} completed successfully.", task_name);
+            Ok(r)
+        }
     }
 }

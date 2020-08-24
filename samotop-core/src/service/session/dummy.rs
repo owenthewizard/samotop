@@ -19,16 +19,15 @@ impl<S> DummySessionService<S> {
     }
 }
 
-impl<S> SessionService for DummySessionService<S>
+impl<S, TIn> SessionService<TIn> for DummySessionService<S>
 where
-    S: Send,
-    S: Clone,
     S: NamedService,
 {
-    type Handler = DummySessionHandler;
-    fn start(&self) -> Self::Handler {
+    type Session = DummySessionHandler;
+    type StartFuture = future::Ready<Self::Session>;
+    fn start(&self, _input: TIn) -> Self::StartFuture {
         let name = self.mail_service.name();
-        DummySessionHandler::new(name)
+        future::ready(DummySessionHandler::new(name))
     }
 }
 

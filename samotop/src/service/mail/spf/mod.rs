@@ -1,5 +1,6 @@
 mod lookup;
 
+use super::composite::*;
 use super::*;
 use crate::common::*;
 use crate::model::mail::Envelope;
@@ -33,7 +34,7 @@ where
 {
     type Output = CompositeMailService<NS, ES, GS, SpfService<QS>>;
     fn setup(self, named: NS, extend: ES, guard: GS, queue: QS) -> Self::Output {
-        (named, extend, guard, SpfService::new(queue, self.0))
+        (named, extend, guard, SpfService::new(queue, self.0)).into()
     }
 }
 
@@ -46,6 +47,9 @@ impl<T: MailQueue> MailQueue for SpfService<T> {
             inner: self.inner.mail(envelope.clone()),
             envelope,
         }
+    }
+    fn new_id(&self) -> std::string::String {
+        self.inner.new_id()
     }
 }
 

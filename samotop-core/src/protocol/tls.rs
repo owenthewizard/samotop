@@ -1,5 +1,6 @@
 use crate::common::*;
 use crate::service::tcp::tls::TlsProvider;
+use crate::service::tcp::tls::TlsProviderFactory;
 use std::ops::DerefMut;
 
 pub trait MayBeTls {
@@ -177,14 +178,20 @@ impl<IO, P: TlsProvider<IO>> std::fmt::Debug for TlsCapable<IO, P> {
     }
 }
 #[derive(Clone)]
-pub struct TlsDisabled {}
+pub struct TlsDisabled ;
 
 impl MayBeTls for TlsDisabled {
     fn start_tls(self: Pin<&mut Self>) -> std::io::Result<()> {
         unreachable!()
     }
     fn supports_tls(&self) -> bool {
-        unreachable!()
+        false
+    }
+}
+impl<IO> TlsProviderFactory<IO> for TlsDisabled {
+    type Provider = TlsDisabled;
+    fn get(&self) -> Option<Self::Provider> {
+        None
     }
 }
 impl<IO> TlsProvider<IO> for TlsDisabled {

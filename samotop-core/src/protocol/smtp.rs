@@ -1,7 +1,8 @@
 use crate::common::*;
 use crate::model::io::*;
-use crate::protocol::MayBeTls;
-use bytes::{Buf, BufMut};
+use crate::protocol::tls::MayBeTls;
+use bytes::{Buf, BufMut, Bytes, BytesMut};
+use memchr::memchr;
 use std::collections::VecDeque;
 
 #[pin_project(project=SmtpCodecProj)]
@@ -64,7 +65,7 @@ impl<IO: Read + Write + MayBeTls> SmtpCodec<IO> {
         if read.len() == 0 {
             None
         } else {
-            let read = match memchr::memchr(b'\n', read) {
+            let read = match memchr(b'\n', read) {
                 Some(len) => &read[..len + 1],
                 None => read,
             };
@@ -123,7 +124,7 @@ impl<IO: Read + Write + MayBeTls> SmtpCodec<IO> {
                 let bytes = consume(projection.c2s_buffer, 2);
                 Poll::Ready(Some(Ok(ReadControl::MailDataChunk(bytes))))
             }
-            GoOn => match memchr::memchr(b'\r', projection.c2s_buffer.bytes()) {
+            GoOn => match memchr(b'\r', projection.c2s_buffer.bytes()) {
                 Some(found) => {
                     if let [b'\r', b'\n', ..] = projection.c2s_buffer[found..] {
                         *projection.read_data = Some(true);
@@ -409,7 +410,7 @@ QUIT
 #[cfg(test)]
 mod codec_tests {
     use crate::model::smtp::SmtpReply;
-    use samotop_core::test_util::*;
+    use crate::test_util::*;
 
     use super::*;
     use ReadControl::*;

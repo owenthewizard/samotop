@@ -6,13 +6,9 @@ use crate::model::io::Connection;
 use crate::model::mail::*;
 use crate::model::Error;
 use composite::CompositeMailService;
-use std::ops::Deref;
+use composite::IntoComponents;
 
-pub trait MailServiceBuilder {
-    type Named: NamedService;
-    type Esmtp: EsmtpService;
-    type Guard: MailGuard;
-    type Queue: MailQueue;
+pub trait MailServiceBuilder: IntoComponents {
     fn using<MS: MailSetup<Self::Named, Self::Esmtp, Self::Guard, Self::Queue>>(
         self,
         setup: MS,
@@ -21,14 +17,11 @@ pub trait MailServiceBuilder {
 
 impl<T> MailServiceBuilder for T
 where
-    T: Clone + MailService,
+    T: IntoComponents,
 {
-    type Named = Self;
-    type Esmtp = Self;
-    type Guard = Self;
-    type Queue = Self;
-    fn using<MS: MailSetup<Self, Self, Self, Self>>(self, setup: MS) -> MS::Output {
-        setup.setup(self.clone(), self.clone(), self.clone(), self)
+    fn using<MS: MailSetup<T::Named, T::Esmtp, T::Guard, T::Queue>>(self, setup: MS) -> MS::Output {
+        let (n, e, h, q) = self.into_components();
+        setup.setup(n, e, h, q)
     }
 }
 
@@ -53,7 +46,7 @@ where
 {
     type Output = composite::CompositeMailService<&'static str, ES, GS, QS>;
     fn setup(self, _named: NS, extend: ES, guard: GS, queue: QS) -> Self::Output {
-        ("my.name.example.com", extend, guard, queue)
+        ("my.name.example.com", extend, guard, queue).into()
     }
 }
 
@@ -62,7 +55,7 @@ let mail_svc = default::DefaultMailService.using(MyMail);
 ```
 */
 pub trait MailSetup<NS, ES, GS, QS> {
-    type Output: MailService + Send + Sync;
+    type Output: MailService;
     fn setup(self, named: NS, extend: ES, guard: GS, queue: QS) -> Self::Output;
 }
 
@@ -82,7 +75,7 @@ impl NamedService for MyNameMail {
 }
 ```
 */
-pub trait NamedService: Send + Sync {
+pub trait NamedService {
     fn name(&self) -> &str;
 }
 
@@ -110,16 +103,18 @@ where
 }
 ```
 */
-pub trait EsmtpService: Send + Sync {
+pub trait EsmtpService {
     fn extend(&self, connection: &mut Connection);
 }
 
 /**
 A mail guard can be queried whether a recepient is accepted on which address.
 */
-pub trait MailGuard: Send + Sync {
-    type Future: Future<Output = AcceptRecipientResult>;
-    fn accept(&self, request: AcceptRecipientRequest) -> Self::Future;
+pub trait MailGuard {
+    type RecipientFuture: Future<Output = AcceptRecipientResult> + Send + Sync + 'static;
+    type SenderFuture: Future<Output = AcceptSenderResult> + Send + Sync + 'static;
+    fn accept_recipient(&self, request: AcceptRecipientRequest) -> Self::RecipientFuture;
+    fn accept_sender(&self, request: AcceptSenderRequest) -> Self::SenderFuture;
 }
 
 /**
@@ -127,10 +122,11 @@ A mail queue allows us to queue an e-mail.
 For a given mail envelope it produces a Sink that can receive mail data.
 Once the sink is closed successfully, the mail is queued.
 */
-pub trait MailQueue: Send + Sync {
-    type Mail: Sink<Vec<u8>, Error = Error>;
-    type MailFuture: Future<Output = Option<Self::Mail>>;
+pub trait MailQueue {
+    type Mail: Sink<Vec<u8>, Error = Error> + Send + Sync + 'static;
+    type MailFuture: Future<Output = Option<Self::Mail>> + Send + Sync + 'static;
     fn mail(&self, envelope: Envelope) -> Self::MailFuture;
+    fn new_id(&self) -> String;
 }
 
 impl NamedService for &str {
@@ -144,17 +140,29 @@ impl NamedService for String {
     }
 }
 
-impl<T, NS, ES, GS, QS> MailSetup<NS, ES, GS, QS> for T
+impl<NS, ES, GS, QS> MailSetup<NS, ES, GS, QS> for String
 where
-    T: NamedService,
     NS: NamedService,
     ES: EsmtpService,
     GS: MailGuard,
     QS: MailQueue,
 {
-    type Output = CompositeMailService<T, ES, GS, QS>;
+    type Output = CompositeMailService<Self, ES, GS, QS>;
     fn setup(self, _named: NS, extend: ES, guard: GS, queue: QS) -> Self::Output {
-        (self, extend, guard, queue)
+        (self, extend, guard, queue).into()
+    }
+}
+
+impl<NS, ES, GS, QS> MailSetup<NS, ES, GS, QS> for &str
+where
+    NS: NamedService,
+    ES: EsmtpService,
+    GS: MailGuard,
+    QS: MailQueue,
+{
+    type Output = CompositeMailService<Self, ES, GS, QS>;
+    fn setup(self, _named: NS, extend: ES, guard: GS, queue: QS) -> Self::Output {
+        (self, extend, guard, queue).into()
     }
 }
 
@@ -163,7 +171,7 @@ where
     T: NamedService,
 {
     fn name(&self) -> &str {
-        T::name(Arc::deref(self))
+        T::name(self)
     }
 }
 
@@ -180,9 +188,13 @@ impl<T> MailGuard for Arc<T>
 where
     T: MailGuard,
 {
-    type Future = T::Future;
-    fn accept(&self, request: AcceptRecipientRequest) -> Self::Future {
-        T::accept(self, request)
+    type RecipientFuture = T::RecipientFuture;
+    type SenderFuture = T::SenderFuture;
+    fn accept_recipient(&self, request: AcceptRecipientRequest) -> Self::RecipientFuture {
+        T::accept_recipient(self, request)
+    }
+    fn accept_sender(&self, request: AcceptSenderRequest) -> Self::SenderFuture {
+        T::accept_sender(self, request)
     }
 }
 
@@ -194,6 +206,9 @@ where
     type MailFuture = T::MailFuture;
     fn mail(&self, envelope: Envelope) -> Self::MailFuture {
         T::mail(self, envelope)
+    }
+    fn new_id(&self) -> String {
+        T::new_id(self)
     }
 }
 

@@ -8,9 +8,9 @@ use futures::prelude::*;
 pub struct DummyTcpService;
 
 impl<IO> TcpService<IO> for DummyTcpService {
-    type Future = future::Ready<()>;
-    fn handle(self, _io: Result<IO>, conn: Connection) -> Self::Future {
+    type Future = future::Ready<Result<()>>;
+    fn handle(&self, _io: Result<IO>, conn: Connection) -> Self::Future {
         info!("Received connection {}", conn);
-        future::ready(())
+        future::ready(Ok(()))
     }
 }

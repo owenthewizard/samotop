@@ -1,3 +1,5 @@
+pub mod dummy;
+pub mod stateful;
 use crate::common::*;
 use crate::model::io::*;
 
@@ -10,7 +12,8 @@ This handler will only handle one session and then it will be dropped.
 The handler will receive `ReadControl`s from the line and should produce
 relevant `WriteControl`s to send down the line in response.
 */
-pub trait SessionService {
-    type Handler: Sink<ReadControl, Error = Error> + Stream<Item = Result<WriteControl>>;
-    fn start(&self) -> Self::Handler;
+pub trait SessionService<TIn> {
+    type Session: Stream<Item = Result<WriteControl>>;
+    type StartFuture: Future<Output = Self::Session>;
+    fn start(&self, input: TIn) -> Self::StartFuture;
 }

@@ -6,16 +6,17 @@ use crate::model::mail::*;
 use crate::model::smtp::*;
 use crate::model::Error;
 use crate::service::mail::*;
+use crate::service::mail::composite::*;
 use async_std::fs::{create_dir_all, rename, File};
 use async_std::path::Path;
 use futures::future::TryFutureExt;
 
 #[derive(Clone, Debug)]
-pub struct SimpleDirMail<D> {
+pub struct Config<D> {
     dir: D,
 }
 
-impl<D> SimpleDirMail<D>
+impl<D> Config<D>
 where
     D: AsRef<Path>,
 {
@@ -24,7 +25,22 @@ where
     }
 }
 
-impl<D, NS, ES, GS, QS> MailSetup<NS, ES, GS, QS> for SimpleDirMail<D>
+#[derive(Clone, Debug)]
+pub struct SimpleDirMail<D, S> {
+    dir: D,
+    inner: S,
+}
+
+impl<D, S> SimpleDirMail<D, S>
+where
+    D: AsRef<Path>,
+{
+    pub fn new(dir: D, inner: S) -> Self {
+        Self { dir, inner }
+    }
+}
+
+impl<D, NS, ES, GS, QS> MailSetup<NS, ES, GS, QS> for Config<D>
 where
     D: AsRef<Path> + Send + Sync,
     NS: NamedService,
@@ -32,9 +48,15 @@ where
     GS: MailGuard,
     QS: MailQueue,
 {
-    type Output = CompositeMailService<NS, EnableEightBit<ES>, GS, Self>;
-    fn setup(self, named: NS, extend: ES, guard: GS, _queue: QS) -> Self::Output {
-        (named, EnableEightBit(extend), guard, self)
+    type Output = CompositeMailService<NS, EnableEightBit<ES>, GS, SimpleDirMail<D, QS>>;
+    fn setup(self, named: NS, extend: ES, guard: GS, queue: QS) -> Self::Output {
+        (
+            named,
+            EnableEightBit(extend),
+            guard,
+            SimpleDirMail::new(self.dir, queue),
+        )
+            .into()
     }
 }
 
@@ -53,15 +75,19 @@ where
     }
 }
 
-impl<D> MailQueue for SimpleDirMail<D>
+impl<D, S> MailQueue for SimpleDirMail<D, S>
 where
     D: AsRef<Path> + Send + Sync,
+    S: MailQueue,
 {
     type Mail = MailFile;
     type MailFuture = CreateMailFile;
 
     fn mail(&self, envelope: Envelope) -> Self::MailFuture {
         CreateMailFile::new(&self.dir, envelope)
+    }
+    fn new_id(&self) -> std::string::String {
+        self.inner.new_id()
     }
 }
 
@@ -70,9 +96,9 @@ pub struct CreateMailFile {
     stage2: Option<(
         BytesMut,
         String,
-        Pin<Box<dyn Future<Output = std::io::Result<()>> + Send>>,
+        Pin<Box<dyn Future<Output = std::io::Result<()>> + Send + Sync + 'static>>,
     )>,
-    file: Pin<Box<dyn Future<Output = std::io::Result<File>> + Send>>,
+    file: Pin<Box<dyn Future<Output = std::io::Result<File>> + Send + Sync + 'static>>,
 }
 
 impl CreateMailFile {
@@ -139,7 +165,7 @@ pub struct MailFile {
     id: String,
     file: File,
     buffer: BytesMut,
-    target: Pin<Box<dyn Future<Output = std::io::Result<()>> + Send>>,
+    target: Pin<Box<dyn Future<Output = std::io::Result<()>> + Send + Sync + 'static>>,
 }
 
 impl Sink<Vec<u8>> for MailFile {
@@ -181,9 +207,3 @@ impl Sink<Vec<u8>> for MailFile {
         Poll::Ready(Ok(()))
     }
 }
-
-// impl Mail for MailFile {
-//     fn queue_id(&self) -> &str {
-//         self.id.as_ref()
-//     }
-// }

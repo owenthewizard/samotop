@@ -1,9 +1,11 @@
 pub mod dummy;
 pub mod tls;
+pub mod smtp;
 
 use crate::model::io::*;
 use crate::model::Result;
 use futures::prelude::*;
+use std::ops::Deref;
 
 /**
 An object implementing this trait handles TCP connections in a `Future`.
@@ -20,6 +22,13 @@ shortage by blocking on the `handle()` call.
 The `SmtpService` and `DummyTcpService` implement this trait.
 */
 pub trait TcpService<IO> {
-    type Future: Future<Output = ()> + Send + Sync;
-    fn handle(self, io: Result<IO>, connection: Connection) -> Self::Future;
+    type Future: Future<Output = Result<()>> + Send + Sync + 'static;
+    fn handle(&self, io: Result<IO>, connection: Connection) -> Self::Future;
+}
+
+impl<IO, S: TcpService<IO> + ?Sized, T: Deref<Target = S>> TcpService<IO> for T {
+    type Future = S::Future;
+    fn handle(&self, io: Result<IO>, connection: Connection) -> Self::Future {
+        S::handle(self.deref(), io, connection)
+    }
 }

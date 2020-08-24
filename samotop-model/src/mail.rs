@@ -22,6 +22,29 @@ pub struct Envelope {
 
 /// Request to check if mail is accepted for given recipient
 #[derive(Debug, Clone)]
+pub struct AcceptSenderRequest {
+    /// Service name
+    pub name: String,
+    /// Local server endpoint
+    pub local: Option<SocketAddr>,
+    /// Remote peer endpoint
+    pub peer: Option<SocketAddr>,
+    /// The SMTP helo sent by peer
+    pub helo: Option<SmtpHelo>,
+    /// The SMTP mail from:path sent by peer
+    pub mail: Option<SmtpMail>,
+    /// unique mail request identifier
+    pub id: String,
+}
+#[derive(Debug, Clone)]
+pub enum AcceptSenderResult {
+    Failed,
+    Rejected,
+    Accepted,
+}
+
+/// Request to check if mail is accepted for given recipient
+#[derive(Debug, Clone)]
 pub struct AcceptRecipientRequest {
     /// Service name
     pub name: String,

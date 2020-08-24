@@ -82,12 +82,13 @@ use log::*;
 use rustls::ServerConfig;
 use samotop::server::Server;
 use samotop::service::mail::default::DefaultMailService;
-use samotop::service::mail::dirmail::SimpleDirMail;
+use samotop::service::mail::dirmail::Config as DirMailConfig;
 use samotop::service::mail::MailServiceBuilder;
-use samotop::service::session::StatefulSessionService;
+use samotop::service::parser::SmtpParser;
 use samotop::service::tcp::tls::provide_rustls;
-use samotop::service::tcp::{tls::TlsEnabled, SmtpService};
+use samotop::service::tcp::{smtp::SmtpService, tls::TlsEnabled};
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use structopt::StructOpt;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
@@ -106,10 +107,9 @@ async fn main_fut() -> Result<()> {
         tls_config.map(|cfg| provide_rustls(TlsAcceptor::from(std::sync::Arc::new(cfg))));
     let mail_service = DefaultMailService
         .using(setup.get_my_name())
-        .using(SimpleDirMail::new(setup.get_mail_dir()))
+        .using(DirMailConfig::new(setup.get_mail_dir()))
         .using(samotop::service::mail::spf::provide_viaspf());
-    let session_service = StatefulSessionService::new(mail_service);
-    let smtp_service = SmtpService::new(session_service);
+    let smtp_service = SmtpService::new(Arc::new(mail_service), SmtpParser);
     let tls_smtp_service = TlsEnabled::new(smtp_service, tls_acceptor);
 
     info!("I am {}", setup.get_my_name());
