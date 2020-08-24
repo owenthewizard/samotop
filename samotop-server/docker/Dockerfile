@@ -6,4 +6,3 @@ COPY samotop /usr/local/bin/samotop
 ENTRYPOINT ["samotop"]
 CMD ["--help"]
 USER 1001
-
