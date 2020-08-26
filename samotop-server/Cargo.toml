@@ -2,6 +2,7 @@
 name = "samotop-server"
 version = "1.0.1"
 authors = ["jocutajar <tellnoone@robajz.info>"]
+license = "MIT OR Apache-2.0"
 description = "SMTP server with focus on privacy"
 documentation = "https://docs.rs/samotop-server/"
 homepage = "https://gitlab.com/BrightOpen/BackYard/Samotop/"
@@ -12,7 +13,6 @@ edition = "2018"
 
 # see crates.io/category_slugs
 categories = ["email", "asynchronous"]
-license = "MIT"
 
 [badges]
 gitlab = { repository = "BrightOpen/BackYard/Samotop", branch = "develop" }

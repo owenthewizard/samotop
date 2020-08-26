@@ -1,7 +1,7 @@
 [![Build Status](https://gitlab.com/BrightOpen/BackYard/Samotop/badges/develop/pipeline.svg)](https://gitlab.com/BrightOpen/BackYard/Samotop/commits/master)
 ![Maintenance](https://img.shields.io/badge/maintenance-activly--developed-brightgreen.svg)
 
-# samotop 0.9.1
+# samotop 0.10.0
 
 This is an SMTP server library with focus on privacy.
 There is also an actual SMTP server - see
@@ -103,9 +103,9 @@ use samotop::service::tcp::dummy::DummyTcpService;
 fn main() {
     env_logger::init();
     let mail = samotop::service::mail::default::DefaultMailService;
-    let sess = samotop::service::session::StatefulSessionService::new(mail);
-    let svc = samotop::service::tcp::SmtpService::new(sess);
-    let svc = samotop::service::tcp::TlsEnabled::disabled(svc);
+    let parser = samotop::service::parser::SmtpParser;
+    let svc = samotop::service::tcp::smtp::SmtpService::new(mail, parser);
+    let svc = samotop::service::tcp::tls::TlsEnabled::disabled(svc);
     let srv = samotop::server::Server::on("localhost:25").serve(svc);
     async_std::task::block_on(srv).unwrap()
 }
@@ -165,4 +165,7 @@ In Rust world I have so far found mostly SMTP clients.
 * [new-tokio-smtp](https://crates.io/crates/new-tokio-smtp) is na SMTP client by **Philipp Korber**, now only pasively maintained
 
 ## License
-MIT
+MIT OR Apache-2.0
+
+### Contribution
+Unless you explicitly state otherwise, any contribution submitted for inclusion in samotop projects by you, as defined in the Apache-2.0 license, shall be licensed as above, without any additional terms or conditions.
