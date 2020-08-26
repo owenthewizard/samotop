@@ -66,7 +66,8 @@ Generate a cert and ID with openssl:
 openssl req -new -newkey rsa:4096 -x509 -sha256 -days 365 -nodes -out Samotop.crt -keyout Samotop.key
 ```
 
-Test STARTTLS:
+Test STARTTLS: beware, sending capital `R` or `Q` has special meaning in the s_client. To avoid it, add -quiet
+
 ```bash
 openssl s_client -connect localhost:25 -starttls smtp
 ```

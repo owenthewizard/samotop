@@ -27,7 +27,10 @@ where
             if let Some(answer) = self.as_mut().pop_answer() {
                 break Poll::Ready(Some(Ok(answer)));
             } else {
-                ready!(self.as_mut().poll_input(cx))?;
+                match ready!(self.as_mut().poll_input(cx)?) {
+                    Some(()) => continue,
+                    None => break Poll::Ready(None),
+                }
             }
         }
     }
@@ -66,7 +69,7 @@ where
     I: Stream<Item = Result<ReadControl>>,
     H: SessionHandler,
 {
-    fn poll_input(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
+    fn poll_input(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Result<()>>> {
         trace!("polling input");
         let SessionProj {
             input,
@@ -76,16 +79,17 @@ where
         match state.take().expect("state must be set") {
             State::Pending(s) => {
                 *state = Some(State::Pending(s));
-                Poll::Ready(Ok(()))
+                // allow poll_pending to run in the loop
+                Poll::Ready(Some(Ok(())))
             }
             State::Ready(data) => match input.poll_next(cx)? {
                 Poll::Ready(None) => {
                     *state = Some(handler.handle(data, ReadControl::PeerShutdown));
-                    Poll::Ready(Ok(()))
+                    Poll::Ready(None)
                 }
                 Poll::Ready(Some(control)) => {
                     *state = Some(handler.handle(data, control));
-                    Poll::Ready(Ok(()))
+                    Poll::Ready(Some(Ok(())))
                 }
                 Poll::Pending => {
                     *state = Some(State::Ready(data));
