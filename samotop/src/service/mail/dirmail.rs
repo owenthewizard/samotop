@@ -4,9 +4,8 @@ use crate::common::*;
 use crate::model::io::Connection;
 use crate::model::mail::*;
 use crate::model::smtp::*;
-use crate::model::Error;
-use crate::service::mail::*;
 use crate::service::mail::composite::*;
+use crate::service::mail::*;
 use async_std::fs::{create_dir_all, rename, File};
 use async_std::path::Path;
 use futures::future::TryFutureExt;
@@ -168,14 +167,20 @@ pub struct MailFile {
     target: Pin<Box<dyn Future<Output = std::io::Result<()>> + Send + Sync + 'static>>,
 }
 
-impl Sink<Vec<u8>> for MailFile {
-    type Error = Error;
-    fn start_send(mut self: Pin<&mut Self>, bytes: Vec<u8>) -> Result<()> {
-        println!("Mail data for {}: {} bytes", self.id, bytes.len());
-        self.buffer.extend(bytes);
-        Ok(())
+impl Write for MailFile {
+    fn poll_write(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<std::io::Result<usize>> {
+        println!("Mail data for {}: {} bytes", self.id, buf.len());
+        if self.as_mut().buffer.len() > 10 * 1024 {
+            ready!(self.as_mut().poll_flush(cx)?);
+        }
+        self.buffer.extend_from_slice(buf);
+        Poll::Ready(Ok(buf.len()))
     }
-    fn poll_ready(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
+    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
         let MailFileProj { file, buffer, .. } = self.project();
         let mut pending = &buffer[..];
         let mut file = Pin::new(file);
@@ -197,10 +202,7 @@ impl Sink<Vec<u8>> for MailFile {
             Poll::Pending
         }
     }
-    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        self.poll_ready(cx)
-    }
-    fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
+    fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
         ready!(self.as_mut().poll_flush(cx))?;
         let MailFileProj { target, .. } = self.project();
         ready!(target.as_mut().poll(cx))?;

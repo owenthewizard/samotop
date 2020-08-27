@@ -123,7 +123,7 @@ For a given mail envelope it produces a Sink that can receive mail data.
 Once the sink is closed successfully, the mail is queued.
 */
 pub trait MailQueue {
-    type Mail: Sink<Vec<u8>, Error = Error> + Send + Sync + 'static;
+    type Mail: Write + Send + Sync + 'static;
     type MailFuture: Future<Output = Option<Self::Mail>> + Send + Sync + 'static;
     fn mail(&self, envelope: Envelope) -> Self::MailFuture;
     fn new_id(&self) -> String;

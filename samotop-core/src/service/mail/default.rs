@@ -77,19 +77,19 @@ pub struct MailSink {
     id: String,
 }
 
-impl Sink<Vec<u8>> for MailSink {
-    type Error = Error;
-    fn start_send(self: Pin<&mut Self>, bytes: Vec<u8>) -> Result<()> {
-        println!("Mail data for {}: {:?}", self.id, bytes);
-        Ok(())
-    }
-    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        self.poll_ready(cx)
-    }
-    fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        self.poll_flush(cx)
-    }
-    fn poll_ready(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Result<()>> {
+impl Write for MailSink {
+    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
         Poll::Ready(Ok(()))
+    }
+    fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+        Poll::Ready(Ok(()))
+    }
+    fn poll_write(
+        self: Pin<&mut Self>,
+        _cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<std::io::Result<usize>> {
+        println!("Mail data for {}: {:?}", self.id, buf);
+        Poll::Ready(Ok(buf.len()))
     }
 }

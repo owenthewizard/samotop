@@ -1,4 +1,4 @@
-use crate::common::{Error, Pin, Sink};
+use crate::common::{Error, Pin, Write};
 
 use crate::model::io::*;
 use crate::model::smtp::*;
@@ -107,7 +107,7 @@ pub struct StateData {
     pub connection: Connection,
     pub peer_helo: Option<SmtpHelo>,
     pub mailid: String,
-    pub sink: Pin<Box<dyn Sink<Vec<u8>, Error = Error> + Send + Sync + 'static>>,
+    pub sink: Pin<Box<dyn Write + Send + Sync + 'static>>,
 }
 impl std::fmt::Debug for StateData {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -175,7 +175,7 @@ impl From<(StateMail, SmtpPath)> for StateMail {
         mail
     }
 }
-impl<M: Sink<Vec<u8>, Error = Error> + Send + Sync + 'static> From<(StateMail, M)> for StateData {
+impl<M: Write + Send + Sync + 'static> From<(StateMail, M)> for StateData {
     fn from(tuple: (StateMail, M)) -> Self {
         let (
             StateMail {

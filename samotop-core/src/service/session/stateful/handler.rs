@@ -69,31 +69,33 @@ impl<S: MailService> BasicSessionHandler<S> {
         match std::mem::replace(&mut data.state, State::Closed) {
             State::Data(state) => {
                 let StateData {
-                    sink,
+                    mut sink,
                     mailid,
                     connection,
                     peer_helo,
                 } = state;
-                let fut = sink.send(bytes).map(move |res| match res {
-                    Ok(sink) => {
-                        data.state = State::Data(StateData {
-                            sink,
-                            mailid,
-                            connection,
-                            peer_helo,
-                        });
-                        data
+                let fut = async move {
+                    match sink.write_all(&bytes[..]).await {
+                        Ok(()) => {
+                            data.state = State::Data(StateData {
+                                sink,
+                                mailid,
+                                connection,
+                                peer_helo,
+                            });
+                            data
+                        }
+                        Err(e) => {
+                            warn!("Failed to write mail data for {} - {}", mailid, e);
+                            data.state = State::Connected(StateHelo {
+                                connection,
+                                peer_helo,
+                            });
+                            // CheckMe: following this reset, we are not sending any response yet. handle_data_end should do that.
+                            data
+                        }
                     }
-                    Err(e) => {
-                        warn!("Failed to write mail data for {} - {}", mailid, e);
-                        data.state = State::Connected(StateHelo {
-                            connection,
-                            peer_helo,
-                        });
-                        // CheckMe: following this reset, we are not sending any response yet. handle_data_end should do that.
-                        data
-                    }
-                });
+                };
                 SessionState::Pending(Box::pin(fut))
             }
             other => {
@@ -107,30 +109,32 @@ impl<S: MailService> BasicSessionHandler<S> {
         match std::mem::replace(&mut data.state, State::Closed) {
             State::Data(state) => {
                 let StateData {
-                    sink,
+                    mut sink,
                     mailid,
                     connection,
                     peer_helo,
                 } = state;
-                let fut = sink.close().map(move |res| match res {
-                    Ok(()) => {
-                        data.state = State::Connected(StateHelo {
-                            connection,
-                            peer_helo,
-                        });
-                        data.say_mail_queued(mailid.as_str());
-                        data
+                let fut = async move {
+                    match sink.close().await {
+                        Ok(()) => {
+                            data.state = State::Connected(StateHelo {
+                                connection,
+                                peer_helo,
+                            });
+                            data.say_mail_queued(mailid.as_str());
+                            data
+                        }
+                        Err(e) => {
+                            warn!("Failed to finish mail data for {} - {}", mailid, e);
+                            data.state = State::Connected(StateHelo {
+                                connection,
+                                peer_helo,
+                            });
+                            data.say_mail_queue_failed_temporarily();
+                            data
+                        }
                     }
-                    Err(e) => {
-                        warn!("Failed to finish mail data for {} - {}", mailid, e);
-                        data.state = State::Connected(StateHelo {
-                            connection,
-                            peer_helo,
-                        });
-                        data.say_mail_queue_failed_temporarily();
-                        data
-                    }
-                });
+                };
                 SessionState::Pending(Box::pin(fut))
             }
             other => {
