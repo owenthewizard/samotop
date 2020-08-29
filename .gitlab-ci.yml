@@ -6,7 +6,6 @@ stages:
 
 variables:
   CARGO_HOME: ".cargo"
-  GIT_SUBMODULE_STRATEGY: recursive
 
 build:
   stage: build

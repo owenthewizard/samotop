@@ -1,3 +1,0 @@
-[submodule "forks/async-smtp"]
-	path = forks/async-smtp
-	url = https://github.com/BrightOpen/async-smtp.git

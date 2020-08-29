@@ -5,6 +5,5 @@ members = [
     "samotop-parser",
     "samotop",
     "samotop-to-lmtp",
-    "samotop-server",
-    "forks/async-smtp"
+    "samotop-server"
 ]
