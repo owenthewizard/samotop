@@ -3,7 +3,6 @@ use crate::model::io::*;
 use crate::model::mail::*;
 use crate::model::session::*;
 use crate::model::smtp::*;
-use crate::protocol::sink::SinkFutureExt;
 use crate::service::mail::MailService;
 use crate::service::session::stateful::{SessionHandler, SessionState};
 

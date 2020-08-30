@@ -3,7 +3,6 @@
 use crate::common::*;
 use crate::model::io::Connection;
 use crate::model::mail::*;
-use crate::model::Error;
 use crate::service::mail::*;
 use uuid::Uuid;
 
@@ -78,10 +77,10 @@ pub struct MailSink {
 }
 
 impl Write for MailSink {
-    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+    fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
         Poll::Ready(Ok(()))
     }
-    fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+    fn poll_close(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
         Poll::Ready(Ok(()))
     }
     fn poll_write(

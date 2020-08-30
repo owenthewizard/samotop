@@ -1,4 +1,4 @@
-use crate::common::{Error, Pin, Write};
+use crate::common::{Pin, Write};
 
 use crate::model::io::*;
 use crate::model::smtp::*;

@@ -4,7 +4,6 @@ pub mod default;
 use crate::common::*;
 use crate::model::io::Connection;
 use crate::model::mail::*;
-use crate::model::Error;
 use composite::CompositeMailService;
 use composite::IntoComponents;
 
