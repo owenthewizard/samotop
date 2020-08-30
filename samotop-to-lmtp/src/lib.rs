@@ -1,10 +1,17 @@
-use async_smtp::{ClientSecurity, Envelope, SendableEmail, SmtpClient, Transport};
+#[macro_use]
+extern crate log;
+
+use async_smtp::{
+    smtp::response::Response, smtp::SmtpStream, ClientSecurity, EmailAddress,
+    Envelope as LmtpEnvelope, MailStream, SendableEmailWithoutBody, SmtpClient, Transport,
+};
+use pin_project::pin_project;
 use samotop_core::common::*;
 use samotop_core::service::mail::composite::*;
 use samotop_core::service::mail::*;
 use std::marker::PhantomData;
 
-struct Config<Variant> {
+pub struct Config<Variant> {
     phantom: PhantomData<Variant>,
 }
 
@@ -13,7 +20,7 @@ pub mod variants {
 }
 
 impl Config<variants::Delivery> {
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             phantom: PhantomData,
         }
@@ -24,12 +31,12 @@ impl<NS: NamedService, ES: EsmtpService, GS: MailGuard, QS: MailQueue> MailSetup
     for Config<variants::Delivery>
 {
     type Output = CompositeMailService<NS, ES, GS, LmtpMail<variants::Delivery>>;
-    fn setup(self, named: NS, extend: ES, guard: GS, queue: QS) -> Self::Output {
+    fn setup(self, named: NS, extend: ES, guard: GS, _queue: QS) -> Self::Output {
         (named, extend, guard, LmtpMail::new(self)).into()
     }
 }
 
-struct LmtpMail<Variant> {
+pub struct LmtpMail<Variant> {
     config: Config<Variant>,
 }
 
@@ -39,34 +46,116 @@ impl<Any> LmtpMail<Any> {
     }
 }
 
+#[pin_project(project=LmtpStreamProj)]
+pub enum LmtpStream {
+    Ready(SmtpStream),
+    Closing(SmtpStream),
+    Closed(Result<Response>),
+}
+
+impl Write for LmtpStream {
+    fn poll_write(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<std::io::Result<usize>> {
+        match self.project() {
+            LmtpStreamProj::Ready(stream) => Pin::new(stream).poll_write(cx, buf),
+            _ => Poll::Ready(Err(closed())),
+        }
+    }
+    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+        match self.project() {
+            LmtpStreamProj::Ready(stream) => Pin::new(stream).poll_flush(cx),
+            _ => Poll::Ready(Err(closed())),
+        }
+    }
+    fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+        loop {
+            break match std::mem::replace(
+                &mut *self,
+                LmtpStream::Closed(Err("Broken state.".into())),
+            ) {
+                LmtpStream::Ready(mut stream) => {
+                    match Pin::new(&mut stream).poll_write(cx, &[][..])? {
+                        Poll::Pending => {
+                            self.set(LmtpStream::Ready(stream));
+                            Poll::Pending
+                        }
+                        Poll::Ready(len) => {
+                            debug_assert!(len == 0, "We just want the final dot");
+                            self.set(LmtpStream::Closing(stream));
+                            continue;
+                        }
+                    }
+                }
+                LmtpStream::Closing(mut stream) => match Pin::new(&mut stream).poll_flush(cx)? {
+                    Poll::Pending => {
+                        self.set(LmtpStream::Closing(stream));
+                        Poll::Pending
+                    }
+                    Poll::Ready(()) => {
+                        self.set(LmtpStream::Closed(stream.result().map_err(|e| e.into())));
+                        continue;
+                    }
+                },
+                cur @ LmtpStream::Closed(_) => {
+                    self.set(cur);
+                    Poll::Ready(Err(closed()))
+                }
+            };
+        }
+    }
+}
+
+fn failed<E: std::fmt::Display + ?Sized>(err: &E) -> std::io::Error {
+    std::io::Error::new(
+        std::io::ErrorKind::Other,
+        format!("Sending mail failed: {}", err),
+    )
+}
+fn broken() -> std::io::Error {
+    std::io::Error::new(std::io::ErrorKind::Other, "The stream is broken.")
+}
+fn closed() -> std::io::Error {
+    std::io::Error::new(
+        std::io::ErrorKind::NotConnected,
+        "The stream has already been closed.",
+    )
+}
+
 impl<Any> MailQueue for LmtpMail<Any> {
-    type Mail = Vec<u8>;
-    type MailFuture = future::Ready<Option<Self::Mail>>;
+    type Mail = LmtpStream;
+    type MailFuture = Pin<Box<dyn Future<Output = Option<Self::Mail>> + Sync + Send>>;
     fn mail(&self, mail: samotop_core::model::mail::Envelope) -> Self::MailFuture {
-        unimplemented!()
+        let fut = async move {
+            let sender = mail
+                .mail
+                .map(|sender| EmailAddress::new(sender.from().to_string()))
+                .transpose()?;
+            let recipients: std::result::Result<Vec<_>, _> = mail
+                .rcpts
+                .iter()
+                .map(|rcpt| EmailAddress::new(rcpt.to_string()))
+                .collect();
+
+            let mail =
+                SendableEmailWithoutBody::new(LmtpEnvelope::new(sender, recipients?)?, mail.id);
+            let stream = SmtpClient::with_security("localhost:2525", ClientSecurity::None)
+                .await?
+                .into_transport()
+                .send_stream(mail)
+                .await?;
+            Ok(LmtpStream::Ready(stream))
+        }
+        .then(|res: Result<_>| {
+            trace!("Starting mail: {}", res.is_ok());
+            future::ready(res.ok())
+        });
+        unimplemented!("Future is not Sync");
+        //Box::pin(fut)
     }
     fn new_id(&self) -> String {
         unimplemented!()
     }
-}
-
-async fn smtp_transport_simple() -> Result<()> {
-    let email = SendableEmail::new(
-        Envelope::new(
-            Some("user@localhost".parse().unwrap()),
-            vec!["root@localhost".parse().unwrap()],
-        )?,
-        "id",
-        "Hello world",
-    );
-
-    // Create a client
-    let mut smtp = SmtpClient::with_security("127.0.0.1:2525", ClientSecurity::None)
-        .await?
-        .into_transport();
-
-    // Connect and send the email.
-    smtp.send(email).await?;
-
-    Ok(())
 }
