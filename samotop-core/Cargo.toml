@@ -33,3 +33,4 @@ pin-project = "0.4"
 uuid = { version = "0.8", features = ["v4"] }
 bytes = "0.5"
 memchr = "2.3"
+async-trait = { git = "https://github.com/BrightOpen/async-trait.git", branch = "feature/sync-futures-#77" }

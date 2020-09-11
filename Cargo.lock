@@ -59,14 +59,15 @@ dependencies = [
 
 [[package]]
 name = "async-smtp"
-version = "0.3.4"
-source = "git+https://github.com/BrightOpen/async-smtp.git?branch=feature/jo/#33-streaming-api#aa5ec2641b7b1394b156159e76c5c277901c1730"
+version = "0.4.1"
+source = "git+https://github.com/BrightOpen/async-smtp.git#833218d56b66590ea55f6dd0d2de1f7c2ee7efe0"
 dependencies = [
  "async-native-tls",
  "async-std",
- "async-trait",
+ "async-trait 0.1.41 (git+https://github.com/BrightOpen/async-trait.git)",
  "base64",
  "bufstream",
+ "bytes",
  "fast_chemail",
  "futures",
  "hostname 0.1.5",
@@ -74,6 +75,7 @@ dependencies = [
  "nom",
  "pin-project",
  "pin-utils",
+ "potential",
  "serde",
  "serde_derive",
  "serde_json",
@@ -127,6 +129,26 @@ name = "async-trait"
 version = "0.1.36"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a265e3abeffdce30b2e26b7a11b222fe37c6067404001b434101457d0385eb92"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "async-trait"
+version = "0.1.41"
+source = "git+https://github.com/BrightOpen/async-trait.git?branch=feature/sync-futures-#77#431f09182818c08608b2ffa43681026894d8208b"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "async-trait"
+version = "0.1.41"
+source = "git+https://github.com/BrightOpen/async-trait.git#9dd45b48f38763bbfdbb21e827310419b4081ad7"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -922,6 +944,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d36492546b6af1463394d46f0c834346f31548646f6ba10849802c9c9a27ac33"
 
 [[package]]
+name = "potential"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f834c2a12aa39f8b5c5ae506bbb58ea9005d101363e6ab63dc3a6be6c6a6772f"
+dependencies = [
+ "futures-channel",
+ "futures-util",
+ "log",
+]
+
+[[package]]
 name = "ppv-lite86"
 version = "0.2.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1135,6 +1168,7 @@ dependencies = [
 name = "samotop-core"
 version = "0.10.0"
 dependencies = [
+ "async-trait 0.1.41 (git+https://github.com/BrightOpen/async-trait.git?branch=feature/sync-futures-#77)",
  "bytes",
  "futures",
  "log",
@@ -1480,7 +1514,7 @@ version = "0.19.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cdd7061ba6f4d4d9721afedffbfd403f20f39a4301fee1b70d6fcd09cca69f28"
 dependencies = [
- "async-trait",
+ "async-trait 0.1.36",
  "backtrace",
  "enum-as-inner",
  "futures",

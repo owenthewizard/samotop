@@ -27,6 +27,6 @@ log = "0.4"
 
 [dependencies.async-smtp]
 git = "https://github.com/BrightOpen/async-smtp.git"
-branch = "feature/jo/#33-streaming-api"
+branch = "master"
 features = ["native-tls-vendored"]
-
+version = "0.4.1"

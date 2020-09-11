@@ -1,10 +1,11 @@
 #[macro_use]
 extern crate log;
 
-use async_smtp::{
-    smtp::response::Response, smtp::SmtpStream, ClientSecurity, EmailAddress,
-    Envelope as LmtpEnvelope, MailStream, SendableEmailWithoutBody, SmtpClient, Transport,
+use async_smtp::prelude::{
+    ClientSecurity, EmailAddress, Envelope as LmtpEnvelope, MailDataStream, SmtpClient,
+    SmtpTransport, Transport,
 };
+use async_smtp::smtp::net::DefaultConnector;
 use pin_project::pin_project;
 use samotop_core::common::*;
 use samotop_core::service::mail::composite::*;
@@ -47,13 +48,17 @@ impl<Any> LmtpMail<Any> {
 }
 
 #[pin_project(project=LmtpStreamProj)]
-pub enum LmtpStream {
-    Ready(SmtpStream),
-    Closing(SmtpStream),
-    Closed(Result<Response>),
+pub enum LmtpStream<M: MailDataStream> {
+    Ready(M),
+    Closing(M),
+    Closed(Result<M::Output>),
 }
 
-impl Write for LmtpStream {
+impl<M: MailDataStream> Write for LmtpStream<M>
+where
+    M: Unpin,
+    M::Error: std::error::Error + Send + Sync + 'static,
+{
     fn poll_write(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
@@ -125,7 +130,7 @@ fn closed() -> std::io::Error {
 }
 
 impl<Any> MailQueue for LmtpMail<Any> {
-    type Mail = LmtpStream;
+    type Mail = LmtpStream<<SmtpTransport<SmtpClient, DefaultConnector> as Transport>::DataStream>;
     type MailFuture = Pin<Box<dyn Future<Output = Option<Self::Mail>> + Sync + Send>>;
     fn mail(&self, mail: samotop_core::model::mail::Envelope) -> Self::MailFuture {
         let fut = async move {
@@ -139,21 +144,24 @@ impl<Any> MailQueue for LmtpMail<Any> {
                 .map(|rcpt| EmailAddress::new(rcpt.to_string()))
                 .collect();
 
-            let mail =
-                SendableEmailWithoutBody::new(LmtpEnvelope::new(sender, recipients?)?, mail.id);
-            let stream = SmtpClient::with_security("localhost:2525", ClientSecurity::None)
-                .await?
-                .into_transport()
-                .send_stream(mail)
+            let envelope = LmtpEnvelope::new(sender, recipients?, mail.id)?;
+            let stream = SmtpClient::with_security("localhost:2525", ClientSecurity::None)?
+                .connect_and_send_stream(envelope)
                 .await?;
             Ok(LmtpStream::Ready(stream))
         }
-        .then(|res: Result<_>| {
-            trace!("Starting mail: {}", res.is_ok());
-            future::ready(res.ok())
+        .then(|res: Result<_>| match res {
+            Ok(stream) => {
+                trace!("Starting mail.");
+                future::ready(Some(stream))
+            }
+            Err(e) => {
+                error!("Failed to start mail: {:?}", e);
+                future::ready(None)
+            }
         });
-        unimplemented!("Future is not Sync");
-        //Box::pin(fut)
+        //unimplemented!("Future is not Sync");
+        Box::pin(fut)
     }
     fn new_id(&self) -> String {
         unimplemented!()
