@@ -1,5 +1,7 @@
 use crate::common::*;
-use crate::model::io::Connection;
+use crate::model::io::ConnectionInfo;
+use crate::model::mail::SessionInfo;
+use crate::model::smtp::SmtpExtension;
 use crate::protocol::fuse::*;
 use crate::protocol::parse::*;
 use crate::protocol::smtp::SmtpCodec;
@@ -54,7 +56,7 @@ where
     P: Parser + Sync + Send + 'static,
 {
     type Future = Pin<Box<dyn Future<Output = Result<()>> + Send + Sync>>;
-    fn handle(&self, io: Result<IO>, conn: Connection) -> Self::Future {
+    fn handle(&self, io: Result<IO>, conn: ConnectionInfo) -> Self::Future {
         Box::pin(handle_smtp(
             self.session_service.clone(),
             self.parser.clone(),
@@ -69,7 +71,7 @@ type SessionInput<IO, P> = Parse<SplitStream<SmtpCodec<IO>>, P>;
 async fn handle_smtp<IO, S, P>(
     session_service: Arc<S>,
     parser: Arc<P>,
-    connection: Connection,
+    connection: ConnectionInfo,
     io: Result<IO>,
 ) -> Result<()>
 where
@@ -78,7 +80,12 @@ where
     P: Parser + Send + Sync,
 {
     info!("New peer connection {}", connection);
-    let (dst, src) = SmtpCodec::new(io?, Some(connection)).split();
+    let io = io?;
+    let mut sess = SessionInfo::new(connection, "".to_owned());
+    if io.can_encrypt() && !io.is_encrypted() {
+        sess.extensions.enable(SmtpExtension::STARTTLS);
+    }
+    let (dst, src) = SmtpCodec::new(io, sess).split();
     let handler = session_service.start(src.parse(parser)).await;
 
     handler

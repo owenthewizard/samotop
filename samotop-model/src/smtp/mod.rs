@@ -1,7 +1,7 @@
 mod command;
-mod reply;
 mod extension;
+mod reply;
 
-pub use extension::*;
-pub use command::*;
-pub use reply::*;
+pub use self::command::*;
+pub use self::extension::*;
+pub use self::reply::*;

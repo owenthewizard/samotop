@@ -23,12 +23,12 @@ The `SmtpService` and `DummyTcpService` implement this trait.
 */
 pub trait TcpService<IO> {
     type Future: Future<Output = Result<()>> + Send + Sync + 'static;
-    fn handle(&self, io: Result<IO>, connection: Connection) -> Self::Future;
+    fn handle(&self, io: Result<IO>, connection: ConnectionInfo) -> Self::Future;
 }
 
 impl<IO, S: TcpService<IO> + ?Sized, T: Deref<Target = S>> TcpService<IO> for T {
     type Future = S::Future;
-    fn handle(&self, io: Result<IO>, connection: Connection) -> Self::Future {
+    fn handle(&self, io: Result<IO>, connection: ConnectionInfo) -> Self::Future {
         S::handle(self.deref(), io, connection)
     }
 }

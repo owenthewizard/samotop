@@ -1,3 +1,4 @@
+use crate::mail::SessionInfo;
 use crate::smtp::*;
 use std::net::SocketAddr;
 use std::time::{Duration, Instant};
@@ -6,7 +7,7 @@ use std::time::{Duration, Instant};
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum WriteControl {
     /// The stream should be shut down.
-    Shutdown,
+    Shutdown(SmtpReply),
     /// Tell codec to start data
     StartData(SmtpReply),
     /// Tell stream to upgrade to TLS
@@ -19,7 +20,7 @@ pub enum WriteControl {
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum ReadControl {
     /** Peer connected */
-    PeerConnected(Connection),
+    PeerConnected(SessionInfo),
     /** Peer disconnected */
     PeerShutdown,
     /** SMTP command line */
@@ -37,49 +38,35 @@ pub enum ReadControl {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Connection {
-    local_addr: Option<SocketAddr>,
-    peer_addr: Option<SocketAddr>,
-    established: Instant,
-    extensions: ExtensionSet,
+pub struct ConnectionInfo {
+    pub local_addr: Option<SocketAddr>,
+    pub peer_addr: Option<SocketAddr>,
+    pub established: Instant,
 }
 
-impl Connection {
-    pub fn new<L, P>(local: L, peer: P) -> Connection
+impl ConnectionInfo {
+    pub fn new<L, P>(local: L, peer: P) -> Self
     where
         L: Into<Option<SocketAddr>>,
         P: Into<Option<SocketAddr>>,
     {
-        Connection {
+        ConnectionInfo {
             local_addr: local.into(),
             peer_addr: peer.into(),
             established: Instant::now(),
-            extensions: ExtensionSet::new(),
         }
-    }
-    pub fn local_addr(&self) -> Option<SocketAddr> {
-        self.local_addr.clone()
-    }
-    pub fn peer_addr(&self) -> Option<SocketAddr> {
-        self.peer_addr.clone()
     }
     pub fn age(&self) -> Duration {
         Instant::now() - self.established
     }
-    pub fn extensions(&self) -> &ExtensionSet {
-        &self.extensions
-    }
-    pub fn extensions_mut(&mut self) -> &mut ExtensionSet {
-        &mut self.extensions
-    }
 }
-impl Default for Connection {
-    fn default() -> Connection {
-        Connection::new(None, None)
+impl Default for ConnectionInfo {
+    fn default() -> Self {
+        ConnectionInfo::new(None, None)
     }
 }
 
-impl std::fmt::Display for Connection {
+impl std::fmt::Display for ConnectionInfo {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
         write!(f, "Connection from peer ")?;
         if let Some(a) = self.peer_addr {
@@ -93,7 +80,7 @@ impl std::fmt::Display for Connection {
         } else {
             write!(f, "Unknown")?;
         }
-        write!(f, " established {:?} ago", self.age())?;
+        write!(f, " established {:?} ago.", self.age())?;
         Ok(())
     }
 }

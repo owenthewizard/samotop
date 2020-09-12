@@ -163,7 +163,4 @@ impl<Any> MailQueue for LmtpMail<Any> {
         //unimplemented!("Future is not Sync");
         Box::pin(fut)
     }
-    fn new_id(&self) -> String {
-        unimplemented!()
-    }
 }

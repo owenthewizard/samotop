@@ -1,7 +1,6 @@
 //! Reference implementation of a mail service
 //! simply delivering mail to server console log.
 use crate::common::*;
-use crate::model::io::Connection;
 use crate::model::mail::*;
 use crate::service::mail::*;
 use uuid::Uuid;
@@ -16,17 +15,22 @@ impl NamedService for DefaultMailService {
 }
 
 impl EsmtpService for DefaultMailService {
-    fn extend(&self, _connection: &mut Connection) {}
+    fn extend(&self, _connection: &mut SessionInfo) {}
 }
 
 impl MailGuard for DefaultMailService {
-    type RecipientFuture = futures::future::Ready<AcceptRecipientResult>;
-    type SenderFuture = futures::future::Ready<AcceptSenderResult>;
-    fn accept_recipient(&self, request: AcceptRecipientRequest) -> Self::RecipientFuture {
-        future::ready(AcceptRecipientResult::Accepted(request.rcpt))
+    type RecipientFuture = futures::future::Ready<AddRecipientResult>;
+    type SenderFuture = futures::future::Ready<StartMailResult>;
+    fn add_recipient(&self, request: AddRecipientRequest) -> Self::RecipientFuture {
+        let AddRecipientRequest { mut envelope, rcpt } = request;
+        envelope.rcpts.push(rcpt);
+        future::ready(AddRecipientResult::Accepted(envelope))
     }
-    fn accept_sender(&self, _request: AcceptSenderRequest) -> Self::SenderFuture {
-        future::ready(AcceptSenderResult::Accepted)
+    fn start_mail(&self, mut request: StartMailRequest) -> Self::SenderFuture {
+        if request.id.is_empty() {
+            request.id = Uuid::new_v4().to_string();
+        }
+        future::ready(StartMailResult::Accepted(request))
     }
 }
 
@@ -36,39 +40,24 @@ impl MailQueue for DefaultMailService {
 
     fn mail(&self, envelope: Envelope) -> Self::MailFuture {
         let Envelope {
-            ref name,
-            ref peer,
-            ref local,
-            ref helo,
+            ref session,
             ref mail,
             ref id,
             ref rcpts,
         } = envelope;
         println!(
-            "Mail from {} (helo: {}, mailid: {}) (peer: {}) for {} on {} ({})",
+            "Mail from {:?} for {} (mailid: {:?}). {}",
             mail.as_ref()
                 .map(|m| m.from().to_string())
-                .unwrap_or("None".to_owned()),
-            helo.as_ref()
-                .map(|h| h.name().to_string())
-                .unwrap_or("None".to_owned()),
-            id,
-            peer.as_ref()
-                .map(|m| m.to_string())
-                .unwrap_or("None".to_owned()),
+                .unwrap_or("nobody".to_owned()),
             rcpts
                 .iter()
-                .fold(String::new(), |s, r| s + format!("{}, ", r).as_ref()),
-            name,
-            local
-                .as_ref()
-                .map(|m| m.to_string())
-                .unwrap_or("None".to_owned())
+                .fold(String::new(), |s, r| s + format!("{:?}, ", r.to_string())
+                    .as_ref()),
+            id,
+            session
         );
         future::ready(Some(MailSink { id: id.clone() }))
-    }
-    fn new_id(&self) -> String {
-        Uuid::new_v4().to_string()
     }
 }
 

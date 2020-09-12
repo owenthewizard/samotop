@@ -102,9 +102,9 @@ impl<'a> Server<'a> {
         info!("Listening on {:?}", listener.local_addr());
         while let Some(stream) = incoming.next().await {
             let conn = if let Ok(ref stream) = stream {
-                Connection::new(stream.local_addr().ok(), stream.peer_addr().ok())
+                ConnectionInfo::new(stream.local_addr().ok(), stream.peer_addr().ok())
             } else {
-                Connection::default()
+                ConnectionInfo::default()
             };
             let stream = stream.map_err(|e| e.into());
             let service = service.clone();

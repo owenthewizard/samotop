@@ -2,7 +2,6 @@ pub mod composite;
 pub mod default;
 
 use crate::common::*;
-use crate::model::io::Connection;
 use crate::model::mail::*;
 use composite::CompositeMailService;
 use composite::IntoComponents;
@@ -103,17 +102,17 @@ where
 ```
 */
 pub trait EsmtpService {
-    fn extend(&self, connection: &mut Connection);
+    fn extend(&self, connection: &mut SessionInfo);
 }
 
 /**
 A mail guard can be queried whether a recepient is accepted on which address.
 */
 pub trait MailGuard {
-    type RecipientFuture: Future<Output = AcceptRecipientResult> + Send + Sync + 'static;
-    type SenderFuture: Future<Output = AcceptSenderResult> + Send + Sync + 'static;
-    fn accept_recipient(&self, request: AcceptRecipientRequest) -> Self::RecipientFuture;
-    fn accept_sender(&self, request: AcceptSenderRequest) -> Self::SenderFuture;
+    type RecipientFuture: Future<Output = AddRecipientResult> + Send + Sync + 'static;
+    type SenderFuture: Future<Output = StartMailResult> + Send + Sync + 'static;
+    fn add_recipient(&self, request: AddRecipientRequest) -> Self::RecipientFuture;
+    fn start_mail(&self, request: StartMailRequest) -> Self::SenderFuture;
 }
 
 /**
@@ -125,7 +124,6 @@ pub trait MailQueue {
     type Mail: Write + Send + Sync + 'static;
     type MailFuture: Future<Output = Option<Self::Mail>> + Send + Sync + 'static;
     fn mail(&self, envelope: Envelope) -> Self::MailFuture;
-    fn new_id(&self) -> String;
 }
 
 impl NamedService for &str {
@@ -178,7 +176,7 @@ impl<T> EsmtpService for Arc<T>
 where
     T: EsmtpService,
 {
-    fn extend(&self, conn: &mut Connection) {
+    fn extend(&self, conn: &mut SessionInfo) {
         T::extend(self, conn)
     }
 }
@@ -189,11 +187,11 @@ where
 {
     type RecipientFuture = T::RecipientFuture;
     type SenderFuture = T::SenderFuture;
-    fn accept_recipient(&self, request: AcceptRecipientRequest) -> Self::RecipientFuture {
-        T::accept_recipient(self, request)
+    fn add_recipient(&self, request: AddRecipientRequest) -> Self::RecipientFuture {
+        T::add_recipient(self, request)
     }
-    fn accept_sender(&self, request: AcceptSenderRequest) -> Self::SenderFuture {
-        T::accept_sender(self, request)
+    fn start_mail(&self, request: StartMailRequest) -> Self::SenderFuture {
+        T::start_mail(self, request)
     }
 }
 
@@ -205,9 +203,6 @@ where
     type MailFuture = T::MailFuture;
     fn mail(&self, envelope: Envelope) -> Self::MailFuture {
         T::mail(self, envelope)
-    }
-    fn new_id(&self) -> String {
-        T::new_id(self)
     }
 }
 

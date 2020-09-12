@@ -1,4 +1,28 @@
 use std::collections::HashMap;
+use std::fmt::{Display, Formatter, Result as FmtResult};
+
+pub trait Extension {
+    const CODE: &'static str;
+    type Value: ExtensionValue;
+}
+pub trait ExtensionValue: Display {
+    type Extension: Extension;
+}
+
+#[derive(Eq, PartialEq, Debug, Clone, Copy, Hash)]
+struct StartTls;
+impl Extension for StartTls {
+    const CODE: &'static str = "STARTTLS";
+    type Value = Self;
+}
+impl ExtensionValue for StartTls {
+    type Extension = Self;
+}
+impl Display for StartTls {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        f.write_str(Self::CODE)
+    }
+}
 
 #[derive(Eq, PartialEq, Debug, Clone, Hash)]
 pub struct SmtpExtension {

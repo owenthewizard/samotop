@@ -1,10 +1,12 @@
 use crate::common::*;
 use crate::service::tcp::tls::TlsProvider;
 use crate::service::tcp::tls::TlsProviderFactory;
+use std::ops::Deref;
 use std::ops::DerefMut;
 
 pub trait MayBeTls {
-    fn supports_tls(&self) -> bool;
+    fn can_encrypt(&self) -> bool;
+    fn is_encrypted(&self) -> bool;
     fn start_tls(self: Pin<&mut Self>) -> std::io::Result<()>;
 }
 
@@ -16,8 +18,11 @@ where
     fn start_tls(mut self: Pin<&mut Self>) -> std::io::Result<()> {
         Pin::new(self.deref_mut()).start_tls()
     }
-    fn supports_tls(&self) -> bool {
-        self.deref().supports_tls()
+    fn can_encrypt(&self) -> bool {
+        Deref::deref(self).can_encrypt()
+    }
+    fn is_encrypted(&self) -> bool {
+        Deref::deref(self).is_encrypted()
     }
 }
 
@@ -49,10 +54,19 @@ impl<IO: Read + Write + Unpin, P: TlsProvider<IO>> MayBeTls for TlsCapable<IO, P
             Tls::Failed => self.fail("start_tls: TLS setup failed"),
         }
     }
-    fn supports_tls(&self) -> bool {
+    fn can_encrypt(&self) -> bool {
         match self {
             TlsCapable::PlainText(_) => false,
             TlsCapable::Enabled(_, _) => true,
+            TlsCapable::HandShake(_) => false,
+            TlsCapable::Encrypted(_) => false,
+            TlsCapable::Failed => false,
+        }
+    }
+    fn is_encrypted(&self) -> bool {
+        match self {
+            TlsCapable::PlainText(_) => false,
+            TlsCapable::Enabled(_, _) => false,
             TlsCapable::HandShake(_) => true,
             TlsCapable::Encrypted(_) => true,
             TlsCapable::Failed => false,
@@ -178,13 +192,16 @@ impl<IO, P: TlsProvider<IO>> std::fmt::Debug for TlsCapable<IO, P> {
     }
 }
 #[derive(Clone)]
-pub struct TlsDisabled ;
+pub struct TlsDisabled;
 
 impl MayBeTls for TlsDisabled {
     fn start_tls(self: Pin<&mut Self>) -> std::io::Result<()> {
         unreachable!()
     }
-    fn supports_tls(&self) -> bool {
+    fn can_encrypt(&self) -> bool {
+        false
+    }
+    fn is_encrypted(&self) -> bool {
         false
     }
 }

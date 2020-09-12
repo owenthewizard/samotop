@@ -1,7 +1,6 @@
 //! Reference implementation of a mail service
 //! simply delivering mail to single directory.
 use crate::common::*;
-use crate::model::io::Connection;
 use crate::model::mail::*;
 use crate::model::smtp::*;
 use crate::service::mail::composite::*;
@@ -66,11 +65,9 @@ impl<T> EsmtpService for EnableEightBit<T>
 where
     T: EsmtpService,
 {
-    fn extend(&self, connection: &mut Connection) {
-        self.0.extend(connection);
-        connection
-            .extensions_mut()
-            .enable(SmtpExtension::EIGHTBITMIME);
+    fn extend(&self, session: &mut SessionInfo) {
+        self.0.extend(session);
+        session.extensions.enable(SmtpExtension::EIGHTBITMIME);
     }
 }
 
@@ -84,9 +81,6 @@ where
 
     fn mail(&self, envelope: Envelope) -> Self::MailFuture {
         CreateMailFile::new(&self.dir, envelope)
-    }
-    fn new_id(&self) -> std::string::String {
-        self.inner.new_id()
     }
 }
 
@@ -103,10 +97,16 @@ pub struct CreateMailFile {
 impl CreateMailFile {
     pub fn new<D: AsRef<Path>>(dir: D, envelope: Envelope) -> Self {
         let mut headers = BytesMut::new();
-        headers.extend(format!("X-SamotopHelo: {:?}\r\n", envelope.helo).bytes());
-        headers.extend(format!("X-SamotopPeer: {:?}\r\n", envelope.peer).bytes());
-        headers.extend(format!("X-SamotopMailFrom: {:?}\r\n", envelope.mail).bytes());
-        headers.extend(format!("X-SamotopRcptTo: {:?}\r\n", envelope.rcpts).bytes());
+        headers.extend(format!("X-Samotop-Helo: {:?}\r\n", envelope.session.smtp_helo).bytes());
+        headers.extend(
+            format!(
+                "X-Samotop-Peer: {:?}\r\n",
+                envelope.session.connection.peer_addr
+            )
+            .bytes(),
+        );
+        headers.extend(format!("X-Samotop-From: {:?}\r\n", envelope.mail).bytes());
+        headers.extend(format!("X-Samotop-To: {:?}\r\n", envelope.rcpts).bytes());
 
         let target_dir = dir.as_ref().join("new");
         let tmp_dir = dir.as_ref().join("tmp");

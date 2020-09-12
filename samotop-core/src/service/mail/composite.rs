@@ -1,5 +1,4 @@
 use super::*;
-use crate::model::io::Connection;
 use crate::model::mail::*;
 
 pub struct CompositeMailService<NS, ES, GS, QS>((NS, ES, GS, QS));
@@ -142,7 +141,7 @@ where
     GS: MailGuard,
     QS: MailQueue,
 {
-    fn extend(&self, connection: &mut Connection) {
+    fn extend(&self, connection: &mut SessionInfo) {
         (self.0).1.extend(connection)
     }
 }
@@ -156,11 +155,11 @@ where
 {
     type RecipientFuture = GS::RecipientFuture;
     type SenderFuture = GS::SenderFuture;
-    fn accept_recipient(&self, request: AcceptRecipientRequest) -> Self::RecipientFuture {
-        (self.0).2.accept_recipient(request)
+    fn add_recipient(&self, request: AddRecipientRequest) -> Self::RecipientFuture {
+        (self.0).2.add_recipient(request)
     }
-    fn accept_sender(&self, request: AcceptSenderRequest) -> Self::SenderFuture {
-        (self.0).2.accept_sender(request)
+    fn start_mail(&self, request: StartMailRequest) -> Self::SenderFuture {
+        (self.0).2.start_mail(request)
     }
 }
 
@@ -175,8 +174,5 @@ where
     type MailFuture = QS::MailFuture;
     fn mail(&self, envelope: Envelope) -> Self::MailFuture {
         (self.0).3.mail(envelope)
-    }
-    fn new_id(&self) -> String {
-        (self.0).3.new_id()
     }
 }

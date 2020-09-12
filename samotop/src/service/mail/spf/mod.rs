@@ -48,9 +48,6 @@ impl<T: MailQueue> MailQueue for SpfService<T> {
             envelope,
         }
     }
-    fn new_id(&self) -> std::string::String {
-        self.inner.new_id()
-    }
 }
 
 #[pin_project]
@@ -72,11 +69,23 @@ impl<F, T: Future<Output = Option<F>>> Future for MailQueueFut<T> {
             Some(SmtpPath::Direct(SmtpAddress::Mailbox(_account, host))) => host.domain(),
             Some(SmtpPath::Relay(_path, SmtpAddress::Mailbox(_account, host))) => host.domain(),
         };
-        let peer_ip = match proj.envelope.peer.map(|addr| addr.ip()) {
+        let peer_ip = match proj
+            .envelope
+            .session
+            .connection
+            .peer_addr
+            .map(|addr| addr.ip())
+        {
             None => std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED),
             Some(ip) => ip,
         };
-        let helo_domain = match proj.envelope.helo.as_ref().map(|m| m.host().domain()) {
+        let helo_domain = match proj
+            .envelope
+            .session
+            .smtp_helo
+            .as_ref()
+            .map(|m| m.host().domain())
+        {
             None => String::new(),
             Some(s) => s,
         };

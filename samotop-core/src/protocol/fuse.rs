@@ -37,7 +37,7 @@ where
             return Poll::Ready(None);
         }
         let item = ready!(stream.poll_next(cx));
-        if let Some(Ok(WriteControl::Shutdown)) = item {
+        if let Some(Ok(WriteControl::Shutdown(_))) = item {
             *trip = true;
         }
         Poll::Ready(item)

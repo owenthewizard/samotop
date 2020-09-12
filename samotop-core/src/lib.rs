@@ -142,7 +142,10 @@ pub mod test_util {
                 "TLS not supported",
             ))
         }
-        fn supports_tls(&self) -> bool {
+        fn can_encrypt(&self) -> bool {
+            false
+        }
+        fn is_encrypted(&self) -> bool {
             false
         }
     }

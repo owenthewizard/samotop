@@ -70,8 +70,7 @@ impl<S: MailService> BasicSessionHandler<S> {
                 let StateData {
                     mut sink,
                     mailid,
-                    connection,
-                    peer_helo,
+                    session,
                 } = state;
                 let fut = async move {
                     match sink.write_all(&bytes[..]).await {
@@ -79,17 +78,13 @@ impl<S: MailService> BasicSessionHandler<S> {
                             data.state = State::Data(StateData {
                                 sink,
                                 mailid,
-                                connection,
-                                peer_helo,
+                                session,
                             });
                             data
                         }
                         Err(e) => {
                             warn!("Failed to write mail data for {} - {}", mailid, e);
-                            data.state = State::Connected(StateHelo {
-                                connection,
-                                peer_helo,
-                            });
+                            data.state = State::Connected(session);
                             // CheckMe: following this reset, we are not sending any response yet. handle_data_end should do that.
                             data
                         }
@@ -110,29 +105,20 @@ impl<S: MailService> BasicSessionHandler<S> {
                 let StateData {
                     mut sink,
                     mailid,
-                    connection,
-                    peer_helo,
+                    session,
                 } = state;
                 let fut = async move {
                     match sink.close().await {
                         Ok(()) => {
-                            data.state = State::Connected(StateHelo {
-                                connection,
-                                peer_helo,
-                            });
                             data.say_mail_queued(mailid.as_str());
-                            data
                         }
                         Err(e) => {
                             warn!("Failed to finish mail data for {} - {}", mailid, e);
-                            data.state = State::Connected(StateHelo {
-                                connection,
-                                peer_helo,
-                            });
                             data.say_mail_queue_failed_temporarily();
-                            data
                         }
                     }
+                    data.state = State::Connected(session);
+                    data
                 };
                 SessionState::Pending(Box::pin(fut))
             }
@@ -147,8 +133,11 @@ impl<S: MailService> BasicSessionHandler<S> {
         data.say_reply(SmtpReply::CommandSyntaxFailure);
         SessionState::Ready(data)
     }
-    pub fn handle_conn(&self, mut data: Buffers, connection: Connection) -> SessionState<Buffers> {
-        data.state = State::Connected(StateHelo::from(connection));
+    pub fn handle_conn(&self, mut data: Buffers, mut sess: SessionInfo) -> SessionState<Buffers> {
+        if sess.service_name.is_empty() {
+            sess.service_name = self.service.name().to_owned();
+        }
+        data.state = State::Connected(sess);
         data.say_service_ready(self.service.name());
         SessionState::Ready(data)
     }
@@ -165,7 +154,7 @@ impl<S: MailService> BasicSessionHandler<S> {
         let remote = helo.name();
         let extended = helo.is_extended();
         let get_extensions =
-            |conn: &Connection| conn.extensions().iter().map(Clone::clone).collect();
+            |conn: &SessionInfo| conn.extensions.iter().map(Clone::clone).collect();
         let respond = |data: &mut Buffers, exts| match extended {
             false => {
                 data.say_helo(self.service.name(), remote);
@@ -174,62 +163,61 @@ impl<S: MailService> BasicSessionHandler<S> {
                 data.say_ehlo(&self.service.name(), exts, remote);
             }
         };
-        match data.state {
-            State::New | State::Closed => {
+        data.state = match std::mem::replace(&mut data.state, State::Closed) {
+            current @ State::New | current @ State::Closed => {
                 data.say_command_sequence_fail();
+                current
             }
-            State::Connected(ref mut state) => {
-                let exts = get_extensions(&state.connection);
-                state.peer_helo = Some(helo);
+            State::Connected(mut state) => {
+                let exts = get_extensions(&state);
+                state.smtp_helo = Some(helo);
                 respond(&mut data, exts);
+                State::Connected(state)
             }
-            State::Mail(ref mut state) => {
-                let exts = get_extensions(&state.connection);
-                state.peer_helo = Some(helo);
+            State::Mail(mut envelope) => {
+                let exts = get_extensions(&envelope.session);
+                envelope.session.smtp_helo = Some(helo);
                 respond(&mut data, exts);
+                State::Connected(envelope.session)
             }
-            State::Data(ref mut state) => {
-                let exts = get_extensions(&state.connection);
-                state.peer_helo = Some(helo);
+            State::Data(mut state) => {
+                let exts = get_extensions(&state.session);
+                state.session.smtp_helo = Some(helo);
                 respond(&mut data, exts);
+                State::Connected(state.session)
             }
         };
-        data.rst();
         SessionState::Ready(data)
     }
     fn cmd_quit(&self, mut data: Buffers) -> SessionState<Buffers> {
         let name = self.service.name().to_owned();
-        data.say_reply(SmtpReply::ClosingConnectionInfo(name));
-        data.say(WriteControl::Shutdown);
+        data.say_shutdown_ok(name);
         data.state = State::Closed;
         SessionState::Ready(data)
     }
     fn cmd_mail(&self, mut data: Buffers, mail: SmtpMail) -> SessionState<Buffers> {
         match std::mem::replace(&mut data.state, State::Closed) {
-            State::Connected(state) if state.peer_helo.is_some() => {
-                let mailid = self.service.new_id();
-
-                let request = AcceptSenderRequest {
-                    name: self.service.name().to_owned(),
-                    local: state.connection.local_addr(),
-                    peer: state.connection.peer_addr(),
-                    helo: state.peer_helo.clone(),
+            State::Connected(session) if session.smtp_helo.is_some() => {
+                let request = StartMailRequest {
+                    session: session.clone(),
+                    id: String::new(),
                     mail: Some(mail.clone()),
-                    id: mailid.clone(),
+                    rcpts: vec![],
                 };
-                let fut = self.service.accept_sender(request).map(move |res| {
+                let fut = self.service.start_mail(request).map(move |res| {
+                    use StartMailResult as R;
                     data.state = match res {
-                        AcceptSenderResult::Failed => {
-                            data.say_reply(SmtpReply::ProcesingError);
-                            State::Connected(state)
+                        R::Failed(StartMailFailure::TerminateSession, description) => {
+                            data.say_shutdown_err(description);
+                            State::Closed
                         }
-                        AcceptSenderResult::Rejected => {
-                            data.say_recipient_not_accepted();
-                            State::Connected(state)
+                        R::Failed(failure, description) => {
+                            data.say_mail_failed(failure, description);
+                            State::Connected(session)
                         }
-                        AcceptSenderResult::Accepted => {
+                        R::Accepted(envelope) => {
                             data.say_ok();
-                            State::Mail(StateMail::from((state, mail, mailid)))
+                            State::Mail(envelope)
                         }
                     };
                     data
@@ -243,40 +231,34 @@ impl<S: MailService> BasicSessionHandler<S> {
             | other @ State::New
             | other @ State::Closed => {
                 data.state = other;
-                data.say_command_sequence_fail().rst();
+                data.say_command_sequence_fail();
                 SessionState::Ready(data)
             }
         }
     }
     fn cmd_rcpt(&self, mut data: Buffers, rcpt: SmtpPath) -> SessionState<Buffers> {
         match std::mem::replace(&mut data.state, State::Closed) {
-            State::Mail(mut state) => {
-                let request = AcceptRecipientRequest {
-                    name: self.service.name().to_owned(),
-                    local: state.connection.local_addr(),
-                    peer: state.connection.peer_addr(),
-                    helo: state.peer_helo.clone(),
-                    mail: Some(state.mail.clone()),
-                    id: state.mailid.clone(),
-                    rcpt: rcpt,
-                };
-                let fut = self.service.accept_recipient(request).map(move |res| {
-                    match res {
-                        AcceptRecipientResult::Failed => data.say_reply(SmtpReply::ProcesingError),
-                        AcceptRecipientResult::Rejected => data.say_recipient_not_accepted(),
-                        AcceptRecipientResult::RejectedWithNewPath(path) => {
-                            data.say_recipient_not_local(path)
+            State::Mail(envelope) => {
+                let request = AddRecipientRequest { envelope, rcpt };
+                let fut = self.service.add_recipient(request).map(move |res| {
+                    data.state = match res {
+                        AddRecipientResult::TerminateSession(description) => {
+                            data.say_shutdown_err(description);
+                            State::Closed
                         }
-                        AcceptRecipientResult::Accepted(path) => {
-                            state.recipients.push(path);
-                            data.say_ok()
+                        AddRecipientResult::Failed(envelope, failure, description) => {
+                            data.say_rcpt_failed(failure, description);
+                            State::Mail(envelope)
                         }
-                        AcceptRecipientResult::AcceptedWithNewPath(path) => {
-                            state.recipients.push(path.clone());
-                            data.say_ok_recipient_not_local(path)
+                        AddRecipientResult::Accepted(envelope) => {
+                            data.say_ok();
+                            State::Mail(envelope)
+                        }
+                        AddRecipientResult::AcceptedWithNewPath(envelope, path) => {
+                            data.say_ok_recipient_not_local(path);
+                            State::Mail(envelope)
                         }
                     };
-                    data.state = State::Mail(state);
                     data
                 });
 
@@ -294,40 +276,46 @@ impl<S: MailService> BasicSessionHandler<S> {
     }
     fn cmd_data(&self, mut data: Buffers) -> SessionState<Buffers> {
         match std::mem::replace(&mut data.state, State::Closed) {
-            State::Mail(state) if !state.recipients.is_empty() => {
-                let envelope = Envelope {
-                    name: self.service.name().to_owned(),
-                    local: state.connection.local_addr(),
-                    peer: state.connection.peer_addr(),
-                    helo: state.peer_helo.clone(),
-                    mail: Some(state.mail.clone()),
-                    id: state.mailid.to_string(),
-                    rcpts: state.recipients.clone(),
-                };
+            State::Mail(envelope) if !envelope.rcpts.is_empty() => {
+                let mailid = envelope.id.clone();
+                let session = envelope.session.clone();
                 let fut = self.service.mail(envelope).map(move |res| {
-                    match res {
-                        Some(mail) => {
-                            data.state = State::Data(StateData::from((state, mail)));
-                            data.say(WriteControl::StartData(SmtpReply::StartMailInputChallenge));
+                    data.state = match res {
+                        Some(sink) => {
+                            data.say_start_data_challenge();
+                            State::Data(StateData {
+                                session,
+                                mailid,
+                                sink: Box::pin(sink),
+                            })
                         }
                         None => {
-                            data.state = State::Mail(state);
-                            data.say_mail_queue_refused().rst();
+                            data.say_mail_queue_refused();
+                            State::Connected(session)
                         }
-                    }
+                    };
                     data
                 });
                 SessionState::Pending(Box::pin(fut))
             }
             state => {
                 data.state = state;
-                data.say_command_sequence_fail().rst();
+                data.say_command_sequence_fail();
                 SessionState::Ready(data)
             }
         }
     }
     fn cmd_rset(&self, mut data: Buffers) -> SessionState<Buffers> {
-        data.say_ok().rst();
+        data.say_ok();
+        match data.state {
+            State::New | State::Closed | State::Connected(_) => {}
+            State::Mail(envelope) => {
+                data.state = State::Connected(envelope.session);
+            }
+            State::Data(state) => {
+                data.state = State::Connected(state.session);
+            }
+        };
         SessionState::Ready(data)
     }
     fn cmd_noop(&self, mut data: Buffers) -> SessionState<Buffers> {
@@ -339,11 +327,7 @@ impl<S: MailService> BasicSessionHandler<S> {
             State::Connected(ref mut state) => {
                 let name = self.service.name().to_owned();
                 // you cannot STARTTLS twice so we only advertise it before first use
-                if state
-                    .connection
-                    .extensions_mut()
-                    .disable(SmtpExtension::STARTTLS.code)
-                {
+                if state.extensions.disable(SmtpExtension::STARTTLS.code) {
                     // TODO: better message response
                     data.say(WriteControl::StartTls(SmtpReply::ServiceReadyInfo(name)));
                 } else {
