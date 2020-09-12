@@ -1,7 +1,7 @@
 use crate::common::*;
 use crate::model::io::ConnectionInfo;
 use crate::model::mail::SessionInfo;
-use crate::model::smtp::SmtpExtension;
+use crate::model::smtp::extension;
 use crate::protocol::fuse::*;
 use crate::protocol::parse::*;
 use crate::protocol::smtp::SmtpCodec;
@@ -83,7 +83,7 @@ where
     let io = io?;
     let mut sess = SessionInfo::new(connection, "".to_owned());
     if io.can_encrypt() && !io.is_encrypted() {
-        sess.extensions.enable(SmtpExtension::STARTTLS);
+        sess.extensions.enable(&extension::STARTTLS);
     }
     let (dst, src) = SmtpCodec::new(io, sess).split();
     let handler = session_service.start(src.parse(parser)).await;

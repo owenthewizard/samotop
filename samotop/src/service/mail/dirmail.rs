@@ -67,7 +67,7 @@ where
 {
     fn extend(&self, session: &mut SessionInfo) {
         self.0.extend(session);
-        session.extensions.enable(SmtpExtension::EIGHTBITMIME);
+        session.extensions.enable(&extension::EIGHTBITMIME);
     }
 }
 

@@ -44,7 +44,7 @@ impl Buffers {
     pub fn say_ehlo(
         &mut self,
         name: &str,
-        extensions: Vec<SmtpExtension>,
+        extensions: Vec<String>,
         remote: String,
     ) -> &mut Self {
         let local = name.to_owned();

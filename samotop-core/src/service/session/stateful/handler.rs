@@ -154,7 +154,7 @@ impl<S: MailService> BasicSessionHandler<S> {
         let remote = helo.name();
         let extended = helo.is_extended();
         let get_extensions =
-            |conn: &SessionInfo| conn.extensions.iter().map(Clone::clone).collect();
+            |conn: &SessionInfo| conn.extensions.iter().map(str::to_owned).collect();
         let respond = |data: &mut Buffers, exts| match extended {
             false => {
                 data.say_helo(self.service.name(), remote);
@@ -327,7 +327,7 @@ impl<S: MailService> BasicSessionHandler<S> {
             State::Connected(ref mut state) => {
                 let name = self.service.name().to_owned();
                 // you cannot STARTTLS twice so we only advertise it before first use
-                if state.extensions.disable(SmtpExtension::STARTTLS.code) {
+                if state.extensions.disable(&extension::STARTTLS) {
                     // TODO: better message response
                     data.say(WriteControl::StartTls(SmtpReply::ServiceReadyInfo(name)));
                 } else {
