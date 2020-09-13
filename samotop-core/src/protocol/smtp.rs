@@ -229,26 +229,33 @@ where
 {
     type Item = Result<ReadControl>;
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        loop {
-            break match std::mem::replace(self.as_mut().project().connection, State::Closed) {
-                State::New(connection) => {
-                    *self.as_mut().project().connection = State::Used(format!("{}", connection));
-                    trace!("Connected {}", connection);
-                    Poll::Ready(Some(Ok(ReadControl::PeerConnected(connection))))
+        match self.connection {
+            State::New(_) => trace!("polling next on new"),
+            State::Used(_) => trace!("polling next on used"),
+            State::Closed => trace!("polling next on closed"),
+        };
+        match std::mem::replace(self.as_mut().project().connection, State::Closed) {
+            State::New(connection) => {
+                *self.as_mut().project().connection = State::Used(format!("{}", connection));
+                trace!("Connected {}", connection);
+                Poll::Ready(Some(Ok(ReadControl::PeerConnected(connection))))
+            }
+            State::Used(desc) => match self.as_mut().poll_read_either(cx) {
+                Poll::Ready(None) => {
+                    *self.as_mut().project().connection = State::Closed;
+                    trace!("Closing {}", desc);
+                    Poll::Ready(Some(Ok(ReadControl::PeerShutdown)))
                 }
-                State::Used(desc) => match ready!(self.as_mut().poll_read_either(cx)) {
-                    None => {
-                        *self.as_mut().project().connection = State::Closed;
-                        trace!("Closing {}", desc);
-                        Poll::Ready(Some(Ok(ReadControl::PeerShutdown)))
-                    }
-                    Some(ready) => {
-                        *self.as_mut().project().connection = State::Used(desc);
-                        Poll::Ready(Some(ready))
-                    }
-                },
-                State::Closed => Poll::Ready(None),
-            };
+                Poll::Ready(Some(ready)) => {
+                    *self.as_mut().project().connection = State::Used(desc);
+                    Poll::Ready(Some(ready))
+                }
+                Poll::Pending => {
+                    *self.as_mut().project().connection = State::Used(desc);
+                    Poll::Pending
+                }
+            },
+            State::Closed => Poll::Ready(None),
         }
     }
 }
@@ -294,7 +301,10 @@ where
         while let Some(pending) = projection.s2c_pending.pop_front() {
             // save bytes for next iteration
             match pending {
-                PendingWrite::Shutdown => *projection.connection = State::Closed,
+                PendingWrite::Shutdown => {
+                    trace!("shutting down");
+                    *projection.connection = State::Closed
+                }
                 PendingWrite::StartData => *projection.read_data = Some(true),
                 PendingWrite::StartTls => projection.io.as_mut().start_tls()?,
                 PendingWrite::Data(mut pending) => {

@@ -1,4 +1,4 @@
-helo copy.paste.org
+ehlo copy.paste.org
 mail from:<a@b.c>
 rcpt to:<a@b.c>
 data
