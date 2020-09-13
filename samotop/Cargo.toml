@@ -1,6 +1,6 @@
 [package]
 name = "samotop"
-version = "0.10.0"
+version = "0.11.0-samotop-dev"
 authors = ["jocutajar <tellnoone@robajz.info>"]
 license = "MIT OR Apache-2.0"
 description = "SMTP server and library built on async-std"
@@ -31,20 +31,20 @@ rust-tls = ["async-tls"]
 #native-tls = ["async-native-tls"]
 
 [dependencies.samotop-core]
-version = "0.10.0"
+version = "0.11.0-samotop-dev"
 path = "../samotop-core"
 
 [dependencies.samotop-parser]
-version = "0.10.0"
+version = "0.11.0-samotop-dev"
 path = "../samotop-parser"
 
 [dependencies.samotop-with-spf]
-version = "0.10.0"
+version = "0.11.0-samotop-dev"
 path = "../samotop-with-spf"
 optional = true
 
 [dependencies.samotop-to-lmtp]
-version = "0.10.0"
+version = "0.11.0-samotop-dev"
 path = "../samotop-to-lmtp"
 optional = true
 

@@ -1160,7 +1160,7 @@ checksum = "71d301d4193d031abdd79ff7e3dd721168a9572ef3fe51a1517aba235bd8f86e"
 
 [[package]]
 name = "samotop"
-version = "0.10.0"
+version = "0.11.0-samotop-dev"
 dependencies = [
  "async-native-tls",
  "async-std",
@@ -1179,7 +1179,7 @@ dependencies = [
 
 [[package]]
 name = "samotop-core"
-version = "0.10.0"
+version = "0.11.0-samotop-dev"
 dependencies = [
  "async-trait 0.1.41 (git+https://github.com/BrightOpen/async-trait.git?branch=feature/sync-futures-#77)",
  "bytes",
@@ -1193,11 +1193,11 @@ dependencies = [
 
 [[package]]
 name = "samotop-model"
-version = "0.10.0"
+version = "0.11.0-samotop-dev"
 
 [[package]]
 name = "samotop-parser"
-version = "0.10.0"
+version = "0.11.0-samotop-dev"
 dependencies = [
  "peg",
  "samotop-core",
@@ -1219,7 +1219,7 @@ dependencies = [
 
 [[package]]
 name = "samotop-to-lmtp"
-version = "0.10.0"
+version = "0.11.0-samotop-dev"
 dependencies = [
  "async-smtp",
  "async-tls 0.10.0",
@@ -1231,7 +1231,7 @@ dependencies = [
 
 [[package]]
 name = "samotop-with-spf"
-version = "0.10.0"
+version = "0.11.0-samotop-dev"
 dependencies = [
  "log",
  "pin-project",
