@@ -243,25 +243,25 @@ impl<S: MailService> BasicSessionHandler<S> {
     }
     fn cmd_rcpt(&self, mut data: Buffers, rcpt: SmtpPath) -> SessionState<Buffers> {
         match std::mem::replace(&mut data.state, State::Closed) {
-            State::Mail(envelope) => {
-                let request = AddRecipientRequest { envelope, rcpt };
+            State::Mail(transaction) => {
+                let request = AddRecipientRequest { transaction, rcpt };
                 let fut = self.service.add_recipient(request).map(move |res| {
                     data.state = match res {
                         AddRecipientResult::TerminateSession(description) => {
                             data.say_shutdown_err(description);
                             State::Closed
                         }
-                        AddRecipientResult::Failed(envelope, failure, description) => {
+                        AddRecipientResult::Failed(transaction, failure, description) => {
                             data.say_rcpt_failed(failure, description);
-                            State::Mail(envelope)
+                            State::Mail(transaction)
                         }
-                        AddRecipientResult::Accepted(envelope) => {
+                        AddRecipientResult::Accepted(transaction) => {
                             data.say_ok();
-                            State::Mail(envelope)
+                            State::Mail(transaction)
                         }
-                        AddRecipientResult::AcceptedWithNewPath(envelope, path) => {
+                        AddRecipientResult::AcceptedWithNewPath(transaction, path) => {
                             data.say_ok_recipient_not_local(path);
-                            State::Mail(envelope)
+                            State::Mail(transaction)
                         }
                     };
                     data
@@ -284,9 +284,9 @@ impl<S: MailService> BasicSessionHandler<S> {
             State::Mail(envelope) if !envelope.rcpts.is_empty() => {
                 let mailid = envelope.id.clone();
                 let session = envelope.session.clone();
-                let fut = self.service.mail(envelope).map(move |res| {
+                let fut = self.service.send_mail(envelope).map(move |res| {
                     data.state = match res {
-                        Some(sink) => {
+                        Ok(sink) => {
                             data.say_start_data_challenge();
                             State::Data(StateData {
                                 session,
@@ -294,8 +294,12 @@ impl<S: MailService> BasicSessionHandler<S> {
                                 sink: Box::pin(sink),
                             })
                         }
-                        None => {
+                        Err(DispatchError::Refused) => {
                             data.say_mail_queue_refused();
+                            State::Connected(session)
+                        }
+                        Err(DispatchError::FailedTemporarily) => {
+                            data.say_mail_queue_failed_temporarily();
                             State::Connected(session)
                         }
                     };

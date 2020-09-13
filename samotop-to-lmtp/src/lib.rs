@@ -5,9 +5,12 @@ mod net;
 
 use crate::net::*;
 use async_smtp::prelude::{
-    EmailAddress, Envelope as LmtpEnvelope, MailDataStream, SmtpClient, SmtpTransport, Transport,
+    EmailAddress, Envelope, MailDataStream, SmtpClient, SmtpTransport, Transport,
 };
 use samotop_core::common::*;
+use samotop_core::model::mail::DispatchError;
+use samotop_core::model::mail::DispatchResult;
+use samotop_core::model::mail::Transaction;
 use samotop_core::service::mail::composite::*;
 use samotop_core::service::mail::*;
 use std::marker::PhantomData;
@@ -30,11 +33,11 @@ impl Config<variants::Delivery> {
     }
 }
 
-impl<ES: EsmtpService, GS: MailGuard, QS: MailQueue> MailSetup<ES, GS, QS>
+impl<ES: EsmtpService, GS: MailGuard, DS: MailDispatch> MailSetup<ES, GS, DS>
     for Config<variants::Delivery>
 {
     type Output = CompositeMailService<ES, GS, LmtpMail<variants::Delivery>>;
-    fn setup(self, extend: ES, guard: GS, _queue: QS) -> Self::Output {
+    fn setup(self, extend: ES, guard: GS, _dispatch: DS) -> Self::Output {
         (extend, guard, LmtpMail::new(self)).into()
     }
 }
@@ -123,10 +126,10 @@ fn closed() -> std::io::Error {
     )
 }
 
-impl<Any> MailQueue for LmtpMail<Any> {
+impl<Any> MailDispatch for LmtpMail<Any> {
     type Mail = LmtpStream<<SmtpTransport<SmtpClient, MyCon> as Transport>::DataStream>;
-    type MailFuture = Pin<Box<dyn Future<Output = Option<Self::Mail>> + Sync + Send>>;
-    fn mail(&self, mail: samotop_core::model::mail::Envelope) -> Self::MailFuture {
+    type MailFuture = Pin<Box<dyn Future<Output = DispatchResult<Self::Mail>> + Sync + Send>>;
+    fn send_mail(&self, mail: Transaction) -> Self::MailFuture {
         let addr = self.config.address.clone();
         let connector = conn();
         let fut = async move {
@@ -140,7 +143,7 @@ impl<Any> MailQueue for LmtpMail<Any> {
                 .map(|rcpt| EmailAddress::new(rcpt.to_string()))
                 .collect();
 
-            let envelope = LmtpEnvelope::new(sender, recipients?, mail.id)?;
+            let envelope = Envelope::new(sender, recipients?, mail.id)?;
             let stream = SmtpClient::new(addr)?
                 .connect_with(connector)
                 .await?
@@ -151,11 +154,11 @@ impl<Any> MailQueue for LmtpMail<Any> {
         .then(|res: Result<_>| match res {
             Ok(stream) => {
                 trace!("Starting mail.");
-                future::ready(Some(stream))
+                future::ready(Ok(stream))
             }
             Err(e) => {
                 error!("Failed to start mail: {:?}", e);
-                future::ready(None)
+                future::ready(Err(DispatchError::FailedTemporarily))
             }
         });
         Box::pin(fut)

@@ -6,50 +6,53 @@ use crate::model::mail::*;
 use composite::IntoComponents;
 
 pub trait MailServiceBuilder: IntoComponents {
-    fn using<MS: MailSetup<Self::Esmtp, Self::Guard, Self::Queue>>(self, setup: MS) -> MS::Output;
+    fn using<MS: MailSetup<Self::Esmtp, Self::Guard, Self::Dispatch>>(
+        self,
+        setup: MS,
+    ) -> MS::Output;
 }
 
 impl<T> MailServiceBuilder for T
 where
     T: IntoComponents,
 {
-    fn using<MS: MailSetup<T::Esmtp, T::Guard, T::Queue>>(self, setup: MS) -> MS::Output {
+    fn using<MS: MailSetup<T::Esmtp, T::Guard, T::Dispatch>>(self, setup: MS) -> MS::Output {
         let (e, h, q) = self.into_components();
         setup.setup(e, h, q)
     }
 }
 
-pub trait MailService: EsmtpService + MailGuard + MailQueue {}
-impl<T> MailService for T where T: EsmtpService + MailGuard + MailQueue {}
+pub trait MailService: EsmtpService + MailGuard + MailDispatch {}
+impl<T> MailService for T where T: EsmtpService + MailGuard + MailDispatch {}
 
 /**
 Can set up the given mail services.
 
 ```
 # use samotop_core::service::mail::*;
-/// This mail setup replaces queue service with default. No mail will be sent.
+/// This mail setup replaces dispatch service with default. No mail will be sent.
 #[derive(Clone, Debug)]
-struct NoQueue;
+struct NoDispatch;
 
-impl<ES, GS, QS> MailSetup<ES, GS, QS> for NoQueue
+impl<ES, GS, DS> MailSetup<ES, GS, DS> for NoDispatch
 where
     ES: EsmtpService,
     GS: MailGuard,
-    QS: MailQueue,
+    DS: MailDispatch,
 {
     type Output = composite::CompositeMailService<ES, GS, default::DefaultMailService>;
-    fn setup(self, extend: ES, guard: GS, _queue: QS) -> Self::Output {
+    fn setup(self, extend: ES, guard: GS, _dispatch: DS) -> Self::Output {
         (extend, guard, default::DefaultMailService::default()).into()
     }
 }
 
-let mail_svc = default::DefaultMailService::default().using(NoQueue);
+let mail_svc = default::DefaultMailService::default().using(NoDispatch);
 
 ```
 */
-pub trait MailSetup<ES, GS, QS> {
+pub trait MailSetup<ES, GS, DS> {
     type Output: MailService;
-    fn setup(self, extend: ES, guard: GS, queue: QS) -> Self::Output;
+    fn setup(self, extend: ES, guard: GS, dispatch: DS) -> Self::Output;
 }
 
 /**
@@ -91,14 +94,14 @@ pub trait MailGuard {
 }
 
 /**
-A mail queue allows us to queue an e-mail.
+A mail dispatch allows us to dispatch an e-mail.
 For a given mail envelope it produces a Sink that can receive mail data.
-Once the sink is closed successfully, the mail is queued.
+Once the sink is closed successfully, the mail is dispatchd.
 */
-pub trait MailQueue {
+pub trait MailDispatch {
     type Mail: Write + Send + Sync + 'static;
-    type MailFuture: Future<Output = Option<Self::Mail>> + Send + Sync + 'static;
-    fn mail(&self, envelope: Envelope) -> Self::MailFuture;
+    type MailFuture: Future<Output = DispatchResult<Self::Mail>> + Send + Sync + 'static;
+    fn send_mail(&self, transaction: Transaction) -> Self::MailFuture;
 }
 
 impl<T> EsmtpService for Arc<T>
@@ -124,14 +127,14 @@ where
     }
 }
 
-impl<T> MailQueue for Arc<T>
+impl<T> MailDispatch for Arc<T>
 where
-    T: MailQueue,
+    T: MailDispatch,
 {
     type Mail = T::Mail;
     type MailFuture = T::MailFuture;
-    fn mail(&self, envelope: Envelope) -> Self::MailFuture {
-        T::mail(self, envelope)
+    fn send_mail(&self, transaction: Transaction) -> Self::MailFuture {
+        T::send_mail(self, transaction)
     }
 }
 
@@ -140,14 +143,14 @@ mod tests {
     use super::*;
     struct TestSetup;
 
-    impl<ES, GS, QS> MailSetup<ES, GS, QS> for TestSetup
+    impl<ES, GS, DS> MailSetup<ES, GS, DS> for TestSetup
     where
         ES: EsmtpService,
         GS: MailGuard,
-        QS: MailQueue,
+        DS: MailDispatch,
     {
         type Output = composite::CompositeMailService<NS, ES, GS, default::DefaultMailService>;
-        fn setup(self, extend: ES, guard: GS, _queue: QS) -> Self::Output {
+        fn setup(self, extend: ES, guard: GS, _dispatch: DS) -> Self::Output {
             (extend, guard, default::DefaultMailService)
         }
     }

@@ -34,9 +34,12 @@ impl MailGuard for DefaultMailService {
     type RecipientFuture = futures::future::Ready<AddRecipientResult>;
     type SenderFuture = futures::future::Ready<StartMailResult>;
     fn add_recipient(&self, request: AddRecipientRequest) -> Self::RecipientFuture {
-        let AddRecipientRequest { mut envelope, rcpt } = request;
-        envelope.rcpts.push(rcpt);
-        future::ready(AddRecipientResult::Accepted(envelope))
+        let AddRecipientRequest {
+            mut transaction,
+            rcpt,
+        } = request;
+        transaction.rcpts.push(rcpt);
+        future::ready(AddRecipientResult::Accepted(transaction))
     }
     fn start_mail(&self, mut request: StartMailRequest) -> Self::SenderFuture {
         if request.id.is_empty() {
@@ -46,17 +49,17 @@ impl MailGuard for DefaultMailService {
     }
 }
 
-impl MailQueue for DefaultMailService {
+impl MailDispatch for DefaultMailService {
     type Mail = MailSink;
-    type MailFuture = futures::future::Ready<Option<Self::Mail>>;
+    type MailFuture = futures::future::Ready<DispatchResult<Self::Mail>>;
 
-    fn mail(&self, envelope: Envelope) -> Self::MailFuture {
-        let Envelope {
+    fn send_mail(&self, transaction: Transaction) -> Self::MailFuture {
+        let Transaction {
             ref session,
             ref mail,
             ref id,
             ref rcpts,
-        } = envelope;
+        } = transaction;
         println!(
             "Mail from {:?} for {} (mailid: {:?}). {}",
             mail.as_ref()
@@ -69,7 +72,7 @@ impl MailQueue for DefaultMailService {
             id,
             session
         );
-        future::ready(Some(MailSink { id: id.clone() }))
+        future::ready(Ok(MailSink { id: id.clone() }))
     }
 }
 

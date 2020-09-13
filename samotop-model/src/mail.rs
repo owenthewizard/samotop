@@ -3,7 +3,7 @@ use crate::smtp::*;
 
 /// Mail envelope before sending mail data
 #[derive(Debug, Clone)]
-pub struct Envelope {
+pub struct Transaction {
     /// Description of the current session
     pub session: SessionInfo,
     /// unique mail transaction identifier
@@ -13,7 +13,7 @@ pub struct Envelope {
     /// A list of SMTP rcpt to:path sent by peer
     pub rcpts: Vec<SmtpPath>,
 }
-pub type StartMailRequest = Envelope;
+pub type StartMailRequest = Transaction;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SessionInfo {
@@ -61,7 +61,7 @@ pub enum StartMailResult {
     /// Failure with explanation that should include the ID
     Failed(StartMailFailure, String),
     /// 250 Mail command accepted
-    Accepted(Envelope),
+    Accepted(Transaction),
 }
 
 #[derive(Debug, Clone)]
@@ -93,7 +93,7 @@ pub enum StartMailFailure {
 #[derive(Debug, Clone)]
 pub struct AddRecipientRequest {
     /// The envelope to add to
-    pub envelope: Envelope,
+    pub transaction: Transaction,
     /// The SMTP rcpt to:path sent by peer we want to check
     pub rcpt: SmtpPath,
 }
@@ -106,11 +106,11 @@ pub enum AddRecipientResult {
     ///    shut down)
     TerminateSession(String),
     /// Failed with description that should include the ID, see `AddRecipientFailure`
-    Failed(Envelope, AddRecipientFailure, String),
+    Failed(Transaction, AddRecipientFailure, String),
     /// 251  User not local; will forward to <forward-path>
-    AcceptedWithNewPath(Envelope, SmtpPath),
+    AcceptedWithNewPath(Transaction, SmtpPath),
     /// 250  Requested mail action okay, completed
-    Accepted(Envelope),
+    Accepted(Transaction),
 }
 
 #[derive(Debug, Clone)]
@@ -138,21 +138,21 @@ pub enum AddRecipientFailure {
     InvalidParameterValue,
 }
 
-pub type QueueResult = std::result::Result<(), QueueError>;
+pub type DispatchResult<T> = std::result::Result<T, DispatchError>;
 
 #[derive(Debug, Clone)]
-pub enum QueueError {
+pub enum DispatchError {
     Refused,
-    Failed,
+    FailedTemporarily,
 }
 
-impl std::error::Error for QueueError {}
+impl std::error::Error for DispatchError {}
 
-impl std::fmt::Display for QueueError {
+impl std::fmt::Display for DispatchError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
         match self {
-            QueueError::Failed => write!(f, "Mail queue failed temporarily"),
-            QueueError::Refused => write!(f, "Mail was refused by the server"),
+            DispatchError::FailedTemporarily => write!(f, "Mail transaction failed temporarily"),
+            DispatchError::Refused => write!(f, "Mail was refused by the server"),
         }
     }
 }

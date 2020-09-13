@@ -1,6 +1,6 @@
 use crate::common::{Pin, Write};
 use crate::model::mail::AddRecipientFailure;
-use crate::model::mail::Envelope;
+use crate::model::mail::Transaction;
 use crate::model::mail::SessionInfo;
 use crate::model::mail::StartMailFailure;
 
@@ -123,7 +123,7 @@ impl Buffers {
 pub enum State {
     New,
     Connected(SessionInfo),
-    Mail(Envelope),
+    Mail(Transaction),
     Data(StateData),
     Closed,
 }
@@ -147,9 +147,9 @@ impl std::fmt::Debug for StateData {
             .finish()
     }
 }
-impl<M: Write + Send + Sync + 'static> From<(Envelope, M)> for StateData {
-    fn from(tuple: (Envelope, M)) -> Self {
-        let (Envelope { session, id, .. }, sink) = tuple;
+impl<M: Write + Send + Sync + 'static> From<(Transaction, M)> for StateData {
+    fn from(tuple: (Transaction, M)) -> Self {
+        let (Transaction { session, id, .. }, sink) = tuple;
         StateData {
             session,
             mailid: id,

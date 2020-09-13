@@ -38,19 +38,19 @@ where
     }
 }
 
-impl<D, ES, GS, QS> MailSetup<ES, GS, QS> for Config<D>
+impl<D, ES, GS, DS> MailSetup<ES, GS, DS> for Config<D>
 where
     D: AsRef<Path> + Send + Sync,
     ES: EsmtpService,
     GS: MailGuard,
-    QS: MailQueue,
+    DS: MailDispatch,
 {
-    type Output = CompositeMailService<EnableEightBit<ES>, GS, SimpleDirMail<D, QS>>;
-    fn setup(self, extend: ES, guard: GS, queue: QS) -> Self::Output {
+    type Output = CompositeMailService<EnableEightBit<ES>, GS, SimpleDirMail<D, DS>>;
+    fn setup(self, extend: ES, guard: GS, dispatch: DS) -> Self::Output {
         (
             EnableEightBit(extend),
             guard,
-            SimpleDirMail::new(self.dir, queue),
+            SimpleDirMail::new(self.dir, dispatch),
         )
             .into()
     }
@@ -69,16 +69,16 @@ where
     }
 }
 
-impl<D, S> MailQueue for SimpleDirMail<D, S>
+impl<D, S> MailDispatch for SimpleDirMail<D, S>
 where
     D: AsRef<Path> + Send + Sync,
-    S: MailQueue,
+    S: MailDispatch,
 {
     type Mail = MailFile;
     type MailFuture = CreateMailFile;
 
-    fn mail(&self, envelope: Envelope) -> Self::MailFuture {
-        CreateMailFile::new(&self.dir, envelope)
+    fn send_mail(&self, transaction: Transaction) -> Self::MailFuture {
+        CreateMailFile::new(&self.dir, transaction)
     }
 }
 
@@ -93,23 +93,23 @@ pub struct CreateMailFile {
 }
 
 impl CreateMailFile {
-    pub fn new<D: AsRef<Path>>(dir: D, envelope: Envelope) -> Self {
+    pub fn new<D: AsRef<Path>>(dir: D, transaction: Transaction) -> Self {
         let mut headers = BytesMut::new();
-        headers.extend(format!("X-Samotop-Helo: {:?}\r\n", envelope.session.smtp_helo).bytes());
+        headers.extend(format!("X-Samotop-Helo: {:?}\r\n", transaction.session.smtp_helo).bytes());
         headers.extend(
             format!(
                 "X-Samotop-Peer: {:?}\r\n",
-                envelope.session.connection.peer_addr
+                transaction.session.connection.peer_addr
             )
             .bytes(),
         );
-        headers.extend(format!("X-Samotop-From: {:?}\r\n", envelope.mail).bytes());
-        headers.extend(format!("X-Samotop-To: {:?}\r\n", envelope.rcpts).bytes());
+        headers.extend(format!("X-Samotop-From: {:?}\r\n", transaction.mail).bytes());
+        headers.extend(format!("X-Samotop-To: {:?}\r\n", transaction.rcpts).bytes());
 
         let target_dir = dir.as_ref().join("new");
         let tmp_dir = dir.as_ref().join("tmp");
-        let target_file = target_dir.join(envelope.id.as_str());
-        let tmp_file = tmp_dir.join(envelope.id.as_str());
+        let target_file = target_dir.join(transaction.id.as_str());
+        let tmp_file = tmp_dir.join(transaction.id.as_str());
         let target = Box::pin(rename(tmp_file.clone(), target_file.clone()));
         let file = Box::pin(
             ensure_dir(tmp_dir)
@@ -118,7 +118,7 @@ impl CreateMailFile {
         );
 
         Self {
-            stage2: Some((headers, envelope.id, target)),
+            stage2: Some((headers, transaction.id, target)),
             file,
         }
     }
@@ -133,12 +133,12 @@ async fn ensure_dir<P: AsRef<Path>>(dir: P) -> std::io::Result<()> {
 }
 
 impl Future for CreateMailFile {
-    type Output = Option<MailFile>;
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<MailFile>> {
+    type Output = DispatchResult<MailFile>;
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<DispatchResult<MailFile>> {
         match ready!(Pin::new(&mut self.file).poll(cx)) {
             Ok(file) => {
                 if let Some((buffer, id, target)) = self.stage2.take() {
-                    Poll::Ready(Some(MailFile {
+                    Poll::Ready(Ok(MailFile {
                         id,
                         file,
                         buffer,
@@ -146,12 +146,12 @@ impl Future for CreateMailFile {
                     }))
                 } else {
                     error!("No buffer/id. Perhaps the future has been polled after Poll::Ready");
-                    Poll::Ready(None)
+                    Poll::Ready(Err(DispatchError::FailedTemporarily))
                 }
             }
             Err(e) => {
                 error!("Could not create mail file: {:?}", e);
-                Poll::Ready(None)
+                Poll::Ready(Err(DispatchError::FailedTemporarily))
             }
         }
     }

@@ -3,7 +3,7 @@ mod lookup;
 use super::composite::*;
 use super::*;
 use crate::common::*;
-use crate::model::mail::Envelope;
+use crate::model::mail::*;
 use crate::model::smtp::*;
 use lookup::*;
 pub use viaspf::Config;
@@ -25,51 +25,51 @@ impl<T> SpfService<T> {
     }
 }
 
-impl<ES, GS, QS> MailSetup<ES, GS, QS> for Provider<Config>
+impl<ES, GS, DS> MailSetup<ES, GS, DS> for Provider<Config>
 where
     ES: EsmtpService,
     GS: MailGuard,
-    QS: MailQueue,
+    DS: MailDispatch,
 {
-    type Output = CompositeMailService<ES, GS, SpfService<QS>>;
-    fn setup(self, extend: ES, guard: GS, queue: QS) -> Self::Output {
-        (extend, guard, SpfService::new(queue, self.0)).into()
+    type Output = CompositeMailService<ES, GS, SpfService<DS>>;
+    fn setup(self, extend: ES, guard: GS, dispatch: DS) -> Self::Output {
+        (extend, guard, SpfService::new(dispatch, self.0)).into()
     }
 }
 
-impl<T: MailQueue> MailQueue for SpfService<T> {
+impl<T: MailDispatch> MailDispatch for SpfService<T> {
     type Mail = T::Mail;
-    type MailFuture = MailQueueFut<T::MailFuture>;
-    fn mail(&self, envelope: Envelope) -> Self::MailFuture {
-        MailQueueFut {
+    type MailFuture = MailDispatchFut<T::MailFuture>;
+    fn send_mail(&self, transaction: Transaction) -> Self::MailFuture {
+        MailDispatchFut {
             config: self.config.clone(),
-            inner: self.inner.mail(envelope.clone()),
-            envelope,
+            inner: self.inner.send_mail(transaction.clone()),
+            transaction,
         }
     }
 }
 
 #[pin_project]
-pub struct MailQueueFut<T> {
+pub struct MailDispatchFut<T> {
     #[pin]
     inner: T,
     config: Config,
-    envelope: Envelope,
+    transaction: Transaction,
 }
 
-impl<F, T: Future<Output = Option<F>>> Future for MailQueueFut<T> {
+impl<F, T: Future<Output = DispatchResult<F>>> Future for MailDispatchFut<T> {
     type Output = T::Output;
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         // TODO: improve privacy - a) encrypt DNS, b) do DNS servers need to know who is receiving mail from whom?
         // TODO: convert to async
         let proj = self.project();
-        let sender = match proj.envelope.mail.as_ref().map(|m| m.from()) {
+        let sender = match proj.transaction.mail.as_ref().map(|m| m.from()) {
             None | Some(SmtpPath::Null) | Some(SmtpPath::Postmaster) => String::new(),
             Some(SmtpPath::Direct(SmtpAddress::Mailbox(_account, host))) => host.domain(),
             Some(SmtpPath::Relay(_path, SmtpAddress::Mailbox(_account, host))) => host.domain(),
         };
         let peer_ip = match proj
-            .envelope
+            .transaction
             .session
             .connection
             .peer_addr
@@ -79,7 +79,7 @@ impl<F, T: Future<Output = Option<F>>> Future for MailQueueFut<T> {
             Some(ip) => ip,
         };
         let helo_domain = match proj
-            .envelope
+            .transaction
             .session
             .smtp_helo
             .as_ref()
@@ -98,7 +98,7 @@ impl<F, T: Future<Output = Option<F>>> Future for MailQueueFut<T> {
         match evaluation.result {
             SpfResult::Fail(explanation) => {
                 debug!("mail rejected due to SPF fail: {}", explanation);
-                Poll::Ready(None)
+                Poll::Ready(Err(DispatchError::Refused))
             }
             result => {
                 trace!("mail OK with SPF result: {}", result);
