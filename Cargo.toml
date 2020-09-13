@@ -3,7 +3,8 @@ members = [
     "samotop-model",
     "samotop-core",
     "samotop-parser",
-    "samotop",
+    "samotop-with-spf",
     "samotop-to-lmtp",
-    "samotop-server"
+    "samotop",
+    "samotop-server",
 ]

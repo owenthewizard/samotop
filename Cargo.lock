@@ -1173,8 +1173,8 @@ dependencies = [
  "pin-project",
  "samotop-core",
  "samotop-parser",
- "trust-dns-resolver",
- "viaspf",
+ "samotop-to-lmtp",
+ "samotop-with-spf",
 ]
 
 [[package]]
@@ -1227,6 +1227,17 @@ dependencies = [
  "log",
  "pin-project",
  "samotop-core",
+]
+
+[[package]]
+name = "samotop-with-spf"
+version = "0.10.0"
+dependencies = [
+ "log",
+ "pin-project",
+ "samotop-core",
+ "trust-dns-resolver",
+ "viaspf",
 ]
 
 [[package]]

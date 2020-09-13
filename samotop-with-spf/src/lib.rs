@@ -1,17 +1,23 @@
+#[macro_use]
+extern crate log;
+
 mod lookup;
 
-use super::composite::*;
-use super::*;
-use crate::common::*;
-use crate::model::mail::*;
-use crate::model::smtp::*;
-use lookup::*;
+use self::lookup::*;
+use samotop_core::common::*;
+use samotop_core::model::mail::*;
+use samotop_core::model::smtp::*;
+use samotop_core::service::mail::composite::*;
+use samotop_core::service::mail::*;
 pub use viaspf::Config;
 use viaspf::{evaluate_spf, SpfResult};
 
 pub fn provide_viaspf() -> Provider<Config> {
     Provider(Config::default())
 }
+
+#[derive(Clone, Debug, Default)]
+pub struct Provider<T>(pub T);
 
 #[derive(Clone, Debug)]
 pub struct SpfService<T> {
