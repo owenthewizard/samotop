@@ -98,7 +98,7 @@ use samotop::server::Server;
 use samotop::service::tcp::dummy::DummyTcpService;
 fn main() {
     env_logger::init();
-    let mail = samotop::service::mail::default::DefaultMailService;
+    let mail = samotop::service::mail::default::DefaultMailService::default();
     let parser = samotop::service::parser::SmtpParser;
     let svc = samotop::service::tcp::smtp::SmtpService::new(mail, parser);
     let svc = samotop::service::tcp::tls::TlsEnabled::disabled(svc);

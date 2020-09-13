@@ -1,17 +1,17 @@
 [package]
-name = "samotop-parser"
+name = "samotop-to-lmtp"
 version = "0.11.0-samotop-dev"
 authors = ["jocutajar <tellnoone@robajz.info>"]
 license = "MIT OR Apache-2.0"
-description = "SMTP parser of Samotop - SMTP server and library built on async-std"
+description = "Integration with another LMTP service for Samotop - SMTP server and library built on async-std"
 documentation = "https://docs.rs/samotop/"
 homepage = "https://gitlab.com/BrightOpen/BackYard/Samotop/"
 repository = "https://gitlab.com/BrightOpen/BackYard/Samotop/"
-keywords = ["smtp", "parser", "PEG"]
+keywords = ["smtp", "lmtp"]
 edition = "2018"
 
 # see crates.io/category_slugs
-categories = ["email", "network-programming", "parser-implementations"]
+categories = ["email", "network-programming"]
 
 [badges]
 gitlab = { repository = "BrightOpen/BackYard/Samotop", branch = "develop" }
@@ -22,4 +22,13 @@ version = "0.11.0-samotop-dev"
 path = "../samotop-core"
 
 [dependencies]
-peg = "0.6"
+pin-project = "0.4"
+log = "0.4"
+async-tls = "0.10"
+async-trait = { git = "https://github.com/BrightOpen/async-trait.git", branch = "master" }
+
+[dependencies.async-smtp]
+git = "https://github.com/BrightOpen/async-smtp.git"
+branch = "master"
+features = ["native-tls-vendored"]
+version = "0.4.1"

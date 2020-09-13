@@ -102,9 +102,9 @@ impl<'a> Server<'a> {
         info!("Listening on {:?}", listener.local_addr());
         while let Some(stream) = incoming.next().await {
             let conn = if let Ok(ref stream) = stream {
-                Connection::new(stream.local_addr().ok(), stream.peer_addr().ok())
+                ConnectionInfo::new(stream.local_addr().ok(), stream.peer_addr().ok())
             } else {
-                Connection::default()
+                ConnectionInfo::default()
             };
             let stream = stream.map_err(|e| e.into());
             let service = service.clone();
@@ -121,13 +121,10 @@ fn spawn_task_and_swallow_log_errors<F>(task_name: String, fut: F) -> task::Join
 where
     F: Future<Output = Result<()>> + Send + 'static,
 {
-    task::spawn(async move {
-        log_errors(task_name, fut).await.unwrap();
-        ()
-    })
+    task::spawn(async move { log_errors(task_name, fut).await.unwrap_or_default() })
 }
 
-async fn log_errors<F, T, E>(task_name: String, fut: F) -> F::Output
+async fn log_errors<F, T, E>(task_name: String, fut: F) -> Option<T>
 where
     F: Future<Output = std::result::Result<T, E>>,
     E: std::fmt::Display,
@@ -135,11 +132,11 @@ where
     match fut.await {
         Err(e) => {
             error!("Error in {}: {}", task_name, e);
-            Err(e)
+            None
         }
         Ok(r) => {
             info!("{} completed successfully.", task_name);
-            Ok(r)
+            Some(r)
         }
     }
 }

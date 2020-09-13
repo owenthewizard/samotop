@@ -1,4 +1,4 @@
-use crate::model::io::Connection;
+use crate::model::io::ConnectionInfo;
 use crate::model::Result;
 use crate::service::tcp::TcpService;
 use futures::prelude::*;
@@ -9,7 +9,7 @@ pub struct DummyTcpService;
 
 impl<IO> TcpService<IO> for DummyTcpService {
     type Future = future::Ready<Result<()>>;
-    fn handle(&self, _io: Result<IO>, conn: Connection) -> Self::Future {
+    fn handle(&self, _io: Result<IO>, conn: ConnectionInfo) -> Self::Future {
         info!("Received connection {}", conn);
         future::ready(Ok(()))
     }

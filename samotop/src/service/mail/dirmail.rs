@@ -1,12 +1,10 @@
 //! Reference implementation of a mail service
 //! simply delivering mail to single directory.
 use crate::common::*;
-use crate::model::io::Connection;
 use crate::model::mail::*;
 use crate::model::smtp::*;
-use crate::model::Error;
-use crate::service::mail::*;
 use crate::service::mail::composite::*;
+use crate::service::mail::*;
 use async_std::fs::{create_dir_all, rename, File};
 use async_std::path::Path;
 use futures::future::TryFutureExt;
@@ -40,21 +38,19 @@ where
     }
 }
 
-impl<D, NS, ES, GS, QS> MailSetup<NS, ES, GS, QS> for Config<D>
+impl<D, ES, GS, DS> MailSetup<ES, GS, DS> for Config<D>
 where
     D: AsRef<Path> + Send + Sync,
-    NS: NamedService,
     ES: EsmtpService,
     GS: MailGuard,
-    QS: MailQueue,
+    DS: MailDispatch,
 {
-    type Output = CompositeMailService<NS, EnableEightBit<ES>, GS, SimpleDirMail<D, QS>>;
-    fn setup(self, named: NS, extend: ES, guard: GS, queue: QS) -> Self::Output {
+    type Output = CompositeMailService<EnableEightBit<ES>, GS, SimpleDirMail<D, DS>>;
+    fn setup(self, extend: ES, guard: GS, dispatch: DS) -> Self::Output {
         (
-            named,
             EnableEightBit(extend),
             guard,
-            SimpleDirMail::new(self.dir, queue),
+            SimpleDirMail::new(self.dir, dispatch),
         )
             .into()
     }
@@ -67,27 +63,22 @@ impl<T> EsmtpService for EnableEightBit<T>
 where
     T: EsmtpService,
 {
-    fn extend(&self, connection: &mut Connection) {
-        self.0.extend(connection);
-        connection
-            .extensions_mut()
-            .enable(SmtpExtension::EIGHTBITMIME);
+    fn prepare_session(&self, session: &mut SessionInfo) {
+        self.0.prepare_session(session);
+        session.extensions.enable(&extension::EIGHTBITMIME);
     }
 }
 
-impl<D, S> MailQueue for SimpleDirMail<D, S>
+impl<D, S> MailDispatch for SimpleDirMail<D, S>
 where
     D: AsRef<Path> + Send + Sync,
-    S: MailQueue,
+    S: MailDispatch,
 {
     type Mail = MailFile;
     type MailFuture = CreateMailFile;
 
-    fn mail(&self, envelope: Envelope) -> Self::MailFuture {
-        CreateMailFile::new(&self.dir, envelope)
-    }
-    fn new_id(&self) -> std::string::String {
-        self.inner.new_id()
+    fn send_mail(&self, transaction: Transaction) -> Self::MailFuture {
+        CreateMailFile::new(&self.dir, transaction)
     }
 }
 
@@ -102,17 +93,23 @@ pub struct CreateMailFile {
 }
 
 impl CreateMailFile {
-    pub fn new<D: AsRef<Path>>(dir: D, envelope: Envelope) -> Self {
+    pub fn new<D: AsRef<Path>>(dir: D, transaction: Transaction) -> Self {
         let mut headers = BytesMut::new();
-        headers.extend(format!("X-SamotopHelo: {:?}\r\n", envelope.helo).bytes());
-        headers.extend(format!("X-SamotopPeer: {:?}\r\n", envelope.peer).bytes());
-        headers.extend(format!("X-SamotopMailFrom: {:?}\r\n", envelope.mail).bytes());
-        headers.extend(format!("X-SamotopRcptTo: {:?}\r\n", envelope.rcpts).bytes());
+        headers.extend(format!("X-Samotop-Helo: {:?}\r\n", transaction.session.smtp_helo).bytes());
+        headers.extend(
+            format!(
+                "X-Samotop-Peer: {:?}\r\n",
+                transaction.session.connection.peer_addr
+            )
+            .bytes(),
+        );
+        headers.extend(format!("X-Samotop-From: {:?}\r\n", transaction.mail).bytes());
+        headers.extend(format!("X-Samotop-To: {:?}\r\n", transaction.rcpts).bytes());
 
         let target_dir = dir.as_ref().join("new");
         let tmp_dir = dir.as_ref().join("tmp");
-        let target_file = target_dir.join(envelope.id.as_str());
-        let tmp_file = tmp_dir.join(envelope.id.as_str());
+        let target_file = target_dir.join(transaction.id.as_str());
+        let tmp_file = tmp_dir.join(transaction.id.as_str());
         let target = Box::pin(rename(tmp_file.clone(), target_file.clone()));
         let file = Box::pin(
             ensure_dir(tmp_dir)
@@ -121,7 +118,7 @@ impl CreateMailFile {
         );
 
         Self {
-            stage2: Some((headers, envelope.id, target)),
+            stage2: Some((headers, transaction.id, target)),
             file,
         }
     }
@@ -136,12 +133,12 @@ async fn ensure_dir<P: AsRef<Path>>(dir: P) -> std::io::Result<()> {
 }
 
 impl Future for CreateMailFile {
-    type Output = Option<MailFile>;
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<MailFile>> {
+    type Output = DispatchResult<MailFile>;
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<DispatchResult<MailFile>> {
         match ready!(Pin::new(&mut self.file).poll(cx)) {
             Ok(file) => {
                 if let Some((buffer, id, target)) = self.stage2.take() {
-                    Poll::Ready(Some(MailFile {
+                    Poll::Ready(Ok(MailFile {
                         id,
                         file,
                         buffer,
@@ -149,12 +146,12 @@ impl Future for CreateMailFile {
                     }))
                 } else {
                     error!("No buffer/id. Perhaps the future has been polled after Poll::Ready");
-                    Poll::Ready(None)
+                    Poll::Ready(Err(DispatchError::FailedTemporarily))
                 }
             }
             Err(e) => {
                 error!("Could not create mail file: {:?}", e);
-                Poll::Ready(None)
+                Poll::Ready(Err(DispatchError::FailedTemporarily))
             }
         }
     }
@@ -168,14 +165,20 @@ pub struct MailFile {
     target: Pin<Box<dyn Future<Output = std::io::Result<()>> + Send + Sync + 'static>>,
 }
 
-impl Sink<Vec<u8>> for MailFile {
-    type Error = Error;
-    fn start_send(mut self: Pin<&mut Self>, bytes: Vec<u8>) -> Result<()> {
-        println!("Mail data for {}: {} bytes", self.id, bytes.len());
-        self.buffer.extend(bytes);
-        Ok(())
+impl Write for MailFile {
+    fn poll_write(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<std::io::Result<usize>> {
+        println!("Mail data for {}: {} bytes", self.id, buf.len());
+        if self.as_mut().buffer.len() > 10 * 1024 {
+            ready!(self.as_mut().poll_flush(cx)?);
+        }
+        self.buffer.extend_from_slice(buf);
+        Poll::Ready(Ok(buf.len()))
     }
-    fn poll_ready(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
+    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
         let MailFileProj { file, buffer, .. } = self.project();
         let mut pending = &buffer[..];
         let mut file = Pin::new(file);
@@ -197,10 +200,7 @@ impl Sink<Vec<u8>> for MailFile {
             Poll::Pending
         }
     }
-    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        self.poll_ready(cx)
-    }
-    fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
+    fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
         ready!(self.as_mut().poll_flush(cx))?;
         let MailFileProj { target, .. } = self.project();
         ready!(target.as_mut().poll(cx))?;

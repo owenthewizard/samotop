@@ -53,7 +53,6 @@
       mail system vis-a-vis the requested transfer or other mail system
       action.
 */
-use crate::smtp::SmtpExtension;
 use crate::smtp::SmtpReply::*;
 use std::fmt;
 
@@ -103,7 +102,7 @@ pub enum SmtpReply {
     OkEhloInfo {
         local: String,
         remote: String,
-        extensions: Vec<SmtpExtension>,
+        extensions: Vec<String>,
     },
     // 251 will forward to <forward-path> (See Section 3.4)
     UserNotLocalInfo(String),

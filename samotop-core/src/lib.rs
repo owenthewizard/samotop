@@ -10,7 +10,7 @@ pub mod common {
 
     pub use futures::{
         future, ready, stream, AsyncRead as Read, AsyncReadExt as ReadExt, AsyncWrite as Write,
-        AsyncWriteExt as WriteExt, Future, FutureExt, Sink, Stream, StreamExt, TryFutureExt,
+        AsyncWriteExt as WriteExt, Future, FutureExt, Stream, StreamExt, TryFutureExt,
     };
     pub use pin_project::pin_project;
     pub use std::pin::Pin;
@@ -142,7 +142,10 @@ pub mod test_util {
                 "TLS not supported",
             ))
         }
-        fn supports_tls(&self) -> bool {
+        fn can_encrypt(&self) -> bool {
+            false
+        }
+        fn is_encrypted(&self) -> bool {
             false
         }
     }

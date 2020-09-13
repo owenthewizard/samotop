@@ -1,6 +1,5 @@
 use crate::common::*;
-use crate::model::io::Connection;
-use crate::model::smtp::SmtpExtension;
+use crate::model::io::ConnectionInfo;
 use crate::protocol::tls::{TlsCapable, TlsDisabled};
 use crate::service::tcp::TcpService;
 
@@ -48,13 +47,14 @@ where
     P: TlsProviderFactory<IO>,
 {
     type Future = T::Future;
-    fn handle(&self, io: Result<IO>, mut conn: Connection) -> Self::Future {
+    fn handle(&self, io: Result<IO>, conn: ConnectionInfo) -> Self::Future {
         let provider = self.provider.get();
-        let tls = if let Some(provider) = provider {
-            conn.extensions_mut().enable(SmtpExtension::STARTTLS);
-            io.map(|io| TlsCapable::yes(io, provider))
-        } else {
-            io.map(|io| TlsCapable::no(io))
+        let tls = match io {
+            Ok(io) => Ok(match provider {
+                Some(provider) => TlsCapable::yes(io, provider),
+                None => TlsCapable::no(io),
+            }),
+            Err(e) => Err(e),
         };
         self.wrapped.handle(tls, conn)
     }

@@ -1,17 +1,23 @@
+#[macro_use]
+extern crate log;
+
 mod lookup;
 
-use super::composite::*;
-use super::*;
-use crate::common::*;
-use crate::model::mail::Envelope;
-use crate::model::smtp::*;
-use lookup::*;
+use self::lookup::*;
+use samotop_core::common::*;
+use samotop_core::model::mail::*;
+use samotop_core::model::smtp::*;
+use samotop_core::service::mail::composite::*;
+use samotop_core::service::mail::*;
 pub use viaspf::Config;
 use viaspf::{evaluate_spf, SpfResult};
 
 pub fn provide_viaspf() -> Provider<Config> {
     Provider(Config::default())
 }
+
+#[derive(Clone, Debug, Default)]
+pub struct Provider<T>(pub T);
 
 #[derive(Clone, Debug)]
 pub struct SpfService<T> {
@@ -25,58 +31,66 @@ impl<T> SpfService<T> {
     }
 }
 
-impl<NS, ES, GS, QS> MailSetup<NS, ES, GS, QS> for Provider<Config>
+impl<ES, GS, DS> MailSetup<ES, GS, DS> for Provider<Config>
 where
-    NS: NamedService,
     ES: EsmtpService,
     GS: MailGuard,
-    QS: MailQueue,
+    DS: MailDispatch,
 {
-    type Output = CompositeMailService<NS, ES, GS, SpfService<QS>>;
-    fn setup(self, named: NS, extend: ES, guard: GS, queue: QS) -> Self::Output {
-        (named, extend, guard, SpfService::new(queue, self.0)).into()
+    type Output = CompositeMailService<ES, GS, SpfService<DS>>;
+    fn setup(self, extend: ES, guard: GS, dispatch: DS) -> Self::Output {
+        (extend, guard, SpfService::new(dispatch, self.0)).into()
     }
 }
 
-impl<T: MailQueue> MailQueue for SpfService<T> {
+impl<T: MailDispatch> MailDispatch for SpfService<T> {
     type Mail = T::Mail;
-    type MailFuture = MailQueueFut<T::MailFuture>;
-    fn mail(&self, envelope: Envelope) -> Self::MailFuture {
-        MailQueueFut {
+    type MailFuture = MailDispatchFut<T::MailFuture>;
+    fn send_mail(&self, transaction: Transaction) -> Self::MailFuture {
+        MailDispatchFut {
             config: self.config.clone(),
-            inner: self.inner.mail(envelope.clone()),
-            envelope,
+            inner: self.inner.send_mail(transaction.clone()),
+            transaction,
         }
-    }
-    fn new_id(&self) -> std::string::String {
-        self.inner.new_id()
     }
 }
 
 #[pin_project]
-pub struct MailQueueFut<T> {
+pub struct MailDispatchFut<T> {
     #[pin]
     inner: T,
     config: Config,
-    envelope: Envelope,
+    transaction: Transaction,
 }
 
-impl<F, T: Future<Output = Option<F>>> Future for MailQueueFut<T> {
+impl<F, T: Future<Output = DispatchResult<F>>> Future for MailDispatchFut<T> {
     type Output = T::Output;
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         // TODO: improve privacy - a) encrypt DNS, b) do DNS servers need to know who is receiving mail from whom?
         // TODO: convert to async
         let proj = self.project();
-        let sender = match proj.envelope.mail.as_ref().map(|m| m.from()) {
+        let sender = match proj.transaction.mail.as_ref().map(|m| m.from()) {
             None | Some(SmtpPath::Null) | Some(SmtpPath::Postmaster) => String::new(),
             Some(SmtpPath::Direct(SmtpAddress::Mailbox(_account, host))) => host.domain(),
             Some(SmtpPath::Relay(_path, SmtpAddress::Mailbox(_account, host))) => host.domain(),
         };
-        let peer_ip = match proj.envelope.peer.map(|addr| addr.ip()) {
+        let peer_ip = match proj
+            .transaction
+            .session
+            .connection
+            .peer_addr
+            .map(|addr| addr.ip())
+        {
             None => std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED),
             Some(ip) => ip,
         };
-        let helo_domain = match proj.envelope.helo.as_ref().map(|m| m.host().domain()) {
+        let helo_domain = match proj
+            .transaction
+            .session
+            .smtp_helo
+            .as_ref()
+            .map(|m| m.host().domain())
+        {
             None => String::new(),
             Some(s) => s,
         };
@@ -90,7 +104,7 @@ impl<F, T: Future<Output = Option<F>>> Future for MailQueueFut<T> {
         match evaluation.result {
             SpfResult::Fail(explanation) => {
                 debug!("mail rejected due to SPF fail: {}", explanation);
-                Poll::Ready(None)
+                Poll::Ready(Err(DispatchError::Refused))
             }
             result => {
                 trace!("mail OK with SPF result: {}", result);
