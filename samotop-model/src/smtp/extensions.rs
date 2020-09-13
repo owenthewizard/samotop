@@ -3,7 +3,7 @@ use std::fmt::{Debug, Display, Formatter, Result as FmtRes};
 
 pub trait Extension: Display {
     type Value: ExtensionValue;
-    fn parse(&self, s: &str) -> Result<Option<Self::Value>, Error>;
+    fn parse(&self, input: &str) -> Result<Option<Self::Value>, Error>;
 }
 pub trait ExtensionValue: Display + Debug + Clone {
     type Extension: Extension;
@@ -71,7 +71,7 @@ impl ExtensionSet {
     }
 }
 
-#[derive(Eq, PartialEq, Debug, Clone, Copy, Hash, Default)]
+#[derive(Eq, PartialEq, Debug, Clone, Copy, Hash)]
 pub struct Flag {
     pub code: &'static str,
 }

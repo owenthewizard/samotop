@@ -105,8 +105,7 @@ async fn main_fut() -> Result<()> {
     let tls_config = setup.get_tls_config().await?;
     let tls_acceptor =
         tls_config.map(|cfg| provide_rustls(TlsAcceptor::from(std::sync::Arc::new(cfg))));
-    let mail_service = DefaultMailService
-        .using(setup.get_my_name())
+    let mail_service = DefaultMailService::new(setup.get_my_name())
         .using(DirMailConfig::new(setup.get_mail_dir()))
         .using(samotop::service::mail::spf::provide_viaspf());
     let smtp_service = SmtpService::new(Arc::new(mail_service), SmtpParser);

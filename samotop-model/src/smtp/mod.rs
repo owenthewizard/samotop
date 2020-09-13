@@ -1,4 +1,5 @@
 mod command;
+mod commands;
 pub mod extension;
 mod extensions;
 mod reply;

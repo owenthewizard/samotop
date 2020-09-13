@@ -1,12 +1,12 @@
 #[macro_use]
 extern crate log;
 
+mod net;
+
+use crate::net::*;
 use async_smtp::prelude::{
-    ClientSecurity, EmailAddress, Envelope as LmtpEnvelope, MailDataStream, SmtpClient,
-    SmtpTransport, Transport,
+    EmailAddress, Envelope as LmtpEnvelope, MailDataStream, SmtpClient, SmtpTransport, Transport,
 };
-use async_smtp::smtp::net::DefaultConnector;
-use pin_project::pin_project;
 use samotop_core::common::*;
 use samotop_core::service::mail::composite::*;
 use samotop_core::service::mail::*;
@@ -14,6 +14,7 @@ use std::marker::PhantomData;
 
 pub struct Config<Variant> {
     phantom: PhantomData<Variant>,
+    address: String,
 }
 
 pub mod variants {
@@ -21,19 +22,20 @@ pub mod variants {
 }
 
 impl Config<variants::Delivery> {
-    pub fn new() -> Self {
+    pub fn new(address: String) -> Self {
         Self {
             phantom: PhantomData,
+            address,
         }
     }
 }
 
-impl<NS: NamedService, ES: EsmtpService, GS: MailGuard, QS: MailQueue> MailSetup<NS, ES, GS, QS>
+impl<ES: EsmtpService, GS: MailGuard, QS: MailQueue> MailSetup<ES, GS, QS>
     for Config<variants::Delivery>
 {
-    type Output = CompositeMailService<NS, ES, GS, LmtpMail<variants::Delivery>>;
-    fn setup(self, named: NS, extend: ES, guard: GS, _queue: QS) -> Self::Output {
-        (named, extend, guard, LmtpMail::new(self)).into()
+    type Output = CompositeMailService<ES, GS, LmtpMail<variants::Delivery>>;
+    fn setup(self, extend: ES, guard: GS, _queue: QS) -> Self::Output {
+        (extend, guard, LmtpMail::new(self)).into()
     }
 }
 
@@ -72,7 +74,8 @@ where
     fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
         match self.project() {
             LmtpStreamProj::Ready(stream) => Pin::new(stream).poll_flush(cx),
-            _ => Poll::Ready(Err(closed())),
+            LmtpStreamProj::Closing(stream) => Pin::new(stream).poll_flush(cx),
+            LmtpStreamProj::Closed(_) => Poll::Ready(Err(closed())),
         }
     }
     fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
@@ -113,15 +116,6 @@ where
     }
 }
 
-fn failed<E: std::fmt::Display + ?Sized>(err: &E) -> std::io::Error {
-    std::io::Error::new(
-        std::io::ErrorKind::Other,
-        format!("Sending mail failed: {}", err),
-    )
-}
-fn broken() -> std::io::Error {
-    std::io::Error::new(std::io::ErrorKind::Other, "The stream is broken.")
-}
 fn closed() -> std::io::Error {
     std::io::Error::new(
         std::io::ErrorKind::NotConnected,
@@ -130,9 +124,11 @@ fn closed() -> std::io::Error {
 }
 
 impl<Any> MailQueue for LmtpMail<Any> {
-    type Mail = LmtpStream<<SmtpTransport<SmtpClient, DefaultConnector> as Transport>::DataStream>;
+    type Mail = LmtpStream<<SmtpTransport<SmtpClient, MyCon> as Transport>::DataStream>;
     type MailFuture = Pin<Box<dyn Future<Output = Option<Self::Mail>> + Sync + Send>>;
     fn mail(&self, mail: samotop_core::model::mail::Envelope) -> Self::MailFuture {
+        let addr = self.config.address.clone();
+        let connector = conn();
         let fut = async move {
             let sender = mail
                 .mail
@@ -145,8 +141,10 @@ impl<Any> MailQueue for LmtpMail<Any> {
                 .collect();
 
             let envelope = LmtpEnvelope::new(sender, recipients?, mail.id)?;
-            let stream = SmtpClient::with_security("localhost:2525", ClientSecurity::None)?
-                .connect_and_send_stream(envelope)
+            let stream = SmtpClient::new(addr)?
+                .connect_with(connector)
+                .await?
+                .send_stream(envelope)
                 .await?;
             Ok(LmtpStream::Ready(stream))
         }
@@ -160,7 +158,6 @@ impl<Any> MailQueue for LmtpMail<Any> {
                 future::ready(None)
             }
         });
-        //unimplemented!("Future is not Sync");
         Box::pin(fut)
     }
 }

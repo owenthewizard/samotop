@@ -443,6 +443,8 @@ mod codec_tests {
         let sess = SessionInfo::new(ConnectionInfo::default(), "".to_owned());
         let mut sut = SmtpCodec::new(&mut io, sess);
 
+        // first comes the session info
+        drop(Pin::new(&mut sut).poll_next(&mut cx()));
         assert_eq!(
             Pin::new(&mut sut).poll_next(&mut cx())?,
             Poll::Ready(Some(Raw(b("helo there\r\n"))))
@@ -457,6 +459,8 @@ mod codec_tests {
         let sess = SessionInfo::new(ConnectionInfo::default(), "".to_owned());
         let mut sut = SmtpCodec::new(io, sess);
 
+        // first comes the session info
+        drop(Pin::new(&mut sut).poll_next(&mut cx()));
         assert_eq!(
             Pin::new(&mut sut).poll_next(&mut cx())?,
             Poll::Ready(Some(Raw(b("he\r\n"))))
@@ -470,6 +474,8 @@ mod codec_tests {
         let sess = SessionInfo::new(ConnectionInfo::default(), "".to_owned());
         let mut sut = SmtpCodec::new(io, sess);
 
+        // first comes the session info
+        drop(Pin::new(&mut sut).poll_next(&mut cx()));
         assert_eq!(
             Pin::new(&mut sut).poll_next(&mut cx())?,
             Poll::Ready(Some(Raw(b("!@#\r\n"))))
@@ -487,11 +493,14 @@ mod codec_tests {
         let sess = SessionInfo::new(ConnectionInfo::default(), "".to_owned());
         let mut sut = SmtpCodec::new(io, sess);
 
+        // first comes the session info
+        drop(Pin::new(&mut sut).poll_next(&mut cx()));
         assert_eq!(
             Pin::new(&mut sut).poll_next(&mut cx())?,
             Poll::Ready(Some(Raw(b("data\r\n"))))
         );
-
+        // last comes the peer shutdown
+        drop(Pin::new(&mut sut).poll_next(&mut cx()));
         assert_eq!(Pin::new(&mut sut).poll_next(&mut cx())?, Poll::Ready(None));
         Ok(())
     }
@@ -502,6 +511,8 @@ mod codec_tests {
         let sess = SessionInfo::new(ConnectionInfo::default(), "".to_owned());
         let mut sut = SmtpCodec::new(io, sess);
 
+        // first comes the session info
+        drop(Pin::new(&mut sut).poll_next(&mut cx()));
         assert_eq!(Pin::new(&mut sut).poll_ready(&mut cx())?, Poll::Ready(()));
         assert_eq!(
             Pin::new(&mut sut)
@@ -528,6 +539,8 @@ mod codec_tests {
             Pin::new(&mut sut).poll_next(&mut cx())?,
             Poll::Ready(Some(Raw(b(b"COMMAND\r\n"))))
         );
+        // last comes the peer shutdown
+        drop(Pin::new(&mut sut).poll_next(&mut cx()));
         assert_eq!(Pin::new(&mut sut).poll_next(&mut cx())?, Poll::Ready(None));
         Ok(())
     }
@@ -538,13 +551,14 @@ mod codec_tests {
         let sess = SessionInfo::new(ConnectionInfo::default(), "".to_owned());
         let mut sut = SmtpCodec::new(io, sess);
 
+        // first comes the session info
+        drop(Pin::new(&mut sut).poll_next(&mut cx()));
         assert_eq!(Pin::new(&mut sut).poll_ready(&mut cx())?, Poll::Ready(()));
         assert_eq!(
             Pin::new(&mut sut)
                 .start_send(WriteControl::StartData(SmtpReply::StartMailInputChallenge))?,
             ()
         );
-
         assert_eq!(
             Pin::new(&mut sut).poll_next(&mut cx())?,
             Poll::Ready(Some(EndOfMailData(b(b".\r\n"))))

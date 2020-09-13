@@ -3,78 +3,53 @@ pub mod default;
 
 use crate::common::*;
 use crate::model::mail::*;
-use composite::CompositeMailService;
 use composite::IntoComponents;
 
 pub trait MailServiceBuilder: IntoComponents {
-    fn using<MS: MailSetup<Self::Named, Self::Esmtp, Self::Guard, Self::Queue>>(
-        self,
-        setup: MS,
-    ) -> MS::Output;
+    fn using<MS: MailSetup<Self::Esmtp, Self::Guard, Self::Queue>>(self, setup: MS) -> MS::Output;
 }
 
 impl<T> MailServiceBuilder for T
 where
     T: IntoComponents,
 {
-    fn using<MS: MailSetup<T::Named, T::Esmtp, T::Guard, T::Queue>>(self, setup: MS) -> MS::Output {
-        let (n, e, h, q) = self.into_components();
-        setup.setup(n, e, h, q)
+    fn using<MS: MailSetup<T::Esmtp, T::Guard, T::Queue>>(self, setup: MS) -> MS::Output {
+        let (e, h, q) = self.into_components();
+        setup.setup(e, h, q)
     }
 }
 
-pub trait MailService: NamedService + EsmtpService + MailGuard + MailQueue {}
-impl<T> MailService for T where T: NamedService + EsmtpService + MailGuard + MailQueue {}
+pub trait MailService: EsmtpService + MailGuard + MailQueue {}
+impl<T> MailService for T where T: EsmtpService + MailGuard + MailQueue {}
 
 /**
 Can set up the given mail services.
 
 ```
 # use samotop_core::service::mail::*;
-/// This mail service has a very special name
+/// This mail setup replaces queue service with default. No mail will be sent.
 #[derive(Clone, Debug)]
-struct MyMail;
+struct NoQueue;
 
-impl<NS, ES, GS, QS> MailSetup<NS, ES, GS, QS> for MyMail
+impl<ES, GS, QS> MailSetup<ES, GS, QS> for NoQueue
 where
-    NS: NamedService,
     ES: EsmtpService,
     GS: MailGuard,
     QS: MailQueue,
 {
-    type Output = composite::CompositeMailService<&'static str, ES, GS, QS>;
-    fn setup(self, _named: NS, extend: ES, guard: GS, queue: QS) -> Self::Output {
-        ("my.name.example.com", extend, guard, queue).into()
+    type Output = composite::CompositeMailService<ES, GS, default::DefaultMailService>;
+    fn setup(self, extend: ES, guard: GS, _queue: QS) -> Self::Output {
+        (extend, guard, default::DefaultMailService::default()).into()
     }
 }
 
-let mail_svc = default::DefaultMailService.using(MyMail);
+let mail_svc = default::DefaultMailService::default().using(NoQueue);
 
 ```
 */
-pub trait MailSetup<NS, ES, GS, QS> {
+pub trait MailSetup<ES, GS, QS> {
     type Output: MailService;
-    fn setup(self, named: NS, extend: ES, guard: GS, queue: QS) -> Self::Output;
-}
-
-/**
-The service which implements this trait has a name.
-
-```
-# use samotop_core::service::mail::*;
-/// This mail service has a very special names
-#[derive(Clone, Debug)]
-struct MyNameMail;
-
-impl NamedService for MyNameMail {
-    fn name(&self) -> &str {
-        "my.name.example.com"
-    }
-}
-```
-*/
-pub trait NamedService {
-    fn name(&self) -> &str;
+    fn setup(self, extend: ES, guard: GS, queue: QS) -> Self::Output;
 }
 
 /**
@@ -82,8 +57,8 @@ The service which implements this trait delivers ESMTP extensions.
 
 ```
 # use samotop_core::service::mail::*;
-# use samotop_core::model::io::Connection;
-# use samotop_core::model::smtp::SmtpExtension;
+# use samotop_core::model::smtp::*;
+# use samotop_core::model::mail::*;
 /// This mail service canhabdle 8-bit MIME
 #[derive(Clone, Debug)]
 pub struct EnableEightBit<T>(T);
@@ -92,17 +67,17 @@ impl<T> EsmtpService for EnableEightBit<T>
 where
     T: EsmtpService,
 {
-    fn extend(&self, connection: &mut Connection) {
-        self.0.extend(connection);
-        connection
-            .extensions_mut()
-            .enable(SmtpExtension::EIGHTBITMIME);
+    fn prepare_session(&self, session: &mut SessionInfo) {
+        self.0.prepare_session(session);
+        session
+            .extensions
+            .enable(&extension::EIGHTBITMIME);
     }
 }
 ```
 */
 pub trait EsmtpService {
-    fn extend(&self, connection: &mut SessionInfo);
+    fn prepare_session(&self, session: &mut SessionInfo);
 }
 
 /**
@@ -126,58 +101,12 @@ pub trait MailQueue {
     fn mail(&self, envelope: Envelope) -> Self::MailFuture;
 }
 
-impl NamedService for &str {
-    fn name(&self) -> &str {
-        self
-    }
-}
-impl NamedService for String {
-    fn name(&self) -> &str {
-        self.as_str()
-    }
-}
-
-impl<NS, ES, GS, QS> MailSetup<NS, ES, GS, QS> for String
-where
-    NS: NamedService,
-    ES: EsmtpService,
-    GS: MailGuard,
-    QS: MailQueue,
-{
-    type Output = CompositeMailService<Self, ES, GS, QS>;
-    fn setup(self, _named: NS, extend: ES, guard: GS, queue: QS) -> Self::Output {
-        (self, extend, guard, queue).into()
-    }
-}
-
-impl<NS, ES, GS, QS> MailSetup<NS, ES, GS, QS> for &str
-where
-    NS: NamedService,
-    ES: EsmtpService,
-    GS: MailGuard,
-    QS: MailQueue,
-{
-    type Output = CompositeMailService<Self, ES, GS, QS>;
-    fn setup(self, _named: NS, extend: ES, guard: GS, queue: QS) -> Self::Output {
-        (self, extend, guard, queue).into()
-    }
-}
-
-impl<T> NamedService for Arc<T>
-where
-    T: NamedService,
-{
-    fn name(&self) -> &str {
-        T::name(self)
-    }
-}
-
 impl<T> EsmtpService for Arc<T>
 where
     T: EsmtpService,
 {
-    fn extend(&self, conn: &mut SessionInfo) {
-        T::extend(self, conn)
+    fn prepare_session(&self, session: &mut SessionInfo) {
+        T::prepare_session(self, session)
     }
 }
 
@@ -211,16 +140,15 @@ mod tests {
     use super::*;
     struct TestSetup;
 
-    impl<NS, ES, GS, QS> MailSetup<NS, ES, GS, QS> for TestSetup
+    impl<ES, GS, QS> MailSetup<ES, GS, QS> for TestSetup
     where
-        NS: NamedService,
         ES: EsmtpService,
         GS: MailGuard,
         QS: MailQueue,
     {
         type Output = composite::CompositeMailService<NS, ES, GS, default::DefaultMailService>;
-        fn setup(self, named: NS, extend: ES, guard: GS, _queue: QS) -> Self::Output {
-            (named, extend, guard, default::DefaultMailService)
+        fn setup(self, extend: ES, guard: GS, _queue: QS) -> Self::Output {
+            (extend, guard, default::DefaultMailService)
         }
     }
 
@@ -228,7 +156,7 @@ mod tests {
     fn test_setup() {
         let setup = TestSetup;
         let svc = default::DefaultMailService;
-        let composite = setup.setup(svc.clone(), svc.clone(), svc.clone(), svc);
+        let composite = setup.setup(svc.clone(), svc.clone(), svc);
         hungry(composite);
     }
     #[test]

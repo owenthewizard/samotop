@@ -24,6 +24,8 @@ path = "../samotop-core"
 [dependencies]
 pin-project = "0.4"
 log = "0.4"
+async-tls = "0.10"
+async-trait = { git = "https://github.com/BrightOpen/async-trait.git", branch = "master" }
 
 [dependencies.async-smtp]
 git = "https://github.com/BrightOpen/async-smtp.git"

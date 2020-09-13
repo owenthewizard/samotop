@@ -134,11 +134,9 @@ impl<S: MailService> BasicSessionHandler<S> {
         SessionState::Ready(data)
     }
     pub fn handle_conn(&self, mut data: Buffers, mut sess: SessionInfo) -> SessionState<Buffers> {
-        if sess.service_name.is_empty() {
-            sess.service_name = self.service.name().to_owned();
-        }
+        self.service.prepare_session(&mut sess);
+        data.say_service_ready(sess.service_name.as_str());
         data.state = State::Connected(sess);
-        data.say_service_ready(self.service.name());
         SessionState::Ready(data)
     }
     pub fn handle_shutdown(&self, mut data: Buffers) -> SessionState<Buffers> {
@@ -155,12 +153,12 @@ impl<S: MailService> BasicSessionHandler<S> {
         let extended = helo.is_extended();
         let get_extensions =
             |conn: &SessionInfo| conn.extensions.iter().map(str::to_owned).collect();
-        let respond = |data: &mut Buffers, exts| match extended {
+        let respond = |data: &mut Buffers, name, exts| match extended {
             false => {
-                data.say_helo(self.service.name(), remote);
+                data.say_helo(name, remote);
             }
             true => {
-                data.say_ehlo(&self.service.name(), exts, remote);
+                data.say_ehlo(name, exts, remote);
             }
         };
         data.state = match std::mem::replace(&mut data.state, State::Closed) {
@@ -168,29 +166,36 @@ impl<S: MailService> BasicSessionHandler<S> {
                 data.say_command_sequence_fail();
                 current
             }
-            State::Connected(mut state) => {
-                let exts = get_extensions(&state);
-                state.smtp_helo = Some(helo);
-                respond(&mut data, exts);
-                State::Connected(state)
+            State::Connected(mut session) => {
+                let exts = get_extensions(&session);
+                session.smtp_helo = Some(helo);
+                respond(&mut data, session.service_name.as_str(), exts);
+                State::Connected(session)
             }
             State::Mail(mut envelope) => {
                 let exts = get_extensions(&envelope.session);
                 envelope.session.smtp_helo = Some(helo);
-                respond(&mut data, exts);
+                respond(&mut data, envelope.session.service_name.as_str(), exts);
                 State::Connected(envelope.session)
             }
             State::Data(mut state) => {
                 let exts = get_extensions(&state.session);
                 state.session.smtp_helo = Some(helo);
-                respond(&mut data, exts);
+                respond(&mut data, state.session.service_name.as_str(), exts);
                 State::Connected(state.session)
             }
         };
         SessionState::Ready(data)
     }
     fn cmd_quit(&self, mut data: Buffers) -> SessionState<Buffers> {
-        let name = self.service.name().to_owned();
+        let name = match data.state {
+            // should not happen
+            State::New | State::Closed => "samotop",
+            State::Connected(ref session) => session.service_name.as_str(),
+            State::Mail(ref envelope) => envelope.session.service_name.as_str(),
+            State::Data(ref state) => state.session.service_name.as_str(),
+        };
+        let name = name.to_owned();
         data.say_shutdown_ok(name);
         data.state = State::Closed;
         SessionState::Ready(data)
@@ -325,9 +330,9 @@ impl<S: MailService> BasicSessionHandler<S> {
     fn cmd_starttls(&self, mut data: Buffers) -> SessionState<Buffers> {
         match data.state {
             State::Connected(ref mut state) => {
-                let name = self.service.name().to_owned();
                 // you cannot STARTTLS twice so we only advertise it before first use
                 if state.extensions.disable(&extension::STARTTLS) {
+                    let name = state.service_name.clone();
                     // TODO: better message response
                     data.say(WriteControl::StartTls(SmtpReply::ServiceReadyInfo(name)));
                 } else {

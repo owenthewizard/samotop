@@ -6,16 +6,28 @@ use crate::service::mail::*;
 use uuid::Uuid;
 
 #[derive(Clone, Debug)]
-pub struct DefaultMailService;
-
-impl NamedService for DefaultMailService {
-    fn name(&self) -> &str {
-        "samotop"
+pub struct DefaultMailService {
+    name: String,
+}
+impl DefaultMailService {
+    pub fn new(name: String) -> Self {
+        Self { name }
+    }
+}
+impl Default for DefaultMailService {
+    fn default() -> Self {
+        Self {
+            name: "samotop".to_owned(),
+        }
     }
 }
 
 impl EsmtpService for DefaultMailService {
-    fn extend(&self, _connection: &mut SessionInfo) {}
+    fn prepare_session(&self, session: &mut SessionInfo) {
+        if session.service_name.is_empty() {
+            session.service_name = self.name.clone();
+        }
+    }
 }
 
 impl MailGuard for DefaultMailService {

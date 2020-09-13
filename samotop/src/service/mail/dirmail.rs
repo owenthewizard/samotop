@@ -38,18 +38,16 @@ where
     }
 }
 
-impl<D, NS, ES, GS, QS> MailSetup<NS, ES, GS, QS> for Config<D>
+impl<D, ES, GS, QS> MailSetup<ES, GS, QS> for Config<D>
 where
     D: AsRef<Path> + Send + Sync,
-    NS: NamedService,
     ES: EsmtpService,
     GS: MailGuard,
     QS: MailQueue,
 {
-    type Output = CompositeMailService<NS, EnableEightBit<ES>, GS, SimpleDirMail<D, QS>>;
-    fn setup(self, named: NS, extend: ES, guard: GS, queue: QS) -> Self::Output {
+    type Output = CompositeMailService<EnableEightBit<ES>, GS, SimpleDirMail<D, QS>>;
+    fn setup(self, extend: ES, guard: GS, queue: QS) -> Self::Output {
         (
-            named,
             EnableEightBit(extend),
             guard,
             SimpleDirMail::new(self.dir, queue),
@@ -65,8 +63,8 @@ impl<T> EsmtpService for EnableEightBit<T>
 where
     T: EsmtpService,
 {
-    fn extend(&self, session: &mut SessionInfo) {
-        self.0.extend(session);
+    fn prepare_session(&self, session: &mut SessionInfo) {
+        self.0.prepare_session(session);
         session.extensions.enable(&extension::EIGHTBITMIME);
     }
 }

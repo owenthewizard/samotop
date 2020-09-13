@@ -25,16 +25,15 @@ impl<T> SpfService<T> {
     }
 }
 
-impl<NS, ES, GS, QS> MailSetup<NS, ES, GS, QS> for Provider<Config>
+impl<ES, GS, QS> MailSetup<ES, GS, QS> for Provider<Config>
 where
-    NS: NamedService,
     ES: EsmtpService,
     GS: MailGuard,
     QS: MailQueue,
 {
-    type Output = CompositeMailService<NS, ES, GS, SpfService<QS>>;
-    fn setup(self, named: NS, extend: ES, guard: GS, queue: QS) -> Self::Output {
-        (named, extend, guard, SpfService::new(queue, self.0)).into()
+    type Output = CompositeMailService<ES, GS, SpfService<QS>>;
+    fn setup(self, extend: ES, guard: GS, queue: QS) -> Self::Output {
+        (extend, guard, SpfService::new(queue, self.0)).into()
     }
 }
 
