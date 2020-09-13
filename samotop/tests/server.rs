@@ -1,7 +1,7 @@
 extern crate samotop;
 
 #[test]
-fn use_dead_service() {
+fn use_dummy_service() {
     let _ = samotop::server::Server::new().serve(samotop::service::tcp::dummy::DummyTcpService);
 }
 

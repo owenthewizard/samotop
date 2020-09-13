@@ -95,8 +95,8 @@ pub trait MailGuard {
 
 /**
 A mail dispatch allows us to dispatch an e-mail.
-For a given mail envelope it produces a Sink that can receive mail data.
-Once the sink is closed successfully, the mail is dispatchd.
+For a given mail transacton it produces a Write sink that can receive mail data.
+Once the sink is closed successfully, the mail is dispatched.
 */
 pub trait MailDispatch {
     type Mail: Write + Send + Sync + 'static;

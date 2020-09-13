@@ -3,6 +3,7 @@ use crate::model::io::*;
 use crate::model::mail::SessionInfo;
 use crate::protocol::tls::MayBeTls;
 use bytes::{Buf, BufMut, Bytes, BytesMut};
+use futures::Sink;
 use memchr::memchr;
 use std::collections::VecDeque;
 
