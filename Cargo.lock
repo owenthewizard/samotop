@@ -59,8 +59,7 @@ dependencies = [
 
 [[package]]
 name = "async-smtp"
-version = "0.4.1"
-source = "git+https://github.com/BrightOpen/async-smtp.git#833218d56b66590ea55f6dd0d2de1f7c2ee7efe0"
+version = "0.4.3"
 dependencies = [
  "async-native-tls",
  "async-std",
@@ -958,9 +957,9 @@ checksum = "d36492546b6af1463394d46f0c834346f31548646f6ba10849802c9c9a27ac33"
 
 [[package]]
 name = "potential"
-version = "1.0.0"
+version = "2.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f834c2a12aa39f8b5c5ae506bbb58ea9005d101363e6ab63dc3a6be6c6a6772f"
+checksum = "22c372f93c138ec5200692f9dc2c5da8798828a6194b395883dcde446e911939"
 dependencies = [
  "futures-channel",
  "futures-util",

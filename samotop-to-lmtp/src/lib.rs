@@ -13,30 +13,32 @@ use samotop_core::model::mail::DispatchResult;
 use samotop_core::model::mail::Transaction;
 use samotop_core::service::mail::composite::*;
 use samotop_core::service::mail::*;
-use std::marker::PhantomData;
 
 pub struct Config<Variant> {
-    phantom: PhantomData<Variant>,
+    variant: Variant,
     address: String,
 }
 
-pub mod variants {
-    pub struct Delivery;
+pub mod variant {
+    use super::*;
+    pub struct TcpLmtpDispatch {
+        pub transport: Arc<SmtpTransport<SmtpClient, MyCon>>,
+    }
 }
 
-impl Config<variants::Delivery> {
-    pub fn new(address: String) -> Self {
-        Self {
-            phantom: PhantomData,
-            address,
-        }
+impl Config<variant::TcpLmtpDispatch> {
+    pub fn tcp_lmtp_dispatch(address: String) -> Result<Self> {
+        let variant = variant::TcpLmtpDispatch {
+            transport: Arc::new(SmtpClient::new(&address)?.connect_with(conn())),
+        };
+        Ok(Self { variant, address })
     }
 }
 
 impl<ES: EsmtpService, GS: MailGuard, DS: MailDispatch> MailSetup<ES, GS, DS>
-    for Config<variants::Delivery>
+    for Config<variant::TcpLmtpDispatch>
 {
-    type Output = CompositeMailService<ES, GS, LmtpMail<variants::Delivery>>;
+    type Output = CompositeMailService<ES, GS, LmtpMail<variant::TcpLmtpDispatch>>;
     fn setup(self, extend: ES, guard: GS, _dispatch: DS) -> Self::Output {
         (extend, guard, LmtpMail::new(self)).into()
     }
@@ -54,14 +56,12 @@ impl<Any> LmtpMail<Any> {
 
 #[pin_project(project=LmtpStreamProj)]
 pub enum LmtpStream<M: MailDataStream> {
-    Ready(M),
-    Closing(M),
+    Ready(#[pin] M, bool),
     Closed(Result<M::Output>),
 }
 
 impl<M: MailDataStream> Write for LmtpStream<M>
 where
-    M: Unpin,
     M::Error: std::error::Error + Send + Sync + 'static,
 {
     fn poll_write(
@@ -70,50 +70,32 @@ where
         buf: &[u8],
     ) -> Poll<std::io::Result<usize>> {
         match self.project() {
-            LmtpStreamProj::Ready(stream) => Pin::new(stream).poll_write(cx, buf),
+            LmtpStreamProj::Ready(stream, false) => stream.poll_write(cx, buf),
             _ => Poll::Ready(Err(closed())),
         }
     }
     fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
         match self.project() {
-            LmtpStreamProj::Ready(stream) => Pin::new(stream).poll_flush(cx),
-            LmtpStreamProj::Closing(stream) => Pin::new(stream).poll_flush(cx),
+            LmtpStreamProj::Ready(stream, _) => stream.poll_flush(cx),
             LmtpStreamProj::Closed(_) => Poll::Ready(Err(closed())),
         }
     }
     fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
         loop {
-            break match std::mem::replace(
-                &mut *self,
-                LmtpStream::Closed(Err("Broken state.".into())),
-            ) {
-                LmtpStream::Ready(mut stream) => {
-                    match Pin::new(&mut stream).poll_write(cx, &[][..])? {
-                        Poll::Pending => {
-                            self.set(LmtpStream::Ready(stream));
-                            Poll::Pending
-                        }
-                        Poll::Ready(len) => {
-                            debug_assert!(len == 0, "We just want the final dot");
-                            self.set(LmtpStream::Closing(stream));
-                            continue;
-                        }
-                    }
+            break match self.as_mut().project() {
+                LmtpStreamProj::Ready(stream, closing @ false) => {
+                    let len = ready!(stream.poll_write(cx, &[][..]))?;
+                    debug_assert!(len == 0, "We just want the final dot");
+                    *closing = true;
+                    continue;
                 }
-                LmtpStream::Closing(mut stream) => match Pin::new(&mut stream).poll_flush(cx)? {
-                    Poll::Pending => {
-                        self.set(LmtpStream::Closing(stream));
-                        Poll::Pending
-                    }
-                    Poll::Ready(()) => {
-                        self.set(LmtpStream::Closed(stream.result().map_err(|e| e.into())));
-                        continue;
-                    }
-                },
-                cur @ LmtpStream::Closed(_) => {
-                    self.set(cur);
-                    Poll::Ready(Err(closed()))
+                LmtpStreamProj::Ready(mut stream, true) => {
+                    ready!(stream.as_mut().poll_flush(cx))?;
+                    let result = stream.result().map_err(|e| e.into());
+                    self.set(LmtpStream::Closed(result));
+                    continue;
                 }
+                LmtpStreamProj::Closed(_) => Poll::Ready(Err(closed())),
             };
         }
     }
@@ -126,13 +108,12 @@ fn closed() -> std::io::Error {
     )
 }
 
-impl<Any> MailDispatch for LmtpMail<Any> {
+impl MailDispatch for LmtpMail<variant::TcpLmtpDispatch> {
     type Mail = LmtpStream<<SmtpTransport<SmtpClient, MyCon> as Transport>::DataStream>;
     type MailFuture = Pin<Box<dyn Future<Output = DispatchResult<Self::Mail>> + Sync + Send>>;
     fn send_mail(&self, mail: Transaction) -> Self::MailFuture {
-        let addr = self.config.address.clone();
-        let connector = conn();
-        let fut = async move {
+        let transport = self.config.variant.transport.clone();
+        let fut = future::ready((move || {
             let sender = mail
                 .mail
                 .map(|sender| EmailAddress::new(sender.from().to_string()))
@@ -143,24 +124,26 @@ impl<Any> MailDispatch for LmtpMail<Any> {
                 .map(|rcpt| EmailAddress::new(rcpt.to_string()))
                 .collect();
 
-            let envelope = Envelope::new(sender, recipients?, mail.id)?;
-            let stream = SmtpClient::new(addr)?
-                .connect_with(connector)
-                .await?
-                .send_stream(envelope)
-                .await?;
-            Ok(LmtpStream::Ready(stream))
-        }
-        .then(|res: Result<_>| match res {
-            Ok(stream) => {
-                trace!("Starting mail.");
-                future::ready(Ok(stream))
-            }
-            Err(e) => {
-                error!("Failed to start mail: {:?}", e);
-                future::ready(Err(DispatchError::FailedTemporarily))
-            }
+            Envelope::new(sender, recipients?, mail.id).map_err(|e| Error::from(e))
+        })())
+        .and_then(move |envelope| send_stream(transport, envelope))
+        .and_then(|stream| {
+            trace!("Starting mail.");
+            future::ready(Ok(LmtpStream::Ready(stream, false)))
+        })
+        .map_err(|e| {
+            error!("Failed to start mail: {:?}", e);
+            DispatchError::FailedTemporarily
         });
+
         Box::pin(fut)
     }
+}
+
+/// resolves ownership/lifetime trouble by capturing the Arc
+async fn send_stream(
+    transport: Arc<SmtpTransport<SmtpClient, MyCon>>,
+    envelope: Envelope,
+) -> Result<<SmtpTransport<SmtpClient, MyCon> as Transport>::DataStream> {
+    Ok(transport.send_stream(envelope).await?)
 }
