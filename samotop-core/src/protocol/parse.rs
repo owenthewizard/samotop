@@ -1,5 +1,5 @@
 use crate::common::*;
-use crate::model::io::ReadControl;
+use crate::model::smtp::ReadControl;
 use crate::service::parser::Parser;
 
 pub trait IntoParse
@@ -108,7 +108,7 @@ where
 
 #[cfg(test)]
 mod parse_tests {
-    use crate::model::io::ReadControl::*;
+    use crate::model::smtp::ReadControl::*;
     use crate::model::smtp::SmtpCommand::{self, *};
     use crate::service::parser::Parser;
     use crate::test_util::*;

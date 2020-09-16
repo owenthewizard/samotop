@@ -1,6 +1,6 @@
 use crate::common::*;
-use crate::model::io::*;
 use crate::model::mail::SessionInfo;
+use crate::model::smtp::{ReadControl, WriteControl};
 use crate::protocol::tls::MayBeTls;
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use futures::Sink;
@@ -440,10 +440,10 @@ QUIT
 
 #[cfg(test)]
 mod codec_tests {
+    use super::*;
+    use crate::model::io::ConnectionInfo;
     use crate::model::smtp::SmtpReply;
     use crate::test_util::*;
-
-    use super::*;
     use ReadControl::*;
 
     #[test]

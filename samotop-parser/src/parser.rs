@@ -3,7 +3,7 @@
 */
 use super::smtp::grammar::{command, session};
 use samotop_core::common::Result;
-use samotop_core::model::io::ReadControl;
+use samotop_core::model::smtp::ReadControl;
 use samotop_core::model::smtp::SmtpCommand;
 use samotop_core::service::parser::Parser;
 

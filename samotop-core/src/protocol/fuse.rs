@@ -1,5 +1,5 @@
 use crate::common::*;
-use crate::model::io::WriteControl;
+use crate::model::smtp::WriteControl;
 use crate::model::Result;
 
 pub trait FuseShutdown

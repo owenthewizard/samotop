@@ -1,5 +1,5 @@
 use crate::common::*;
-use crate::model::io::ReadControl;
+use crate::model::smtp::ReadControl;
 use crate::model::smtp::SmtpCommand;
 
 pub trait Parser {

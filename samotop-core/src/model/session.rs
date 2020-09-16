@@ -1,10 +1,8 @@
 use crate::common::{Pin, Write};
 use crate::model::mail::AddRecipientFailure;
-use crate::model::mail::Transaction;
 use crate::model::mail::SessionInfo;
 use crate::model::mail::StartMailFailure;
-
-use crate::model::io::*;
+use crate::model::mail::Transaction;
 use crate::model::smtp::*;
 use std::collections::VecDeque;
 
@@ -41,12 +39,7 @@ impl Buffers {
         let local = name.to_owned();
         self.say_reply(SmtpReply::OkHeloInfo { local, remote })
     }
-    pub fn say_ehlo(
-        &mut self,
-        name: &str,
-        extensions: Vec<String>,
-        remote: String,
-    ) -> &mut Self {
+    pub fn say_ehlo(&mut self, name: &str, extensions: Vec<String>, remote: String) -> &mut Self {
         let local = name.to_owned();
         self.say_reply(SmtpReply::OkEhloInfo {
             local,

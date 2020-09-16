@@ -1,5 +1,4 @@
 use peg;
-use samotop_core::model::io::ReadControl;
 use samotop_core::model::smtp::*;
 use std::net::{Ipv4Addr, Ipv6Addr};
 use std::str::FromStr;

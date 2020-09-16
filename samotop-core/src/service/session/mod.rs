@@ -1,7 +1,7 @@
 pub mod dummy;
 pub mod stateful;
 use crate::common::*;
-use crate::model::io::*;
+use crate::model::smtp::WriteControl;
 
 /**
 A session service handles the SMTP session.

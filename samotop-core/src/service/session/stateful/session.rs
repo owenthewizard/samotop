@@ -1,7 +1,7 @@
 use super::SessionHandler;
 use super::SessionState;
 use crate::common::*;
-use crate::model::io::*;
+use crate::model::smtp::{ReadControl, WriteControl};
 
 #[pin_project(project=SessionProj)]
 pub struct StatefulSession<I, H: SessionHandler> {

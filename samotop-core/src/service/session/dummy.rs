@@ -1,5 +1,4 @@
-use crate::model::io::*;
-use crate::model::smtp::SmtpReply;
+use crate::model::smtp::{ReadControl, SmtpReply, WriteControl};
 use crate::model::Result;
 use crate::service::session::*;
 use futures::prelude::*;

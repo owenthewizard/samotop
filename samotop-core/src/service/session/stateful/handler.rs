@@ -1,5 +1,4 @@
 use crate::common::*;
-use crate::model::io::*;
 use crate::model::mail::*;
 use crate::model::session::*;
 use crate::model::smtp::*;

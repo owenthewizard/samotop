@@ -6,7 +6,7 @@ pub use self::handler::*;
 pub use self::service::*;
 pub use self::session::*;
 use crate::common::*;
-use crate::model::io::*;
+use crate::model::smtp::{ReadControl, WriteControl};
 use crate::service::mail::*;
 use crate::service::session::SessionService;
 
