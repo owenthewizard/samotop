@@ -28,8 +28,7 @@ async-tls = "0.10"
 async-trait = { git = "https://github.com/BrightOpen/async-trait.git", branch = "master" }
 
 [dependencies.async-smtp]
-#git = "https://github.com/BrightOpen/async-smtp.git"
-path = "/home/debian/Documents/Projects/async-smtp"
+git = "https://github.com/BrightOpen/async-smtp.git"
 branch = "master"
 features = ["native-tls-vendored"]
 version = "0.4.3"

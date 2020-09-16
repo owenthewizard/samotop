@@ -7,6 +7,7 @@ use crate::net::*;
 use async_smtp::prelude::{
     EmailAddress, Envelope, MailDataStream, SmtpClient, SmtpTransport, Transport,
 };
+use async_smtp::smtp::ConnectionReuseParameters;
 use samotop_core::common::*;
 use samotop_core::model::mail::DispatchError;
 use samotop_core::model::mail::DispatchResult;
@@ -29,7 +30,11 @@ pub mod variant {
 impl Config<variant::TcpLmtpDispatch> {
     pub fn tcp_lmtp_dispatch(address: String) -> Result<Self> {
         let variant = variant::TcpLmtpDispatch {
-            transport: Arc::new(SmtpClient::new(&address)?.connect_with(conn())),
+            transport: Arc::new(
+                SmtpClient::new(&address)?
+                    .connection_reuse(ConnectionReuseParameters::ReuseUnlimited)
+                    .connect_with(conn()),
+            ),
         };
         Ok(Self { variant, address })
     }

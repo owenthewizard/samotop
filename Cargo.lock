@@ -60,6 +60,7 @@ dependencies = [
 [[package]]
 name = "async-smtp"
 version = "0.4.3"
+source = "git+https://github.com/BrightOpen/async-smtp.git#d3df60bd0b608fc4934de364297b7f5c5e8520e6"
 dependencies = [
  "async-native-tls",
  "async-std",
