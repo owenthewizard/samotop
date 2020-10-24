@@ -59,8 +59,8 @@ dependencies = [
 
 [[package]]
 name = "async-smtp"
-version = "0.4.3"
-source = "git+https://github.com/BrightOpen/async-smtp.git#d3df60bd0b608fc4934de364297b7f5c5e8520e6"
+version = "0.4.4"
+source = "git+https://github.com/BrightOpen/async-smtp.git?branch=master#22b1c7ffd8c2968030703995df813b3a86334483"
 dependencies = [
  "async-native-tls",
  "async-std",
@@ -161,7 +161,7 @@ dependencies = [
 [[package]]
 name = "async-trait"
 version = "0.1.41"
-source = "git+https://github.com/BrightOpen/async-trait.git#9dd45b48f38763bbfdbb21e827310419b4081ad7"
+source = "git+https://github.com/BrightOpen/async-trait.git?branch=master#9dd45b48f38763bbfdbb21e827310419b4081ad7"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -958,9 +958,9 @@ checksum = "d36492546b6af1463394d46f0c834346f31548646f6ba10849802c9c9a27ac33"
 
 [[package]]
 name = "potential"
-version = "2.1.0"
+version = "2.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "22c372f93c138ec5200692f9dc2c5da8798828a6194b395883dcde446e911939"
+checksum = "502a584b16465645760f83692eb99092c3d55dffcd8c961fd6522d19cc2222dc"
 dependencies = [
  "futures-channel",
  "futures-util",
