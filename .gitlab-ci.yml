@@ -41,7 +41,10 @@ test-nightly:
     paths: *cache-paths
   script:
     - rustup default nightly
-    - cargo test --all --verbose
+    - cargo test --workspace --examples --bins --tests --all-features --color always
+    - cargo clippy --workspace --all-features --color always -- -Dclippy::all
+    - cargo fmt --all -- --check
+    - cargo check --workspace --benches --color always
 
 publish-crate:
   variables:

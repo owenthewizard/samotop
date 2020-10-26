@@ -1,9 +1,9 @@
-use async_smtp::smtp::net::*;
-use async_smtp::smtp::tls::*;
 use async_tls::client::TlsStream;
 use async_tls::TlsConnector;
-use async_trait::async_trait;
+use samotop_async_trait::async_trait;
 use samotop_core::common::*;
+use samotop_delivery::smtp::net::*;
+use samotop_delivery::smtp::tls::*;
 
 pub type MyCon = TcpConnector<MyTls>;
 pub struct MyTls;

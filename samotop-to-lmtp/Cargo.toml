@@ -25,10 +25,8 @@ path = "../samotop-core"
 pin-project = "0.4"
 log = "0.4"
 async-tls = "0.10"
-async-trait = { git = "https://github.com/BrightOpen/async-trait.git", branch = "master" }
+samotop-async-trait = { path = "../samotop-async-trait", version = "0.2.0" }
 
-[dependencies.async-smtp]
-git = "https://github.com/BrightOpen/async-smtp.git"
-branch = "master"
-features = ["native-tls-vendored"]
+[dependencies.samotop-delivery]
+path = "../samotop-delivery"
 version = "0.4.4"

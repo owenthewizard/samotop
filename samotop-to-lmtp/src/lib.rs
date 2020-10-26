@@ -4,16 +4,16 @@ extern crate log;
 mod net;
 
 use crate::net::*;
-use async_smtp::prelude::{
-    EmailAddress, Envelope, MailDataStream, SmtpClient, SmtpTransport, Transport,
-};
-use async_smtp::smtp::ConnectionReuseParameters;
 use samotop_core::common::*;
 use samotop_core::model::mail::DispatchError;
 use samotop_core::model::mail::DispatchResult;
 use samotop_core::model::mail::Transaction;
 use samotop_core::service::mail::composite::*;
 use samotop_core::service::mail::*;
+use samotop_delivery::prelude::{
+    EmailAddress, Envelope, MailDataStream, SmtpClient, SmtpTransport, Transport,
+};
+use samotop_delivery::smtp::ConnectionReuseParameters;
 
 pub struct Config<Variant> {
     variant: Variant,

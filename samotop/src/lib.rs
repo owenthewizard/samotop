@@ -19,8 +19,8 @@ We've got a decent SMTP command parser written as a PEG grammar.
 The model is tightly nit from the RFCs. An async-std based server
 will hear your SMTP commands, drive the SMTP state machine and
 correct you if you step aside. Once a mail session is ready,
-the mail data are currently dumped to the console. After that,
-you can do it again. See the [api dosc](https://docs.rs/samotop/).
+the mail can be dumped to the console, saved in a folder or passed to a downstream SMTP/LMTP server.
+After that, you can do it again. See the [api dosc](https://docs.rs/samotop/).
 The [samotop crate is published on crates.io](https://crates.io/crates/samotop).
 
 ## Done
