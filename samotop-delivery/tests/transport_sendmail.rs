@@ -5,6 +5,7 @@ mod test {
     use samotop_delivery::sendmail::SendmailTransport;
 
     #[async_attributes::test]
+    #[ignore] // requires sendmail installed
     async fn sendmail_transport_simple() {
         let sender = SendmailTransport::new();
         let envelope = Envelope::new(
