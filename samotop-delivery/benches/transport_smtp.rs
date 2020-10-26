@@ -5,6 +5,7 @@ const SERVER: &str = "127.0.0.1:2525";
 
 fn bench_simple_send(c: &mut Criterion) {
     let sender = SmtpClient::with_security(SERVER, ClientSecurity::None)
+        .unwrap()
         .connection_reuse(ConnectionReuseParameters::NoReuse)
         .connect();
 
@@ -31,6 +32,7 @@ fn bench_simple_send(c: &mut Criterion) {
 
 fn bench_reuse_send(c: &mut Criterion) {
     let sender = SmtpClient::with_security(SERVER, ClientSecurity::None)
+        .unwrap()
         .connection_reuse(ConnectionReuseParameters::ReuseUnlimited)
         .connect();
 
