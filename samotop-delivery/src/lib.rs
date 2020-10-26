@@ -5,22 +5,25 @@
 //! pub type Error = Box<dyn std::error::Error + Send + Sync>;
 //! pub type Result<T> = std::result::Result<T, Error>;
 //!
-//! use samotop_delivery::{
-//!     ClientSecurity, Envelope, SendableEmail, SmtpClient, Transport,
+//! use samotop_delivery::prelude::{
+//!     Envelope, SmtpClient, Transport,
 //! };
 //!
 //! async fn smtp_transport_simple() -> Result<()> {
-//!     let email = SendableEmail::new(
-//!         Envelope::new(
+//!     let envelope = Envelope::new(
 //!             Some("user@localhost".parse().unwrap()),
 //!             vec!["root@localhost".parse().unwrap()],
-//!         )?,
-//!         "id",
-//!         "Hello world",
-//!     );
-//!
+//!             "id".to_string(),
+//!         ).unwrap();
+//!     let message = "From: user@localhost\r\n\
+//!                     Content-Type: text/plain\r\n\
+//!                     \r\n\
+//!                     Hello example"
+//!                     .as_bytes();
+//!     let client = SmtpClient::new("127.0.0.1:2525").unwrap();
+//!     
 //!     // Create a client, connect and send
-//!     let _response = SmtpClient::new("127.0.0.1:2525")?.connect_and_send(email).await?;
+//!     client.connect_and_send(envelope, message).await.unwrap();    
 //!
 //!     Ok(())
 //! }
