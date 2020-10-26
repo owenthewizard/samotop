@@ -114,3 +114,34 @@ impl<F, T: Future<Output = DispatchResult<F>>> Future for MailDispatchFut<T> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_mail_fut_is_sync() {
+        let svc = samotop_core::service::mail::default::DefaultMailService::default();
+        let tran = Transaction {
+            session: SessionInfo::new(
+                samotop_core::model::io::ConnectionInfo::new(None, None),
+                "test".to_owned(),
+            ),
+            id: "sessionid".to_owned(),
+            mail: None,
+            rcpts: vec![],
+        };
+        let cfg = Config::default();
+        let sut = SpfService::new(svc, cfg);
+        let fut = sut.send_mail(tran);
+        is_sync(fut);
+    }
+
+    #[test]
+    fn config_is_sync() {
+        let cfg = Config::default();
+        is_sync(cfg);
+    }
+
+    fn is_sync<T: Sync>(_subject: T) {}
+}
