@@ -24,7 +24,7 @@ features = ["rust-tls", "spf"]
 
 [dependencies]
 log = "0.4"
-env_logger = "0.7"
+env_logger = "0.8"
 structopt = "0.3"
 hostname = "0.3"
 async-std = "1.6"

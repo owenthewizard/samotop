@@ -59,4 +59,4 @@ async-native-tls = { version = "0.3", optional = true }
 
 [dev-dependencies]
 futures-await-test = "0.3"
-env_logger = "0.7"
+env_logger = "0.8"
