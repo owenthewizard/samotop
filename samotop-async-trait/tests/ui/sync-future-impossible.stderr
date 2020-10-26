@@ -12,8 +12,8 @@ note: captured value is not `Sync`
    |
 17 |         println!("{}", self.value);
    |                        ^^^^ has type `&mut Struct<T>` which is not `Sync`
-   = note: required for the cast to the object type `dyn std::future::Future<Output = ()> + std::marker::Send + std::marker::Sync`
+   = note: required for the cast to the object type `dyn Future<Output = ()> + Send + Sync`
 help: consider further restricting this bound
    |
-14 | impl<T: std::fmt::Display + Send + std::marker::Sync> Trait for Struct<T> {
-   |                                  ^^^^^^^^^^^^^^^^^^^
+14 | impl<T: std::fmt::Display + Send + Sync> Trait for Struct<T> {
+   |                                  ^^^^^^
