@@ -148,15 +148,18 @@ impl<'s, S: Read + Write> SmtpProto<'s, S> {
                 self.buffer.reserve(1024);
                 let buf = self.buffer.bytes_mut();
                 // It is OK to use uninitialized buffer as long as read fulfills the contract.
-                // In other words, it will only use the given buffer for writing
+                // In other words, it will only use the given buffer for writing.
+                // TODO: What's the story with clippy::transmute-ptr-to-ptr?
                 #[allow(unsafe_code)]
+                #[allow(clippy::transmute_ptr_to_ptr)]
                 let buf = unsafe { std::mem::transmute(buf) };
                 let read = self.stream.read(buf).await?;
                 if read == 0 {
-                    Err(io::Error::new(
+                    return Err(io::Error::new(
                         io::ErrorKind::Other,
                         format!("incomplete after {} bytes", self.buffer().len()),
-                    ))?;
+                    )
+                    .into());
                 }
                 // It is OK to use uninitialized buffer as long as read fulfills the contract.
                 // In other words, read bytes have been written at the beginning of the given buffer

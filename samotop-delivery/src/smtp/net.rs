@@ -98,19 +98,17 @@ where
         // TODO: try alternative addresses on failure. Here we just pick the first one.
         let mut to = configuration.address();
         let timeout = configuration.timeout();
-        let addr = to
-            .to_socket_addrs()
-            .await?
-            .next()
-            .ok_or(std::io::Error::new(
+        let addr = to.to_socket_addrs().await?.next().ok_or_else(|| {
+            std::io::Error::new(
                 std::io::ErrorKind::NotFound,
                 format!("No address resolved for {}", to),
-            ))?;
+            )
+        })?;
 
         let tcp_stream = io::timeout(timeout, TcpStream::connect(addr)).await?;
 
         // remove port part, domain/host remains
-        to.find(":").map(|i| to.split_off(i));
+        to.find(':').map(|i| to.split_off(i));
         let mut stream = NetworkStream {
             peer_addr: tcp_stream.peer_addr().ok(),
             peer_name: to,
@@ -197,7 +195,8 @@ where
 impl<S, E, U> NetworkStream<S, E, U> {
     /// Returns peer's address
     pub fn peer_addr(&self) -> io::Result<SocketAddr> {
-        self.peer_addr.ok_or(io::Error::from(io::ErrorKind::Other))
+        self.peer_addr
+            .ok_or_else(|| io::Error::from(io::ErrorKind::Other))
     }
 }
 

@@ -11,20 +11,18 @@ use futures::{
 use std::net::SocketAddr;
 
 /// `Server` takes care of accepting TCP connections and passing them to `TcpService` to `handle()`.
+#[derive(Default)]
 pub struct Server<'a> {
     ports: Vec<BoxFuture<'a, Result<Vec<SocketAddr>>>>,
 }
 
 impl<'a> Server<'a> {
-    pub fn new() -> Self {
-        Self { ports: vec![] }
-    }
     pub fn on<N>(ports: N) -> Self
     where
         N: ToSocketAddrs + 'a,
         N::Iter: Send,
     {
-        Self::new().and(ports)
+        Self::default().and(ports)
     }
     pub fn on_all<I, N>(ports: I) -> Self
     where
@@ -32,7 +30,7 @@ impl<'a> Server<'a> {
         N: ToSocketAddrs + 'a,
         N::Iter: Send,
     {
-        Self::new().and_all(ports)
+        Self::default().and_all(ports)
     }
     pub fn and_all<I, N>(mut self, ports: I) -> Self
     where

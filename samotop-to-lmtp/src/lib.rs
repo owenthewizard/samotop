@@ -129,7 +129,7 @@ impl MailDispatch for LmtpMail<variant::TcpLmtpDispatch> {
                 .map(|rcpt| EmailAddress::new(rcpt.to_string()))
                 .collect();
 
-            Envelope::new(sender, recipients?, mail.id).map_err(|e| Error::from(e))
+            Envelope::new(sender, recipients?, mail.id).map_err(Error::from)
         })())
         .and_then(move |envelope| send_stream(transport, envelope))
         .and_then(|stream| {
