@@ -79,7 +79,7 @@ impl Extension for Flag {
     type Value = Self;
     fn parse(&self, input: &str) -> Result<Option<Self>, Error> {
         match input == self.code {
-            true => Ok(Some(self.clone())),
+            true => Ok(Some(*self)),
             false => match self.code.starts_with(input) {
                 // The input is part of the code, but too short
                 true => Err(Error::Incomplete),

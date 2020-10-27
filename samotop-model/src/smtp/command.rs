@@ -61,18 +61,18 @@ pub enum SmtpHelo {
 }
 
 impl SmtpHelo {
-    pub fn is_extended<'a>(&'a self) -> bool {
+    pub fn is_extended(&self) -> bool {
         use self::SmtpHelo::*;
         match self {
             Helo(_) => false,
             Ehlo(_) => true,
         }
     }
-    pub fn host<'a>(&'a self) -> &'a SmtpHost {
+    pub fn host(&self) -> &SmtpHost {
         use self::SmtpHelo::*;
         match self {
-            &Helo(ref host) => host,
-            &Ehlo(ref host) => host,
+            Helo(ref host) => host,
+            Ehlo(ref host) => host,
         }
     }
     pub fn name(&self) -> String {

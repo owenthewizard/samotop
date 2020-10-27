@@ -208,8 +208,8 @@ impl SmtpReply {
             CommandSequenceFailure => "Bad sequence of commands".to_owned(),
             UnexpectedParameterFailure => "Command parameter not implemented".to_owned(),
 
-            StatusInfo(ref text) => format!("{}", text),
-            HelpInfo(ref text) => format!("{}", text),
+            StatusInfo(ref text) => text.to_string(),
+            HelpInfo(ref text) => text.to_string(),
 
             ServiceReadyInfo(ref domain) => format!("Service ready: {}", domain),
             ClosingConnectionInfo(ref domain) => {
@@ -222,7 +222,7 @@ impl SmtpReply {
             MailNotAcceptedByHostFailure => "Host does not accept mail".to_owned(),
 
             OkInfo => "Ok".to_owned(),
-            OkMessageInfo(ref text) => format!("{}", text),
+            OkMessageInfo(ref text) => text.to_string(),
             OkHeloInfo {
                 ref local,
                 ref remote,
@@ -269,7 +269,7 @@ impl SmtpReply {
     pub fn items(&self) -> Vec<String> {
         match *self {
             OkEhloInfo { ref extensions, .. } => {
-                extensions.iter().map(|e| format!("{}", e)).collect()
+                extensions.iter().map(|e| e.to_string()).collect()
             }
             _ => vec![],
         }

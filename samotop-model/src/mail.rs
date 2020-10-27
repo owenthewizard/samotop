@@ -45,8 +45,8 @@ impl std::fmt::Display for SessionInfo {
             "Client {:?} using service {} with extensions {}. {}",
             self.smtp_helo
                 .as_ref()
-                .map(|h| h.name().to_string())
-                .unwrap_or("without helo".to_owned()),
+                .map(|h| h.name())
+                .unwrap_or_else(|| "without helo".to_owned()),
             self.service_name,
             self.extensions
                 .iter()
@@ -57,6 +57,7 @@ impl std::fmt::Display for SessionInfo {
 }
 
 #[derive(Debug, Clone)]
+#[allow(clippy::large_enum_variant)]
 pub enum StartMailResult {
     /// Failure with explanation that should include the ID
     Failed(StartMailFailure, String),
@@ -99,6 +100,7 @@ pub struct AddRecipientRequest {
 }
 
 #[derive(Debug, Clone)]
+#[allow(clippy::large_enum_variant)]
 pub enum AddRecipientResult {
     /// The whole mail transaction failed, subsequent RCPT and DATA will fail
     /// 421  <domain> Service not available, closing transmission channel
