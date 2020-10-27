@@ -41,7 +41,7 @@ test-nightly:
   script:
     - cargo fmt --all -- --check
     - rustup default nightly
-    - rustup component add clippy rustfmt
+    - rustup component add clippy
     - cargo test --workspace --examples --bins --tests --all-features --color always
     - cargo clippy --workspace --all-features --color always -- -Dclippy::all
     - cargo check --workspace --benches --color always
