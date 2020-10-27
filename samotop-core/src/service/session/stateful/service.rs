@@ -20,7 +20,7 @@ impl<S: MailService + 'static> From<S>
     for StatefulSessionService<S, Box<dyn Fn(Arc<S>) -> BasicSessionHandler<Arc<S>>>>
 {
     fn from(service: S) -> Self {
-        StatefulSessionService::new(service, Box::new(|svc| BasicSessionHandler::from(svc)))
+        StatefulSessionService::new(service, Box::new(BasicSessionHandler::from))
     }
 }
 

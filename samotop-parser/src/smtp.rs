@@ -1,4 +1,3 @@
-use peg;
 use samotop_core::model::smtp::*;
 use std::net::{Ipv4Addr, Ipv6Addr};
 use std::str::FromStr;
@@ -160,7 +159,7 @@ peg::parser! {
 
         rule host_domain() -> SmtpHost
             = s:$( label() ("." label())* )
-            {? utf8s(s).map(|s|SmtpHost::Domain(s)) }
+            {? utf8s(s).map(SmtpHost::Domain) }
         rule domain() = quiet!{label() ("." label())*} / expected!("domain name")
         rule label() = [b'a'..=b'z' | b'A'..=b'Z' | b'0'..=b'9'] [b'-' | b'a'..=b'z' | b'A'..=b'Z' | b'0'..=b'9']*
 

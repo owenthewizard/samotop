@@ -64,7 +64,7 @@ impl MailDispatch for DefaultMailService {
             "Mail from {:?} for {} (mailid: {:?}). {}",
             mail.as_ref()
                 .map(|m| m.from().to_string())
-                .unwrap_or("nobody".to_owned()),
+                .unwrap_or_else(|| "nobody".to_owned()),
             rcpts
                 .iter()
                 .fold(String::new(), |s, r| s + format!("{:?}, ", r.to_string())

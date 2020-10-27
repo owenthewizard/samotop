@@ -56,7 +56,9 @@ impl<IO: Read + Write + MayBeTls> SmtpCodec<IO> {
                 trace!("Growing buffer to {}", projection.c2s_buffer.capacity());
             }
             let buf = projection.c2s_buffer.bytes_mut();
-            // this is safe as long as poll_read fulfills the contract
+            // This is safe as long as poll_read fulfills the contract
+            // TODO: What's the story with clippy::transmute_ptr_to_ptr?
+            #[allow(clippy::transmute_ptr_to_ptr)]
             let buf = unsafe { std::mem::transmute(buf) };
             let len = ready!(projection.io.poll_read(cx, buf))?;
             trace!("Read {} bytes.", len);
@@ -71,7 +73,7 @@ impl<IO: Read + Write + MayBeTls> SmtpCodec<IO> {
         let projection = self.project();
         // process the read buffer into items
         let read = projection.c2s_buffer.bytes();
-        if read.len() == 0 {
+        if read.is_empty() {
             None
         } else {
             let read = match memchr(b'\n', read) {
@@ -322,7 +324,7 @@ where
                         Poll::Ready(len) => {
                             trace!("wrote {} bytes", len);
                             let _consumed = pending.split_to(len);
-                            if pending.len() != 0 {
+                            if !pending.is_empty() {
                                 // written partially, consume written buffer and return it to the queue
                                 projection
                                     .s2c_pending

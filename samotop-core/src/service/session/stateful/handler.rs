@@ -205,7 +205,7 @@ impl<S: MailService> BasicSessionHandler<S> {
                 let request = StartMailRequest {
                     session: session.clone(),
                     id: String::new(),
-                    mail: Some(mail.clone()),
+                    mail: Some(mail),
                     rcpts: vec![],
                 };
                 let fut = self.service.start_mail(request).map(move |res| {

@@ -81,7 +81,7 @@ impl<IO: Read + Write + Unpin, P: TlsProvider<IO>> TlsCapable<IO, P> {
         TlsCapable::new(io, None)
     }
     fn new(io: IO, provider: Option<P>) -> Self {
-        match provider.into() {
+        match provider {
             None => TlsCapable::PlainText(io),
             Some(provider) => TlsCapable::Enabled(Some(io), provider),
         }

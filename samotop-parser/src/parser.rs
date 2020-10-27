@@ -9,11 +9,11 @@ use samotop_core::service::parser::Parser;
 
 static PARSER: SmtpParser = SmtpParser;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct SmtpParser;
 
-impl SmtpParser {
-    pub fn new() -> SmtpParser {
+impl Default for SmtpParser {
+    fn default() -> SmtpParser {
         PARSER.clone()
     }
 }

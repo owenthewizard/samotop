@@ -56,6 +56,7 @@ pub mod test_util {
     }
 
     #[pin_project]
+    #[derive(Default, Debug, Clone)]
     pub struct TestIO {
         pub input: Vec<u8>,
         pub output: Vec<u8>,
@@ -72,14 +73,6 @@ pub mod test_util {
         pub fn unread(&self) -> &[u8] {
             &self.input[self.read..]
         }
-        pub fn new() -> Self {
-            TestIO {
-                output: vec![],
-                input: vec![],
-                read: 0,
-                read_chunks: vec![].into(),
-            }
-        }
         // Pretend reading chunks of input of given sizes. 0 => Pending
         pub fn add_read_chunk(mut self, chunk: impl AsRef<[u8]>) -> Self {
             self.input.extend_from_slice(chunk.as_ref());
@@ -89,7 +82,7 @@ pub mod test_util {
     }
     impl<T: AsRef<[u8]>> From<T> for TestIO {
         fn from(data: T) -> Self {
-            Self::new().add_read_chunk(data)
+            Self::default().add_read_chunk(data)
         }
     }
     impl Read for TestIO {

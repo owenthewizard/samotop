@@ -58,7 +58,7 @@ where
         trace!("Polling next response. Done {}", self.state);
         let proj = self.as_mut().project();
 
-        if let None = ready!(proj.input.poll_next(cx)?) {
+        if ready!(proj.input.poll_next(cx)?).is_none() {
             *proj.closed = true;
         }
 
