@@ -24,7 +24,7 @@ gitlab = { repository = "BrightOpen/BackYard/Samotop", branch = "develop" }
 maintenance = { status = "actively-developed" }
 
 [features]
-default = ["rust-tls", "spf", "lmtp-dispatch"]
+default = ["rust-tls", "spf"]
 spf = ["samotop-with-spf"]
 lmtp-dispatch = ["samotop-to-lmtp"]
 rust-tls = ["async-tls"]
@@ -55,7 +55,7 @@ pin-project = "0.4"
 futures = "0.3"
 async-std = "1.6"
 async-tls = { version = "0.9", optional = true }
-async-native-tls = { version = "0.3", optional = true }
+#async-native-tls = { version = "0.3", optional = true }
 
 [dev-dependencies]
 futures-await-test = "0.3"
