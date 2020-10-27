@@ -23,13 +23,12 @@ build:
     - rustc --version
     - cargo --version
   script:
-    # if it is a stable version, do a release build, otherwise debug build
-    - case "$CI_COMMIT_REF_NAME" in master) cargo build --release --color always ;; *) cargo build --color always ;; esac
-    # test in release mode for stable builds otherwise in debug
-    # develop is build in debug, but tested in release mode to cover both sides
+    # if it is a stable/CI version, do a release build, otherwise debug build
+    - case "$CI_COMMIT_REF_NAME" in develop|master) cargo build --release --color always ;; *) cargo build --color always ;; esac
+    # test in release mode for stable/CI builds otherwise in debug
     - case "$CI_COMMIT_REF_NAME" in develop|master) cargo test --all --release --color always ;; *) cargo test --all --color always ;; esac
     # copy either release or debug server as an artifact
-    - case "$CI_COMMIT_REF_NAME" in master) cp -fa target/release/samotop-server target/samotop ;; *) cp -fa target/debug/samotop-server target/samotop ;; esac
+    - case "$CI_COMMIT_REF_NAME" in develop|master) cp -fa target/release/samotop-server target/samotop ;; *) cp -fa target/debug/samotop-server target/samotop ;; esac
 
 test-nightly:
   stage: build
