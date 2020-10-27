@@ -13,7 +13,7 @@ pub mod common {
         AsyncWriteExt as WriteExt, Future, FutureExt, Stream, StreamExt, TryFutureExt,
     };
     pub use pin_project::pin_project;
-    pub use async_trait::async_trait;
+    pub use samotop_async_trait::async_trait;
     pub use std::pin::Pin;
     pub use std::sync::Arc;
     pub use std::task::{Context, Poll};

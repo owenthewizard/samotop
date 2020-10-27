@@ -24,10 +24,10 @@ build:
     - cargo --version
   script:
     # if it is a stable version, do a release build, otherwise debug build
-    - case "$CI_COMMIT_REF_NAME" in master) cargo build --release ;; *) cargo build ;; esac
+    - case "$CI_COMMIT_REF_NAME" in master) cargo build --release --color always ;; *) cargo build --color always ;; esac
     # test in release mode for stable builds otherwise in debug
     # develop is build in debug, but tested in release mode to cover both sides
-    - case "$CI_COMMIT_REF_NAME" in develop|master) cargo test --all --release ;; *) cargo test --all ;; esac
+    - case "$CI_COMMIT_REF_NAME" in develop|master) cargo test --all --release --color always ;; *) cargo test --all --color always ;; esac
     # copy either release or debug server as an artifact
     - case "$CI_COMMIT_REF_NAME" in master) cp -fa target/release/samotop-server target/samotop ;; *) cp -fa target/debug/samotop-server target/samotop ;; esac
 
@@ -41,7 +41,11 @@ test-nightly:
     paths: *cache-paths
   script:
     - rustup default nightly
-    - cargo test --all --verbose
+    - rustup component add clippy
+    - cargo test --workspace --examples --bins --tests --all-features --color always
+    - cargo clippy --workspace --all-features --color always -- -Dclippy::all
+    - cargo fmt --all -- --check
+    - cargo check --workspace --benches --color always
 
 publish-crate:
   variables:
@@ -56,8 +60,8 @@ publish-crate:
     - VERSION="${COMPVER##$COMPONENT/}"
     - echo "Releasing component ${COMPONENT:?cannot be empty} v ${VERSION:?cannot be empty}"
     - test "$VERSION" == "$(cargo pkgid --manifest-path "$COMPONENT/Cargo.toml" | cut -d '#' -f2- | tr -d '\n')"
-    - cargo test --manifest-path "$COMPONENT/Cargo.toml" --release
-    - cargo publish --manifest-path "$COMPONENT/Cargo.toml" --token "$CRATES_KEY"
+    - cargo test --manifest-path "$COMPONENT/Cargo.toml" --release --color always
+    - cargo publish --manifest-path "$COMPONENT/Cargo.toml" --token "$CRATES_KEY" --color always
 
 publish-docker:
   stage: release

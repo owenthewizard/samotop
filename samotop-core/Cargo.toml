@@ -23,7 +23,7 @@ gitlab = { repository = "BrightOpen/BackYard/Samotop", branch = "develop" }
 maintenance = { status = "actively-developed" }
 
 [dependencies.samotop-model]
-version = "0.11.0-samotop-dev" 
+version = "0.11.0-samotop-dev"
 path = "../samotop-model"
 
 [dependencies]
@@ -33,4 +33,4 @@ pin-project = "0.4"
 uuid = { version = "0.8", features = ["v4"] }
 bytes = "0.5"
 memchr = "2.3"
-async-trait = { git = "https://github.com/BrightOpen/async-trait.git", branch = "feature/sync-futures-#77" }
+samotop-async-trait = { path = "../samotop-async-trait", version = "0.2.0" }

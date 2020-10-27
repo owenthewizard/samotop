@@ -84,6 +84,8 @@ where
 
 #[pin_project]
 pub struct CreateMailFile {
+    // TODO: Refactor complex type
+    #[allow(clippy::type_complexity)]
     stage2: Option<(
         BytesMut,
         String,
@@ -110,7 +112,7 @@ impl CreateMailFile {
         let tmp_dir = dir.as_ref().join("tmp");
         let target_file = target_dir.join(transaction.id.as_str());
         let tmp_file = tmp_dir.join(transaction.id.as_str());
-        let target = Box::pin(rename(tmp_file.clone(), target_file.clone()));
+        let target = Box::pin(rename(tmp_file.clone(), target_file));
         let file = Box::pin(
             ensure_dir(tmp_dir)
                 .and_then(move |_| ensure_dir(target_dir))
@@ -194,7 +196,7 @@ impl Write for MailFile {
         let written = buffer.len() - pending.len();
         drop(buffer.split_to(written));
         trace!("Remaining {} bytes", buffer.len());
-        if buffer.len() == 0 {
+        if buffer.is_empty() {
             Poll::Ready(Ok(()))
         } else {
             Poll::Pending

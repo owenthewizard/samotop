@@ -1,6 +1,6 @@
 pub mod dummy;
-pub mod tls;
 pub mod smtp;
+pub mod tls;
 
 use crate::model::io::*;
 use crate::model::Result;

@@ -1,5 +1,7 @@
 [workspace]
 members = [
+    "samotop-async-trait",
+    "samotop-delivery",
     "samotop-model",
     "samotop-core",
     "samotop-parser",

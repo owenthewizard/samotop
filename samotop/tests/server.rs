@@ -2,12 +2,12 @@ extern crate samotop;
 
 #[test]
 fn use_dummy_service() {
-    let _ = samotop::server::Server::new().serve(samotop::service::tcp::dummy::DummyTcpService);
+    let _ = samotop::server::Server::default().serve(samotop::service::tcp::dummy::DummyTcpService);
 }
 
 #[test]
-fn use_samotop_service() {
-    let _ = samotop::server::Server::new();
+fn use_samotop_server() {
+    let _ = samotop::server::Server::default();
 }
 
 #[test]

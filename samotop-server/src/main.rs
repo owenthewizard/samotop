@@ -99,7 +99,7 @@ fn main() -> Result<()> {
 }
 
 async fn main_fut() -> Result<()> {
-    let setup = Setup::new();
+    let setup = Setup::from_args();
 
     let ports = setup.get_service_ports();
     let tls_config = setup.get_tls_config().await?;
@@ -120,7 +120,7 @@ pub struct Setup {
 }
 
 impl Setup {
-    pub fn new() -> Setup {
+    pub fn from_args() -> Setup {
         Setup {
             opt: Opt::from_args(),
         }
@@ -183,7 +183,7 @@ impl Setup {
         if self.opt.ports.is_empty() {
             vec!["localhost:25".to_owned()]
         } else {
-            self.opt.ports.iter().map(|s| s.clone()).collect()
+            self.opt.ports.to_vec()
         }
     }
 

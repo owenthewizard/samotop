@@ -1,7 +1,7 @@
 //! Demonstrating the SMTP parser built from PEG grammar.
 
-extern crate samotop_parser;
 extern crate samotop_core;
+extern crate samotop_parser;
 
 use samotop_core::service::parser::Parser;
 use samotop_parser::SmtpParser;
