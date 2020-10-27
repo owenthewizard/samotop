@@ -40,7 +40,7 @@ test-nightly:
     paths: *cache-paths
   script:
     - rustup default nightly
-    - rustup component add clippy
+    - rustup component add clippy rustfmt
     - cargo test --workspace --examples --bins --tests --all-features --color always
     - cargo clippy --workspace --all-features --color always -- -Dclippy::all
     - cargo fmt --all -- --check
