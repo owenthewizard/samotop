@@ -450,7 +450,7 @@ mod codec_tests {
 
     #[test]
     fn decode_takes_first_line() -> Result<()> {
-        let mut io = TestIO::new()
+        let mut io = TestIO::default()
             .add_read_chunk("helo there\r\n")
             .add_read_chunk("quit\r\n");
         let sess = SessionInfo::new(ConnectionInfo::default(), "".to_owned());

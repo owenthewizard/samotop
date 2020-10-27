@@ -9,7 +9,7 @@ fn main() {
             "id".to_string(),
         )
         .unwrap();
-        let message = "Hello example".as_bytes();
+        let message = b"Hello example";
 
         let creds = Credentials::new(
             "example_username".to_string(),
@@ -22,7 +22,7 @@ fn main() {
             .credentials(creds);
 
         // Send the email
-        let result = mailer.connect_and_send(envelope, message).await;
+        let result = mailer.connect_and_send(envelope, message.as_ref()).await;
 
         if result.is_ok() {
             println!("Email sent");
