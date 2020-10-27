@@ -24,7 +24,7 @@ gitlab = { repository = "BrightOpen/BackYard/Samotop", branch = "develop" }
 maintenance = { status = "actively-developed" }
 
 [features]
-default = ["rust-tls", "spf"]
+default = ["rust-tls", "spf", "lmtp-dispatch"]
 spf = ["samotop-with-spf"]
 lmtp-dispatch = ["samotop-to-lmtp"]
 rust-tls = ["async-tls"]
