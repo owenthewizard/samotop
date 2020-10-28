@@ -7,28 +7,43 @@ stages:
 variables:
   CARGO_HOME: ".cargo"
 
-build:
+build-debug:
   stage: build
-  only:
-    - branches
+  except:
+    - master
+    - develop
   cache:
     paths: &cache-paths
       - target/
       - $CARGO_HOME
   artifacts:
     paths:
-      - target/samotop
+      - target/debug/samotop-server
       - Cargo.lock
   before_script:
     - rustc --version
     - cargo --version
   script:
-    # if it is a stable/CI version, do a release build, otherwise debug build
-    - case "$CI_COMMIT_REF_NAME" in develop|master) cargo build --release --color always ;; *) cargo build --color always ;; esac
-    # test in release mode for stable/CI builds otherwise in debug
-    - case "$CI_COMMIT_REF_NAME" in develop|master) cargo test --all --release --color always ;; *) cargo test --all --color always ;; esac
-    # copy either release or debug server as an artifact
-    - case "$CI_COMMIT_REF_NAME" in develop|master) cp -fa target/release/samotop-server target/samotop ;; *) cp -fa target/debug/samotop-server target/samotop ;; esac
+    - cargo build --color always
+    - cargo test --all --color always
+
+build-stable:
+  stage: build
+  only:
+    - master
+    - develop
+  cache:
+    paths: *cache-paths
+  artifacts:
+    paths:
+      - target/release/samotop-server
+      - Cargo.lock
+  before_script:
+    - rustc --version
+    - cargo --version
+  script:
+    - cargo build --release --color always
+    - cargo test --all --release --color always
 
 test-stable:
   stage: build
@@ -36,8 +51,10 @@ test-stable:
     - branches
   cache:
     paths: *cache-paths
-  script:
+  before_script:
     - rustup component add clippy rustfmt
+    - cargo install cargo-readme
+  script:
     - cargo test --workspace --all-features --color always
     - cargo clippy --workspace --all-features --color always -- -Dclippy::all
     - cargo check --workspace --benches --color always
@@ -51,8 +68,9 @@ test-nightly:
   cache:
     key: nightly
     paths: *cache-paths
-  script:
+  before_script:
     - rustup default nightly
+  script:
     - cargo test --workspace --examples --bins --tests --all-features --color always
 
 publish-crate:
@@ -85,7 +103,7 @@ publish-docker:
   script:
     - cp -ra samotop-server/docker target/
     # Copy either debug or release binary
-    - cp target/samotop target/docker/samotop
+    - cp target/release/samotop-server target/docker/samotop
     - cd target/docker/
     - docker build -t samotop .
     - cd ../../
