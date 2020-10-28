@@ -67,12 +67,16 @@ publish-crate:
     - tags
   cache:
     paths: *cache-paths
+    policy: pull
+  artifacts:
+    paths:
+      - Cargo.lock
   script:
     - COMPONENT="$(dirname "$COMPVER")"
     - VERSION="${COMPVER##$COMPONENT/}"
     - echo "Releasing component ${COMPONENT:?cannot be empty} v ${VERSION:?cannot be empty}"
-    - test "$VERSION" == "$(cargo pkgid --manifest-path "$COMPONENT/Cargo.toml" | cut -d '#' -f2- | tr -d '\n')"
     - cargo test --manifest-path "$COMPONENT/Cargo.toml" --release --color always
+    - test "$VERSION" == "$(cargo pkgid --manifest-path "$COMPONENT/Cargo.toml" | cut -d '#' -f2- | tr -d '\n')"
     - cargo publish --manifest-path "$COMPONENT/Cargo.toml" --token "$CRATES_KEY" --color always
 
 publish-docker:
