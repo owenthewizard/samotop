@@ -5,13 +5,12 @@ stages:
   - release
 
 variables:
-  CARGO_HOME: ".cargo"
+  CARGO_HOME: "$CI_PROJECT_DIR/.cargo"
 
-build-debug:
+build:
   stage: build
-  except:
-    - master
-    - develop
+  only:
+    - branches
   cache:
     paths: &cache-paths
       - target/
@@ -19,6 +18,7 @@ build-debug:
   artifacts:
     paths:
       - target/debug/samotop-server
+      - target/release/samotop-server
       - Cargo.lock
   before_script:
     - rustc --version
@@ -26,22 +26,7 @@ build-debug:
   script:
     - cargo build --color always
     - cargo test --all --color always
-
-build-stable:
-  stage: build
-  only:
-    - master
-    - develop
-  cache:
-    paths: *cache-paths
-  artifacts:
-    paths:
-      - target/release/samotop-server
-      - Cargo.lock
-  before_script:
-    - rustc --version
-    - cargo --version
-  script:
+    - case "$CI_COMMIT_REF_NAME" in master|develop) echo will also build/test release ;; *) exit 0 ;; esac
     - cargo build --release --color always
     - cargo test --all --release --color always
 
@@ -51,6 +36,7 @@ test-stable:
     - branches
   cache:
     paths: *cache-paths
+    policy: pull
   before_script:
     - rustup component add clippy rustfmt
     - cargo install cargo-readme
