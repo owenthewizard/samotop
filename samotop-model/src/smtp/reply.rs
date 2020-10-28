@@ -268,9 +268,7 @@ impl SmtpReply {
     }
     pub fn items(&self) -> Vec<String> {
         match *self {
-            OkEhloInfo { ref extensions, .. } => {
-                extensions.iter().map(|e| e.to_string()).collect()
-            }
+            OkEhloInfo { ref extensions, .. } => extensions.iter().map(|e| e.to_string()).collect(),
             _ => vec![],
         }
     }
