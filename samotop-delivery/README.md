@@ -1,4 +1,4 @@
-# samotop-delivery 0.4.4
+# samotop-delivery 0.4.4-samotop-dev
 
 samotop-delivery is an implementation of the smtp protocol client in Rust.
 ### Example

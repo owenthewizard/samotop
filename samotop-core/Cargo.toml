@@ -33,4 +33,4 @@ pin-project = "0.4"
 uuid = { version = "0.8", features = ["v4"] }
 bytes = "0.5"
 memchr = "2.3"
-samotop-async-trait = { path = "../samotop-async-trait", version = "0.2.0" }
+samotop-async-trait = { path = "../samotop-async-trait", version = "0.2.0-samotop-dev" }

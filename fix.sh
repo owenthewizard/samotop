@@ -14,3 +14,5 @@ for f in `find */ -name Cargo.toml`; do
     cargo readme > README.md
     popd > /dev/null
 done
+
+git diff --exit-code --color

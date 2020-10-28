@@ -32,7 +32,6 @@ build:
 
 test-stable:
   stage: build
-  allow_failure: true
   only:
     - branches
   cache:
@@ -42,7 +41,7 @@ test-stable:
     - cargo test --workspace --all-features --color always
     - cargo clippy --workspace --all-features --color always -- -Dclippy::all
     - cargo check --workspace --benches --color always
-    - cargo fmt --all -- --check
+    - ./fix.sh
 
 test-nightly:
   stage: build

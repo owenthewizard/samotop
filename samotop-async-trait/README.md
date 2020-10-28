@@ -1,4 +1,4 @@
-# samotop-async-trait 0.2.0
+# samotop-async-trait 0.2.0-samotop-dev
 
 [![github]](https://github.com/dtolnay/async-trait)&ensp;[![crates-io]](https://crates.io/crates/async-trait)&ensp;[![docs-rs]](https://docs.rs/async-trait)
 
