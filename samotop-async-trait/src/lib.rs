@@ -307,6 +307,38 @@
 //! fn is_sync<T: Sync>(_tester: T) {}
 //! fn is_static<T: 'static>(_tester: T) {}
 //! ```
+//!
+//! The problem with implementing static futures is that as soon
+//! as the async block captures a reference to &self let's say,
+//! the async block cannot be static. Solution: execute future
+//! setup outside of the async block with `async_setup_ready!();`:
+//!
+//! ```
+//! # use samotop_async_trait::async_trait;
+//! #[async_trait]
+//! trait SyncStaticFutures {
+//!     #[future_is[Sync + 'static]]
+//!     async fn sync_and_static(&self) -> String;
+//! }
+//!
+//! struct Dummy{
+//!     message: String
+//! }
+//!
+//! #[async_trait]
+//! impl SyncStaticFutures for Dummy {
+//!     #[future_is[Sync + 'static]]
+//!     async fn sync_and_static(&self) -> String
+//!     {
+//!         let msg = self.message.clone();
+//!         let msg = async move {msg}; // aka future::ready(msg)
+//!         async_setup_ready!();
+//!         // your async/await business here...
+//!         // for instance reading the string from the given file path
+//!         msg.await
+//!     }
+//! }
+//! ```
 extern crate proc_macro;
 
 mod args;
