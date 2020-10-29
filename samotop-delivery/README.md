@@ -35,7 +35,7 @@ async fn smtp_transport_simple() -> Result<()> {
 
 This is a fork of [async-smtp](https://github.com/async-email/async-smtp/releases/tag/v0.3.4) 
 
-## License - Apache-2.0/MIT
+## License - MIT OR Apache-2.0
 
 <sup>
 Licensed under either of <a href="../LICENSE-Apache2">Apache License, Version

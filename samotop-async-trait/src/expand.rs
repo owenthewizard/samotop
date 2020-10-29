@@ -71,9 +71,6 @@ pub fn expand(input: &mut Item, is_local: bool) {
                         method.attrs.push(parse_quote!(#[must_use]));
                         method
                             .attrs
-                            .push(parse_quote!(#[allow(clippy::needless_return)]));
-                        method
-                            .attrs
                             .push(parse_quote!(#[allow(clippy::needless_lifetimes)]));
                         method
                             .attrs
