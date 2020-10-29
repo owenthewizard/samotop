@@ -67,15 +67,15 @@ impl<'a> Server<'a> {
     }
     pub async fn serve<S>(mut self: Server<'a>, service: S) -> Result<()>
     where
-        S: TcpService<TcpStream>,
+        S: TcpService<TcpStream> + Send + Sync,
     {
         Self::serve_ports(service, self.resolve_ports().await?).await
     }
     async fn serve_ports<S>(service: S, addrs: impl IntoIterator<Item = SocketAddr>) -> Result<()>
     where
-        S: TcpService<TcpStream>,
+        S: TcpService<TcpStream> + Send + Sync,
     {
-        let svc = std::rc::Rc::new(service);
+        let svc = Arc::new(service);
         addrs
             .into_iter()
             .map(|a| Self::serve_port(svc.clone(), a))

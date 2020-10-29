@@ -4,17 +4,17 @@ use crate::protocol::tls::{TlsCapable, TlsDisabled};
 use crate::service::tcp::TcpService;
 
 pub trait TlsProviderFactory<IO> {
-    type Provider: TlsProvider<IO>;
+    type Provider: TlsProvider<IO> + Sync + Send;
     fn get(&self) -> Option<Self::Provider>;
 }
 pub trait TlsProvider<IO> {
-    type EncryptedIO: Read + Write + Unpin;
-    type UpgradeFuture: Future<Output = std::io::Result<Self::EncryptedIO>>;
+    type EncryptedIO: Read + Write + Unpin + Sync + Send;
+    type UpgradeFuture: Future<Output = std::io::Result<Self::EncryptedIO>> + Sync + Send;
     fn upgrade_to_tls(&self, io: IO) -> Self::UpgradeFuture;
 }
 impl<IO, T> TlsProviderFactory<IO> for Option<T>
 where
-    T: TlsProvider<IO> + Clone,
+    T: TlsProvider<IO> + Clone + Sync + Send,
 {
     type Provider = T;
     fn get(&self) -> Option<Self::Provider> {
@@ -40,15 +40,17 @@ impl<T, P> TlsEnabled<T, P> {
     }
 }
 
+#[async_trait]
 impl<T, IO, P> TcpService<IO> for TlsEnabled<T, P>
 where
-    T: TcpService<TlsCapable<IO, P::Provider>>,
-    IO: Read + Write + Unpin,
-    P: TlsProviderFactory<IO>,
+    T: TcpService<TlsCapable<IO, P::Provider>> + Send + Sync,
+    IO: Read + Write + Unpin + Sync + Send,
+    P: TlsProviderFactory<IO> + Send + Sync,
 {
-    type Future = T::Future;
-    fn handle(&self, io: Result<IO>, conn: ConnectionInfo) -> Self::Future {
+    #[future_is[Send + Sync + 'static]]
+    async fn handle(&self, io: Result<IO>, conn: ConnectionInfo) -> Result<()> {
         let provider = self.provider.get();
+
         let tls = match io {
             Ok(io) => Ok(match provider {
                 Some(provider) => TlsCapable::yes(io, provider),
@@ -56,6 +58,8 @@ where
             }),
             Err(e) => Err(e),
         };
-        self.wrapped.handle(tls, conn)
+        let fut = self.wrapped.handle(tls, conn);
+        async_setup_ready!();
+        fut.await
     }
 }

@@ -2,9 +2,9 @@ pub mod dummy;
 pub mod smtp;
 pub mod tls;
 
+use crate::common::*;
 use crate::model::io::*;
 use crate::model::Result;
-use futures::prelude::*;
 use std::ops::Deref;
 
 /**
@@ -21,14 +21,23 @@ shortage by blocking on the `handle()` call.
 
 The `SmtpService` and `DummyTcpService` implement this trait.
 */
+#[async_trait]
 pub trait TcpService<IO> {
-    type Future: Future<Output = Result<()>> + Send + Sync + 'static;
-    fn handle(&self, io: Result<IO>, connection: ConnectionInfo) -> Self::Future;
+    #[future_is[Send + Sync + 'static]]
+    async fn handle(&self, io: Result<IO>, connection: ConnectionInfo) -> Result<()>;
 }
 
-impl<IO, S: TcpService<IO> + ?Sized, T: Deref<Target = S>> TcpService<IO> for T {
-    type Future = S::Future;
-    fn handle(&self, io: Result<IO>, connection: ConnectionInfo) -> Self::Future {
-        S::handle(self.deref(), io, connection)
+#[async_trait]
+impl<IO, S: TcpService<IO> + ?Sized, T: Deref<Target = S>> TcpService<IO> for T
+where
+    IO: Sync + Send,
+    S: Sync + Send,
+    T: Sync + Send,
+{
+    #[future_is[Send + Sync + 'static]]
+    async fn handle(&self, io: Result<IO>, connection: ConnectionInfo) -> Result<()> {
+        let fut = S::handle(self.deref(), io, connection);
+        async_setup_ready!();
+        fut.await
     }
 }

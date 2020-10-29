@@ -3,13 +3,11 @@ use crate::parse::Item;
 use crate::receiver::{has_self_in_block, has_self_in_sig};
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote, quote_spanned, ToTokens};
-use syn::punctuated::Punctuated;
-use syn::token::Add;
-use syn::visit_mut::VisitMut;
-use syn::Attribute;
 use syn::{
-    parse_quote, Block, FnArg, GenericParam, Generics, Ident, ImplItem, Lifetime, Pat, Receiver,
-    ReturnType, Signature, Stmt, TraitItem, Type, TypeParamBound, WhereClause,
+    parse_quote, punctuated::Punctuated, spanned::Spanned, token::Add, token::Brace,
+    visit_mut::VisitMut, Attribute, Block, Expr, ExprMacro, FnArg, GenericParam, Generics, Ident,
+    ImplItem, Lifetime, Pat, Receiver, ReturnType, Signature, Stmt, TraitItem, Type,
+    TypeParamBound, WhereClause,
 };
 
 impl ToTokens for Item {
@@ -71,6 +69,9 @@ pub fn expand(input: &mut Item, is_local: bool) {
                         let future_bounds = get_future_bounds(&mut method.attrs);
                         transform_sig(context, sig, has_self, has_default, is_local, future_bounds);
                         method.attrs.push(parse_quote!(#[must_use]));
+                        method
+                            .attrs
+                            .push(parse_quote!(#[allow(clippy::needless_return)]));
                         method
                             .attrs
                             .push(parse_quote!(#[allow(clippy::needless_lifetimes)]));
@@ -316,29 +317,73 @@ fn transform_sig(
     };
 }
 
-// Input:
-//     async fn f<T>(&self, x: &T) -> Ret {
-//         self + x
-//     }
-//
-// Output:
-//     let fut = async move {
-//         self + x
-//     };
-//     Box::new(fut)
+/// Input:
+///     {
+///         self + x.await
+///     }
+///
+/// Output:
+///     {
+///         return Box::new(async move {
+///             self + x.await
+///         });
+///     }
+///
+/// Input:
+///     {
+///         let y = self + x;
+///         async_setup_ready!();
+///         y.await
+///     }
+///
+/// Output:
+///     {
+///         let y = self + x;
+///         return Box::pin(async move {
+///             y.await
+///         });
+///     }
 fn transform_block(block: &mut Block) {
     if let Some(Stmt::Item(syn::Item::Verbatim(item))) = block.stmts.first() {
         if block.stmts.len() == 1 && item.to_string() == ";" {
             return;
         }
     }
-    let brace = block.brace_token;
-    let boxed = quote_spanned!(brace.span=> {
-        let fut = async move { #block };
-        ::std::boxed::Box::pin(fut)
-    });
-    *block = parse_quote!(#boxed);
-    block.brace_token = brace;
+
+    let mut start = 0;
+    let mut span = block.span();
+
+    // Find macro call `async_setup_ready!();`
+    // if found, remove it and the async block will start from there
+    // instead of the beginning of the method
+    for pos in 0..block.stmts.len() {
+        if let Stmt::Semi(Expr::Macro(ExprMacro { ref mac, .. }), _) = block.stmts[pos] {
+            if mac.path.is_ident("async_setup_ready") {
+                start = pos;
+                span = mac.span();
+                block.stmts.remove(pos);
+                break;
+            }
+        }
+    }
+
+    // build the async block
+    let async_block = Block {
+        brace_token: Brace { span },
+        stmts: block.stmts.drain(start..).collect(),
+    };
+    let async_block = quote_spanned! {span=>
+        ::std::boxed::Box::pin(async move #async_block);
+    };
+    let mut async_block = parse_quote!(#async_block);
+
+    if let Stmt::Semi(expr, _) = async_block {
+        // Remove the semicolon. I was not able to figure that out otherwise.
+        async_block = Stmt::Expr(expr);
+    }
+
+    // put it back into the method block
+    block.stmts.push(async_block)
 }
 
 fn positional_arg(i: usize) -> Ident {

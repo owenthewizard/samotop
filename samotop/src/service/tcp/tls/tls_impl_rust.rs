@@ -10,7 +10,7 @@ pub fn provide_rustls(acceptor: TlsAcceptor) -> Provider<TlsAcceptor> {
 
 impl<IO> TlsProvider<IO> for Provider<TlsAcceptor>
 where
-    IO: Read + Write + Unpin,
+    IO: Read + Write + Unpin + Sync + Send,
 {
     type EncryptedIO = TlsStream<IO>;
     type UpgradeFuture = Accept<IO>;

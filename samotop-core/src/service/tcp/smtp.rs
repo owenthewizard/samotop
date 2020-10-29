@@ -47,6 +47,7 @@ where
     }
 }
 
+#[async_trait]
 impl<S, P, IO> TcpService<IO> for SmtpService<S, P, IO>
 where
     S: SessionService<SessionInput<IO, Arc<P>>> + Send + Sync + 'static,
@@ -55,14 +56,11 @@ where
     IO: MayBeTls + Read + Write + Unpin + Sync + Send + 'static,
     P: Parser + Sync + Send + 'static,
 {
-    type Future = Pin<Box<dyn Future<Output = Result<()>> + Send + Sync>>;
-    fn handle(&self, io: Result<IO>, conn: ConnectionInfo) -> Self::Future {
-        Box::pin(handle_smtp(
-            self.session_service.clone(),
-            self.parser.clone(),
-            conn,
-            io,
-        ))
+    #[future_is[Send + Sync + 'static]]
+    async fn handle(&self, io: Result<IO>, conn: ConnectionInfo) -> Result<()> {
+        let fut = handle_smtp(self.session_service.clone(), self.parser.clone(), conn, io);
+        async_setup_ready!();
+        fut.await
     }
 }
 
