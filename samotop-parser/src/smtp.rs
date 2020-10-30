@@ -240,7 +240,7 @@ peg::parser! {
             = b:$(".")
             {debug_assert!(b.len()==1); b[0]}
 
-        rule NL() = quiet!{"\r\n"} / expected!("{NL}")
+        rule NL() = quiet!{"\r\n" / "\n"} / expected!("{NL}")
         rule _() = quiet!{" "} / expected!("{SP}")
         rule __() = quiet!{_ / "\t"} / expected!("{WS}")
     }
@@ -342,7 +342,7 @@ mod tests {
         assert_eq!(
             result,
             vec![
-                Raw(b("QUIT\n")),
+                Command(Quit, b("QUIT\n")),
                 Command(Quit, b("QUIT\r\n")),
                 Command(Quit, b("quit\r\n")),
             ]

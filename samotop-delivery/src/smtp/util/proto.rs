@@ -61,21 +61,80 @@ impl<'s, S: Read + Write> SmtpProto<'s, S> {
         let banner_response = self.read_response(timeout).await?;
         banner_response.is([250].as_ref())
     }
-    /// Gets the EHLO response and updates server information.
+    /// Gets the EHLO (ESMTP) response and updates server information.
+    /// If this fails with 5xx error (pure SMTP), plain old HELO is used instead.
+    pub async fn execute_ehlo_or_helo(
+        &mut self,
+        me: ClientId,
+        timeout: Duration,
+    ) -> Result<(Response, ServerInfo), Error> {
+        match self.execute_ehlo(me.clone(), timeout).await {
+            Err(Error::Permanent(_resp)) => self.execute_helo(me, timeout).await,
+            otherwise => otherwise,
+        }
+    }
+    /// Gets the LHLO (LMTP) response and updates server information.
+    /// If this fails with 5xx error (pure SMTP), plain old HELO is used instead.
+    pub async fn execute_lhlo_or_helo(
+        &mut self,
+        me: ClientId,
+        timeout: Duration,
+    ) -> Result<(Response, ServerInfo), Error> {
+        match self.execute_lhlo(me.clone(), timeout).await {
+            Err(Error::Permanent(_resp)) => self.execute_helo(me, timeout).await,
+            otherwise => otherwise,
+        }
+    }
+    /// Gets the EHLO (ESMTP) response and updates server information.
+    /// If this fails with 5xx error (pure SMTP), one should try HELO instead.
     pub async fn execute_ehlo(
         &mut self,
         me: ClientId,
         timeout: Duration,
     ) -> Result<(Response, ServerInfo), Error> {
         // Extended Hello
-        // TODO: Try HELO as a fallback!
         let ehlo_response = self
-            .execute_command(EhloCommand::new(me), [250], timeout)
+            .execute_command(HeloCommand::ehlo(me), [250], timeout)
             .await?;
         // extract extensions
         let server_info = ServerInfo::from_response(&ehlo_response)?;
         // Print server information
         debug!("ehlo server info {}", server_info);
+
+        Ok((ehlo_response, server_info))
+    }
+    /// Gets the LHLO (LMTP) response and updates server information.
+    /// If this fails with 5xx error (pure SMTP), one should try HELO instead.
+    pub async fn execute_lhlo(
+        &mut self,
+        me: ClientId,
+        timeout: Duration,
+    ) -> Result<(Response, ServerInfo), Error> {
+        // LMTP HELO
+        let ehlo_response = self
+            .execute_command(HeloCommand::lhlo(me), [250], timeout)
+            .await?;
+        // extract extensions
+        let server_info = ServerInfo::from_response(&ehlo_response)?;
+        // Print server information
+        debug!("lhlo server info {}", server_info);
+
+        Ok((ehlo_response, server_info))
+    }
+    /// Gets the HELO (bare SMTP) response and updates server information.
+    pub async fn execute_helo(
+        &mut self,
+        me: ClientId,
+        timeout: Duration,
+    ) -> Result<(Response, ServerInfo), Error> {
+        // Basic HELO
+        let ehlo_response = self
+            .execute_command(HeloCommand::helo(me), [250], timeout)
+            .await?;
+        // extract extensions
+        let server_info = ServerInfo::from_response(&ehlo_response)?;
+        // Print server information
+        debug!("helo server info {}", server_info);
 
         Ok((ehlo_response, server_info))
     }

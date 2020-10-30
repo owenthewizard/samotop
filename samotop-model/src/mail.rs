@@ -2,7 +2,7 @@ use crate::io::ConnectionInfo;
 use crate::smtp::*;
 
 /// Mail envelope before sending mail data
-#[derive(Debug, Clone)]
+#[derive(Default, Debug, Clone)]
 pub struct Transaction {
     /// Description of the current session
     pub session: SessionInfo,
@@ -12,10 +12,12 @@ pub struct Transaction {
     pub mail: Option<SmtpMail>,
     /// A list of SMTP rcpt to:path sent by peer
     pub rcpts: Vec<SmtpPath>,
+    /// Extra headers prepended to the e-mail
+    pub extra_headers: String,
 }
 pub type StartMailRequest = Transaction;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Default, Clone, Debug, PartialEq, Eq)]
 pub struct SessionInfo {
     /// Description of the underlying connection
     pub connection: ConnectionInfo,

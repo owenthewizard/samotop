@@ -128,8 +128,7 @@ mod tests {
                 "test".to_owned(),
             ),
             id: "sessionid".to_owned(),
-            mail: None,
-            rcpts: vec![],
+            ..Default::default()
         };
         let cfg = Config::default();
         let sut = SpfService::new(svc, cfg);

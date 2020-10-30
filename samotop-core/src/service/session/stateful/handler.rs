@@ -204,9 +204,8 @@ impl<S: MailService> BasicSessionHandler<S> {
             State::Connected(session) if session.smtp_helo.is_some() => {
                 let request = StartMailRequest {
                     session: session.clone(),
-                    id: String::new(),
                     mail: Some(mail),
-                    rcpts: vec![],
+                    ..Default::default()
                 };
                 let fut = self.service.start_mail(request).map(move |res| {
                     use StartMailResult as R;

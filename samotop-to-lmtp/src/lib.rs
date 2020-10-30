@@ -32,6 +32,7 @@ impl Config<variant::TcpLmtpDispatch> {
         let variant = variant::TcpLmtpDispatch {
             transport: Arc::new(
                 SmtpClient::new(&address)?
+                    .lmtp(true)
                     .connection_reuse(ConnectionReuseParameters::ReuseUnlimited)
                     .connect_with(conn()),
             ),

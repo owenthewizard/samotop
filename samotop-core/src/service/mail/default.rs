@@ -59,6 +59,7 @@ impl MailDispatch for DefaultMailService {
             ref mail,
             ref id,
             ref rcpts,
+            ..
         } = transaction;
         println!(
             "Mail from {:?} for {} (mailid: {:?}). {}",

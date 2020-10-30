@@ -1,11 +1,12 @@
 use crate::smtp::commands::*;
 use crate::smtp::error::Error;
-use crate::smtp::extension::{Extension, MailBodyParameter, MailParameter, ServerInfo};
+use crate::smtp::extension::{ClientId, Extension, MailBodyParameter, MailParameter, ServerInfo};
 use crate::smtp::net::{ConnectionConfiguration, Connector, MaybeTls};
 use crate::smtp::smtp_client::ClientSecurity;
 use crate::smtp::stream::SmtpDataStream;
 use crate::smtp::util::SmtpProto;
 use crate::{Envelope, Transport};
+use async_std::io::{Read, Write};
 use log::{debug, info};
 use pin_project::pin_project;
 use potential::{Lease, Potential};
@@ -53,6 +54,7 @@ where
         let address = configuration.address();
         let my_id = configuration.hello_name();
         let security = configuration.security();
+        let lmtp = configuration.lmtp();
 
         let mut client = SmtpProto::new(Pin::new(stream));
         let banner = client.read_banner(timeout).await?;
@@ -63,7 +65,20 @@ where
             address, banner.code
         );
 
-        let (_, mut server_info) = client.execute_ehlo(my_id.clone(), timeout).await?;
+        async fn say_helo<S: Read + Write>(
+            lmtp: bool,
+            c: &mut SmtpProto<'_, S>,
+            me: ClientId,
+            timeout: Duration,
+        ) -> Result<ServerInfo, Error> {
+            let res = match lmtp {
+                false => c.execute_ehlo_or_helo(me, timeout).await?,
+                true => c.execute_lhlo_or_helo(me, timeout).await?,
+            };
+            Ok(res.1)
+        }
+
+        let mut server_info = say_helo(lmtp, &mut client, my_id.clone(), timeout).await?;
 
         if !client.stream().is_encrypted() {
             let can_encrypt =
@@ -77,7 +92,7 @@ where
             if encrypt {
                 client.execute_starttls(timeout).await?;
                 client.stream_mut().encrypt()?;
-                server_info = client.execute_ehlo(my_id, timeout).await?.1;
+                server_info = say_helo(lmtp, &mut client, my_id, timeout).await?;
             }
         }
 

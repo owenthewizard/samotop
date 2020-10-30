@@ -16,20 +16,49 @@ use std::fmt::{self, Display, Formatter};
     feature = "serde-impls",
     derive(serde_derive::Serialize, serde_derive::Deserialize)
 )]
-pub struct EhloCommand {
+pub struct HeloCommand {
     client_id: ClientId,
+    variant: HeloVariant,
 }
 
-impl Display for EhloCommand {
+#[derive(PartialEq, Clone, Debug)]
+#[cfg_attr(
+    feature = "serde-impls",
+    derive(serde_derive::Serialize, serde_derive::Deserialize)
+)]
+enum HeloVariant {
+    HELO,
+    EHLO,
+    LHLO,
+}
+
+impl Display for HeloCommand {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        write!(f, "EHLO {}\r\n", self.client_id)
+        write!(f, "{:?} {}\r\n", self.variant, self.client_id)
     }
 }
 
-impl EhloCommand {
+impl HeloCommand {
     /// Creates a EHLO command
-    pub fn new(client_id: ClientId) -> EhloCommand {
-        EhloCommand { client_id }
+    pub fn ehlo(client_id: ClientId) -> HeloCommand {
+        HeloCommand {
+            client_id,
+            variant: HeloVariant::EHLO,
+        }
+    }
+    /// Creates a EHLO command
+    pub fn helo(client_id: ClientId) -> HeloCommand {
+        HeloCommand {
+            client_id,
+            variant: HeloVariant::HELO,
+        }
+    }
+    /// Creates a EHLO command
+    pub fn lhlo(client_id: ClientId) -> HeloCommand {
+        HeloCommand {
+            client_id,
+            variant: HeloVariant::LHLO,
+        }
     }
 }
 
@@ -337,9 +366,9 @@ mod test {
             keyword: "TEST".to_string(),
             value: Some("value".to_string()),
         };
-        assert_eq!(format!("{}", EhloCommand::new(id)), "EHLO localhost\r\n");
+        assert_eq!(format!("{}", HeloCommand::ehlo(id)), "EHLO localhost\r\n");
         assert_eq!(
-            format!("{}", EhloCommand::new(id_ipv4)),
+            format!("{}", HeloCommand::ehlo(id_ipv4)),
             "EHLO [127.0.0.1]\r\n"
         );
         assert_eq!(

@@ -78,6 +78,8 @@ pub struct SmtpClient {
     /// Define network timeout
     /// It can be changed later for specific needs (like a different timeout for each SMTP command)
     pub(crate) timeout: Option<Duration>,
+    /// Use LMTP instead of SMTP
+    pub(crate) lmtp: bool,
 }
 
 /// Builder for the SMTP `SmtpTransport`
@@ -115,6 +117,7 @@ impl SmtpClient {
             authentication_mechanism: None,
             force_set_auth: false,
             timeout: Some(Duration::new(60, 0)),
+            lmtp: false,
         })
     }
 
@@ -165,6 +168,12 @@ impl SmtpClient {
     /// Set the timeout duration
     pub fn timeout(mut self, timeout: Option<Duration>) -> SmtpClient {
         self.timeout = timeout;
+        self
+    }
+
+    /// Set the LMTP mode
+    pub fn lmtp(mut self, switch_to_lmtp: bool) -> SmtpClient {
+        self.lmtp = switch_to_lmtp;
         self
     }
 
@@ -256,5 +265,8 @@ impl ConnectionConfiguration for SmtpClient {
         } else {
             None
         }
+    }
+    fn lmtp(&self) -> bool {
+        self.lmtp
     }
 }

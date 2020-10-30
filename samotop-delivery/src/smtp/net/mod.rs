@@ -1,12 +1,20 @@
 //! Traits and impls to represent and establish network-like streams
 
+#[cfg(unix)]
+mod unix;
+#[cfg(unix)]
+pub use self::unix::*;
+
+mod inet;
+pub use self::inet::*;
+
 use crate::smtp::authentication::Authentication;
 use crate::smtp::extension::ClientId;
 use crate::smtp::extension::ServerInfo;
-use crate::smtp::tls::{DefaultTls, TlsProvider, TlsUpgrade};
+use crate::smtp::tls::{DefaultTls, TlsUpgrade};
 use crate::ClientSecurity;
 use async_std::io::{self, Read, Write};
-use async_std::net::{SocketAddr, TcpStream, ToSocketAddrs};
+use async_std::net::SocketAddr;
 use async_std::pin::Pin;
 use async_std::task::{Context, Poll};
 use futures::{ready, Future};
@@ -40,6 +48,7 @@ pub trait ConnectionConfiguration: Sync + Send {
         server_info: &ServerInfo,
         encrypted: bool,
     ) -> Option<Box<dyn Authentication>>;
+    fn lmtp(&self) -> bool;
 }
 
 /// A stream implementing this trait may be able to upgrade to TLS
@@ -57,70 +66,12 @@ pub trait MaybeTls {
     fn is_encrypted(&self) -> bool;
 }
 
-pub type DefaultConnector = TcpConnector<DefaultTls>;
-
-#[derive(Debug)]
-pub struct TcpConnector<TLS> {
-    pub tls_mode: TlsMode,
-    pub provider: TLS,
-}
-
-impl Default for TcpConnector<DefaultTls> {
-    fn default() -> Self {
-        Self {
-            tls_mode: TlsMode::StartTls,
-            provider: DefaultTls,
-        }
-    }
-}
+pub type DefaultConnector = inet::TcpConnector<DefaultTls>;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum TlsMode {
     Tls,
     StartTls,
-}
-
-#[async_trait]
-impl<TLS> Connector for TcpConnector<TLS>
-where
-    TLS: TlsProvider<TcpStream> + Sync + Send + 'static,
-{
-    type Stream =
-        NetworkStream<TcpStream, <TLS::Upgrade as TlsUpgrade<TcpStream>>::Encrypted, TLS::Upgrade>;
-    /// This provider of connectivity takes care of resolving
-    /// given address (which could be an IP, FQDN, URL...),
-    /// establishing a connection and enabling (or not) TLS upgrade.
-    #[future_is[Sync + Send]]
-    async fn connect<C: ConnectionConfiguration + Sync>(
-        &self,
-        configuration: &C,
-    ) -> io::Result<Self::Stream> {
-        // TODO: try alternative addresses on failure. Here we just pick the first one.
-        let mut to = configuration.address();
-        let timeout = configuration.timeout();
-        let addr = to.to_socket_addrs().await?.next().ok_or_else(|| {
-            std::io::Error::new(
-                std::io::ErrorKind::NotFound,
-                format!("No address resolved for {}", to),
-            )
-        })?;
-
-        let tcp_stream = io::timeout(timeout, TcpStream::connect(addr)).await?;
-
-        // remove port part, domain/host remains
-        to.find(':').map(|i| to.split_off(i));
-        let mut stream = NetworkStream {
-            peer_addr: tcp_stream.peer_addr().ok(),
-            peer_name: to,
-            state: State::Plain(tcp_stream, self.provider.get()),
-        };
-
-        match self.tls_mode {
-            TlsMode::Tls => stream.encrypt()?,
-            TlsMode::StartTls => { /* ready! */ }
-        }
-        Ok(stream)
-    }
 }
 
 #[pin_project(project = NetStreamProj)]
