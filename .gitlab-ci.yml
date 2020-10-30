@@ -21,8 +21,8 @@ build:
       - target/release/samotop-server
       - Cargo.lock
   before_script:
-    - rustc --version
-    - cargo --version
+    - rustc --version --verbose
+    - cargo --version --verbose
   script:
     - cargo build --color always
     - cargo test --all --color always
@@ -56,8 +56,10 @@ test-nightly:
     paths: *cache-paths
   before_script:
     - rustup default nightly
+    - rustc --version --verbose
+    - cargo --version --verbose
   script:
-    - cargo test --workspace --examples --bins --tests --all-features --color always
+    - RUST_BACKTRACE=1 cargo test --workspace --examples --bins --tests --all-features --color always
 
 publish-crate:
   variables:
