@@ -8,7 +8,7 @@ pub use self::session::*;
 use crate::common::*;
 use crate::model::smtp::{ReadControl, WriteControl};
 use crate::service::mail::*;
-use crate::service::session::SessionService;
+use crate::service::session::*;
 
 /// Implement this trait to override the way commands are handled
 /// in stateful session service
@@ -18,23 +18,22 @@ pub trait SessionHandler {
     fn handle(&self, data: Self::Data, control: ReadControl) -> SessionState<Self::Data>;
 }
 
-pub type SessionFuture<T> = Pin<Box<dyn Future<Output = T> + Send + Sync>>;
 pub enum SessionState<T> {
     Ready(T),
-    Pending(SessionFuture<T>),
+    Pending(Pin<Box<dyn Future<Output = T> + Send + Sync>>),
 }
 
 /// Enables any clonable `MailService` to be used as a `SessionService`
 ///  with the default `BasicSessionHandler`
 impl<I, S> SessionService<I> for S
 where
-    I: Stream<Item = Result<ReadControl>>,
-    S: MailService + Clone,
+    I: Stream<Item = Result<ReadControl>> + Unpin + Send + Sync + 'static,
+    S: MailService + Clone + Send + Sync + 'static,
 {
-    type Session = session::StatefulSession<I, BasicSessionHandler<Self>>;
-    type StartFuture = future::Ready<Self::Session>;
-    fn start(&self, input: I) -> Self::StartFuture {
+    fn start(&self, input: I) -> SessionFuture {
         let handler = BasicSessionHandler::from(self.clone());
-        future::ready(StatefulSession::new(input, handler))
+        let handler: Box<dyn Stream<Item = Result<WriteControl>> + Unpin + Sync + Send> =
+            Box::new(StatefulSession::new(input, handler));
+        Box::pin(future::ready(handler))
     }
 }

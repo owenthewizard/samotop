@@ -2,7 +2,6 @@ use crate::common::*;
 use crate::model::io::ConnectionInfo;
 use crate::model::mail::SessionInfo;
 use crate::model::smtp::extension;
-use crate::protocol::fuse::*;
 use crate::protocol::parse::*;
 use crate::protocol::smtp::SmtpCodec;
 use crate::protocol::tls::MayBeTls;
@@ -33,8 +32,6 @@ pub struct SmtpService<S, P, IO> {
 impl<S, P, IO> SmtpService<S, P, IO>
 where
     S: SessionService<SessionInput<IO, Arc<P>>> + Send + Sync + 'static,
-    S::StartFuture: Sync + Send,
-    S::Session: Sync + Send,
     P: Parser + Sync + Send + 'static,
     IO: MayBeTls + Read + Write + Unpin + Sync + Send + 'static,
 {
@@ -47,53 +44,32 @@ where
     }
 }
 
-#[async_trait]
 impl<S, P, IO> TcpService<IO> for SmtpService<S, P, IO>
 where
     S: SessionService<SessionInput<IO, Arc<P>>> + Send + Sync + 'static,
-    S::StartFuture: Sync + Send,
-    S::Session: Sync + Send,
     IO: MayBeTls + Read + Write + Unpin + Sync + Send + 'static,
     P: Parser + Sync + Send + 'static,
 {
-    #[future_is[Send + Sync + 'static]]
-    async fn handle(&self, io: Result<IO>, conn: ConnectionInfo) -> Result<()> {
-        let fut = handle_smtp(self.session_service.clone(), self.parser.clone(), conn, io);
-        async_setup_ready!();
-        fut.await
+    fn handle(
+        &self,
+        io: Result<IO>,
+        connection: ConnectionInfo,
+    ) -> Pin<Box<dyn Future<Output = Result<()>> + Sync + Send + 'static>> {
+        let session_service = self.session_service.clone();
+        let parser = self.parser.clone();
+
+        Box::pin(async move {
+            info!("New peer connection {}", connection);
+            let io = io?;
+            let mut sess = SessionInfo::new(connection, "".to_owned());
+            if io.can_encrypt() && !io.is_encrypted() {
+                sess.extensions.enable(&extension::STARTTLS);
+            }
+            let (dst, src) = SmtpCodec::new(io, sess).split();
+            let handler = session_service.start(src.parse(parser)).await;
+            handler.forward(dst).await
+        })
     }
 }
 
 type SessionInput<IO, P> = Parse<SplitStream<SmtpCodec<IO>>, P>;
-
-async fn handle_smtp<IO, S, P>(
-    session_service: Arc<S>,
-    parser: Arc<P>,
-    connection: ConnectionInfo,
-    io: Result<IO>,
-) -> Result<()>
-where
-    IO: MayBeTls + Read + Write + Unpin,
-    S: SessionService<SessionInput<IO, Arc<P>>>,
-    P: Parser + Send + Sync,
-{
-    info!("New peer connection {}", connection);
-    let io = io?;
-    let mut sess = SessionInfo::new(connection, "".to_owned());
-    if io.can_encrypt() && !io.is_encrypted() {
-        sess.extensions.enable(&extension::STARTTLS);
-    }
-    let (dst, src) = SmtpCodec::new(io, sess).split();
-    let handler = session_service.start(src.parse(parser)).await;
-
-    handler
-        // prevent polling after shutdown
-        .fuse_shutdown()
-        // prevent polling of completed stream
-        .fuse()
-        // forward to client
-        .forward(dst)
-        // prevent polling of completed forward
-        .fuse()
-        .await
-}

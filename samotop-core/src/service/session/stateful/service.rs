@@ -62,15 +62,16 @@ where
 
 impl<I, S, H, F> SessionService<I> for StatefulSessionService<S, F>
 where
-    I: Stream<Item = Result<ReadControl>>,
+    I: Stream<Item = Result<ReadControl>> + Unpin + Send + Sync + 'static,
     S: MailService,
-    H: SessionHandler,
+    H: SessionHandler + Send + Sync + 'static,
+    H::Data: Send + Sync,
     F: Fn(Arc<S>) -> H,
 {
-    type Session = StatefulSession<I, H>;
-    type StartFuture = future::Ready<Self::Session>;
-    fn start(&self, input: I) -> Self::StartFuture {
+    fn start(&self, input: I) -> SessionFuture {
         let handler = (self.handler_factory)(self.mail_service.clone());
-        future::ready(session::StatefulSession::new(input, handler))
+        let handler: Box<dyn Stream<Item = Result<WriteControl>> + Unpin + Sync + Send> =
+            Box::new(session::StatefulSession::new(input, handler));
+        Box::pin(future::ready(handler))
     }
 }

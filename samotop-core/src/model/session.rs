@@ -113,6 +113,7 @@ impl Buffers {
     }
 }
 #[derive(Debug)]
+#[allow(clippy::large_enum_variant)]
 pub enum State {
     New,
     Connected(SessionInfo),

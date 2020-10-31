@@ -9,8 +9,9 @@ pub mod common {
     pub use crate::model::{Error, Result};
 
     pub use futures::{
-        future, ready, stream, AsyncRead as Read, AsyncReadExt as ReadExt, AsyncWrite as Write,
-        AsyncWriteExt as WriteExt, Future, FutureExt, Stream, StreamExt, TryFutureExt,
+        future, future::BoxFuture, ready, stream, AsyncRead as Read, AsyncReadExt as ReadExt,
+        AsyncWrite as Write, AsyncWriteExt as WriteExt, Future, FutureExt, Stream, StreamExt,
+        TryFutureExt,
     };
     pub use pin_project::pin_project;
     pub use samotop_async_trait::async_trait;

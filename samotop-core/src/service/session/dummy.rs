@@ -1,3 +1,4 @@
+use crate::common::*;
 use crate::model::smtp::{ReadControl, SmtpReply, WriteControl};
 use crate::model::Result;
 use crate::service::session::*;
@@ -19,12 +20,12 @@ impl DummySessionService {
 
 impl<TIn> SessionService<TIn> for DummySessionService
 where
-    TIn: Stream<Item = Result<ReadControl>>,
+    TIn: Stream<Item = Result<ReadControl>> + Unpin + Send + Sync + 'static,
 {
-    type Session = DummySessionHandler<TIn>;
-    type StartFuture = future::Ready<Self::Session>;
-    fn start(&self, input: TIn) -> Self::StartFuture {
-        future::ready(DummySessionHandler::new(self.name.clone(), input))
+    fn start(&self, input: TIn) -> SessionFuture {
+        let handler: Box<dyn Stream<Item = Result<WriteControl>> + Unpin + Sync + Send> =
+            Box::new(DummySessionHandler::new(self.name.clone(), input));
+        Box::pin(future::ready(handler))
     }
 }
 
