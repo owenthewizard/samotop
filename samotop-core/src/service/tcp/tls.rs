@@ -40,15 +40,13 @@ impl<T, P> TlsEnabled<T, P> {
     }
 }
 
-#[async_trait]
 impl<T, IO, P> TcpService<IO> for TlsEnabled<T, P>
 where
     T: TcpService<TlsCapable<IO, P::Provider>> + Send + Sync,
     IO: Read + Write + Unpin + Sync + Send,
     P: TlsProviderFactory<IO> + Send + Sync,
 {
-    #[future_is[Send + Sync + 'static]]
-    async fn handle(&self, io: Result<IO>, conn: ConnectionInfo) -> Result<()> {
+    fn handle(&self, io: Result<IO>, conn: ConnectionInfo) -> S3Fut<Result<()>> {
         let provider = self.provider.get();
 
         let tls = match io {
@@ -58,8 +56,6 @@ where
             }),
             Err(e) => Err(e),
         };
-        let fut = self.wrapped.handle(tls, conn);
-        async_setup_ready!();
-        fut.await
+        self.wrapped.handle(tls, conn)
     }
 }

@@ -8,11 +8,11 @@ pub use self::unix::*;
 mod inet;
 pub use self::inet::*;
 
-use crate::smtp::authentication::Authentication;
 use crate::smtp::extension::ClientId;
 use crate::smtp::extension::ServerInfo;
 use crate::smtp::tls::{DefaultTls, TlsUpgrade};
 use crate::ClientSecurity;
+use crate::{smtp::authentication::Authentication, SyncFuture};
 use async_std::io::{self, Read, Write};
 use async_std::net::SocketAddr;
 use async_std::pin::Pin;
@@ -20,21 +20,22 @@ use async_std::task::{Context, Poll};
 use futures::{ready, Future};
 use log::trace;
 use pin_project::pin_project;
-use samotop_async_trait::async_trait;
 use std::fmt;
 use std::time::Duration;
 
-#[async_trait]
 pub trait Connector: Sync + Send {
     type Stream: MaybeTls + Read + Write + Unpin + Sync + Send + 'static;
     /// This provider of connectivity takes care of resolving
     /// given address (which could be an IP, FQDN, URL...),
     /// establishing a connection and enabling (or not) TLS upgrade.
-    #[future_is[Sync+Send]]
-    async fn connect<C: ConnectionConfiguration>(
-        &self,
-        configuration: &C,
-    ) -> io::Result<Self::Stream>;
+
+    fn connect<'s, 'c, 'a, C: ConnectionConfiguration>(
+        &'s self,
+        configuration: &'c C,
+    ) -> SyncFuture<'a, io::Result<Self::Stream>>
+    where
+        's: 'a,
+        'c: 'a;
 }
 
 pub trait ConnectionConfiguration: Sync + Send {
@@ -86,8 +87,10 @@ pub struct NetworkStream<S, E, U> {
 #[pin_project(project = StateProj)]
 #[allow(missing_debug_implementations)]
 enum State<S, E, U> {
+    /// TLS upgrade is not enabled
+    Disabled(#[pin] S),
     /// Plain TCP stream with name and potential TLS upgrade
-    Plain(#[pin] S, U),
+    Enabled(#[pin] S, U),
     /// Encrypted TCP stream
     Encrypted(#[pin] E),
     /// Pending TLS handshake
@@ -106,7 +109,7 @@ where
     /// underlying TLS handshake is done.
     fn encrypt(&mut self) -> Result<(), io::Error> {
         match std::mem::replace(&mut self.state, State::None) {
-            State::Plain(stream, upgrade) => {
+            State::Enabled(stream, upgrade) => {
                 self.state = State::Handshake(Box::pin(
                     upgrade.upgrade_to_tls(stream, self.peer_name.clone()),
                 ));
@@ -126,7 +129,8 @@ where
     /// 2. the stream is not encrypted yet.
     fn can_encrypt(&self) -> bool {
         match self.state {
-            State::Plain(_, ref upgrade) => upgrade.is_enabled(),
+            State::Enabled(_, _) => true,
+            State::Disabled(_) => false,
             State::Encrypted(_) => false,
             State::Handshake(_) => false,
             State::None => false,
@@ -135,7 +139,8 @@ where
     /// Returns true if the stream is already encrypted (or hand shaking).
     fn is_encrypted(&self) -> bool {
         match self.state {
-            State::Plain(_, _) => false,
+            State::Enabled(_, _) => false,
+            State::Disabled(_) => false,
             State::Encrypted(_) => true,
             State::Handshake(_) => true,
             State::None => false,
@@ -186,7 +191,8 @@ where
         trace!("poll_read with {:?}", self.state);
         ready!(self.as_mut().poll_tls(cx))?;
         let result = match self.state {
-            State::Plain(ref mut s, _) => Pin::new(s).poll_read(cx, buf),
+            State::Disabled(ref mut s) => Pin::new(s).poll_read(cx, buf),
+            State::Enabled(ref mut s, _) => Pin::new(s).poll_read(cx, buf),
             State::Encrypted(ref mut s) => Pin::new(s).poll_read(cx, buf),
             State::Handshake(_) => {
                 unreachable!("Handshake is handled by poll_tls");
@@ -210,7 +216,8 @@ where
     ) -> Poll<io::Result<usize>> {
         ready!(self.as_mut().poll_tls(cx))?;
         match self.state {
-            State::Plain(ref mut s, _) => Pin::new(s).poll_write(cx, buf),
+            State::Disabled(ref mut s) => Pin::new(s).poll_write(cx, buf),
+            State::Enabled(ref mut s, _) => Pin::new(s).poll_write(cx, buf),
             State::Encrypted(ref mut s) => Pin::new(s).poll_write(cx, buf),
             State::Handshake(_) => {
                 unreachable!("Handshake is handled by poll_tls");
@@ -222,7 +229,8 @@ where
     fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<io::Result<()>> {
         ready!(self.as_mut().poll_tls(cx))?;
         match self.state {
-            State::Plain(ref mut s, _) => Pin::new(s).poll_flush(cx),
+            State::Disabled(ref mut s) => Pin::new(s).poll_flush(cx),
+            State::Enabled(ref mut s, _) => Pin::new(s).poll_flush(cx),
             State::Encrypted(ref mut s) => Pin::new(s).poll_flush(cx),
             State::Handshake(_) => {
                 unreachable!("Handshake is handled by poll_tls");
@@ -234,7 +242,8 @@ where
     fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<io::Result<()>> {
         ready!(self.as_mut().poll_tls(cx))?;
         match self.state {
-            State::Plain(ref mut s, _) => Pin::new(s).poll_close(cx),
+            State::Disabled(ref mut s) => Pin::new(s).poll_close(cx),
+            State::Enabled(ref mut s, _) => Pin::new(s).poll_close(cx),
             State::Encrypted(ref mut s) => Pin::new(s).poll_close(cx),
             State::Handshake(_) => {
                 unreachable!("Handshake is handled by poll_tls");
@@ -252,9 +261,10 @@ impl<S, E, U> fmt::Debug for State<S, E, U> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         use State::*;
         fmt.write_str(match self {
-            Plain(_, _) => "Plain(stream, upgrade)",
-            Encrypted(_) => "Encrypted(*)",
-            Handshake(_) => "Handshake(*)",
+            Disabled(_) => "Disabled(stream)",
+            Enabled(_, _) => "Enabled(stream, upgrade)",
+            Encrypted(_) => "Encrypted(tls_stream)",
+            Handshake(_) => "Handshake(tls_handshake)",
             None => "None",
         })
     }

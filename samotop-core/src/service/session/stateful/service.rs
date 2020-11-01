@@ -60,7 +60,6 @@ where
     }
 }
 
-#[async_trait]
 impl<I, S, H, F> SessionService<I> for StatefulSessionService<S, F>
 where
     I: Stream<Item = Result<ReadControl>> + Unpin + Send + Sync + 'static,
@@ -69,11 +68,9 @@ where
     H::Data: Send + Sync,
     F: Fn(Arc<S>) -> H,
 {
-    #[future_is[Send + Sync + 'static]]
-    async fn start(&self, input: I) -> SessionStream {
+    fn start(&self, input: I) -> S3Fut<SessionStream> {
         let handler = (self.handler_factory)(self.mail_service.clone());
         let handler: SessionStream = Box::new(session::StatefulSession::new(input, handler));
-        async_setup_ready!();
-        handler
+        Box::pin(future::ready(handler))
     }
 }

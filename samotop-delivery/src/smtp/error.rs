@@ -41,9 +41,10 @@ pub enum Error {
     /// IO error
     #[error("io: {0}")]
     Io(#[from] io::Error),
-    /// TLS error
+    /// Native TLS error
+    #[cfg(feature = "native-tls")]
     #[error("tls: {0}")]
-    Tls(#[from] async_native_tls::Error),
+    NativeTls(#[from] async_native_tls::Error),
     /// Parsing error
     #[error("parsing: {0:?}")]
     Parsing(nom::error::ErrorKind),

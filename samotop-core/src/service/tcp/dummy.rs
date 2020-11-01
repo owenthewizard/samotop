@@ -7,11 +7,9 @@ use crate::service::tcp::TcpService;
 #[derive(Clone, Debug)]
 pub struct DummyTcpService;
 
-#[async_trait]
 impl<IO> TcpService<IO> for DummyTcpService {
-    #[future_is[Send + Sync + 'static]]
-    async fn handle(&self, _io: Result<IO>, conn: ConnectionInfo) -> Result<()> {
+    fn handle(&self, _io: Result<IO>, conn: ConnectionInfo) -> S3Fut<Result<()>> {
         info!("Received connection {}", conn);
-        Ok(())
+        Box::pin(future::ready(Ok(())))
     }
 }

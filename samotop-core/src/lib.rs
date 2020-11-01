@@ -7,14 +7,13 @@ pub mod service;
 
 pub mod common {
     pub use crate::model::{Error, Result};
-
+    pub type S3Fut<T> = Pin<Box<dyn Future<Output = T> + Sync + Send + 'static>>;
     pub use futures::{
         future, future::BoxFuture, ready, stream, AsyncRead as Read, AsyncReadExt as ReadExt,
         AsyncWrite as Write, AsyncWriteExt as WriteExt, Future, FutureExt, Stream, StreamExt,
         TryFutureExt,
     };
     pub use pin_project::pin_project;
-    pub use samotop_async_trait::async_trait;
     pub use std::pin::Pin;
     pub use std::sync::Arc;
     pub use std::task::{Context, Poll};

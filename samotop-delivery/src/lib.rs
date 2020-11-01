@@ -62,41 +62,50 @@ pub mod prelude {
 
 use crate::prelude::*;
 use async_std::io::{copy, Read, Write};
-use futures::io::AsyncWriteExt;
-use samotop_async_trait::async_trait;
+use futures::{io::AsyncWriteExt, Future};
+use std::pin::Pin;
+
+pub type SyncFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Sync + Send + 'a>>;
 
 /// Transport method for emails
-#[async_trait]
 pub trait Transport {
     /// Result type for the transport
     type DataStream: MailDataStream;
 
     /// Start sending e-mail and return a stream to write the body to
-    #[future_is[Sync]]
-    async fn send_stream(
-        &self,
+    fn send_stream<'s, 'a>(
+        &'s self,
         envelope: Envelope,
-    ) -> Result<Self::DataStream, <Self::DataStream as MailDataStream>::Error>;
+    ) -> SyncFuture<'a, Result<Self::DataStream, <Self::DataStream as MailDataStream>::Error>>
+    where
+        's: 'a;
 
     /// Send the email
-    #[future_is[Sync]]
-    async fn send<R>(
-        &self,
+    fn send<'s, 'r, 'a, R>(
+        &'s self,
         envelope: Envelope,
         message: R,
-    ) -> Result<
-        <Self::DataStream as MailDataStream>::Output,
-        <Self::DataStream as MailDataStream>::Error,
+    ) -> SyncFuture<
+        'a,
+        Result<
+            <Self::DataStream as MailDataStream>::Output,
+            <Self::DataStream as MailDataStream>::Error,
+        >,
     >
     where
         Self::DataStream: Unpin + Send + Sync,
         <Self::DataStream as MailDataStream>::Error: From<std::io::Error>,
-        R: Read + Unpin + Send + Sync,
+        R: Read + Unpin + Send + Sync + 'r,
+        's: 'a,
+        'r: 'a,
     {
-        let mut stream = self.send_stream(envelope).await?;
-        copy(message, &mut stream).await?;
-        stream.close().await?;
-        stream.result()
+        let stream = self.send_stream(envelope);
+        Box::pin(async move {
+            let mut stream = stream.await?;
+            copy(message, &mut stream).await?;
+            stream.close().await?;
+            stream.result()
+        })
     }
 }
 

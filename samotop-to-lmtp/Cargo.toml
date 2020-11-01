@@ -24,8 +24,6 @@ path = "../samotop-core"
 [dependencies]
 pin-project = "1.0"
 log = "0.4"
-async-tls = "0.10"
-samotop-async-trait = { path = "../samotop-async-trait", version = "0.2.1" }
 
 [dependencies.samotop-delivery]
 path = "../samotop-delivery"

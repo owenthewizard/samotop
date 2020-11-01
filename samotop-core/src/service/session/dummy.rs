@@ -18,16 +18,13 @@ impl DummySessionService {
     }
 }
 
-#[async_trait]
 impl<TIn> SessionService<TIn> for DummySessionService
 where
     TIn: Stream<Item = Result<ReadControl>> + Unpin + Send + Sync + 'static,
 {
-    #[future_is[Send + Sync + 'static]]
-    async fn start(&self, input: TIn) -> SessionStream {
+    fn start(&self, input: TIn) -> S3Fut<SessionStream> {
         let handler: SessionStream = Box::new(DummySessionHandler::new(self.name.clone(), input));
-        async_setup_ready!();
-        handler
+        Box::pin(future::ready(handler))
     }
 }
 

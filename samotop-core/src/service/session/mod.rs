@@ -14,8 +14,6 @@ This handler will only handle one session and then it will be dropped.
 The handler will receive `ReadControl`s from the line and should produce
 relevant `WriteControl`s to send down the line in response.
 */
-#[async_trait]
 pub trait SessionService<TIn> {
-    #[future_is[Send + Sync + 'static]]
-    async fn start(&self, input: TIn) -> SessionStream;
+    fn start(&self, input: TIn) -> S3Fut<SessionStream>;
 }

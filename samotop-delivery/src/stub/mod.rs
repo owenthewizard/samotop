@@ -5,11 +5,13 @@
 mod error;
 
 pub use self::error::*;
-use crate::stub::error::{Error, StubResult};
-use crate::{Envelope, MailDataStream, Transport};
+use crate::{
+    stub::error::{Error, StubResult},
+    Envelope, MailDataStream, SyncFuture, Transport,
+};
 use async_std::io::Write;
+use futures::future;
 use log::info;
-use samotop_async_trait::async_trait;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
@@ -31,11 +33,15 @@ impl StubTransport {
     }
 }
 
-#[async_trait]
 impl Transport for StubTransport {
     type DataStream = StubStream;
-    #[future_is[Sync]]
-    async fn send_stream(&self, envelope: Envelope) -> Result<StubStream, Error> {
+    fn send_stream<'life1, 'async_trait>(
+        &'life1 self,
+        envelope: Envelope,
+    ) -> SyncFuture<Result<StubStream, Error>>
+    where
+        'life1: 'async_trait,
+    {
         info!(
             "{}: from=<{}> to=<{:?}>",
             envelope.message_id(),
@@ -45,9 +51,9 @@ impl Transport for StubTransport {
             },
             envelope.to()
         );
-        Ok(StubStream {
+        Box::pin(future::ready(Ok(StubStream {
             response: self.response.clone(),
-        })
+        })))
     }
 }
 

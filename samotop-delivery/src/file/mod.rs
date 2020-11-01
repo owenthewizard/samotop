@@ -5,16 +5,18 @@
 
 mod error;
 pub use self::error::*;
-use crate::file::error::{Error, FileResult};
 use crate::Envelope;
 use crate::MailDataStream;
 use crate::Transport;
+use crate::{
+    file::error::{Error, FileResult},
+    SyncFuture,
+};
 use async_std::fs::File;
 use async_std::io::Write;
 use async_std::path::Path;
 use futures::io::AsyncWriteExt;
 use futures::ready;
-use samotop_async_trait::async_trait;
 use std::path::PathBuf;
 use std::pin::Pin;
 use std::task::{Context, Poll};
@@ -47,24 +49,30 @@ struct SerializableEmail {
     envelope: Envelope,
 }
 
-#[async_trait]
 impl Transport for FileTransport {
     type DataStream = FileStream;
-    #[future_is[Sync]]
-    async fn send_stream(&self, envelope: Envelope) -> Result<FileStream, Error> {
+    fn send_stream<'s, 'a>(
+        &'s self,
+        envelope: Envelope,
+    ) -> SyncFuture<'a, Result<FileStream, Error>>
+    where
+        's: 'a,
+    {
         let mut file = self.path.clone();
         file.push(format!("{}.json", envelope.message_id()));
 
-        let mut serialized = serde_json::to_string(&SerializableEmail { envelope })?;
+        Box::pin(async move {
+            let mut serialized = serde_json::to_string(&SerializableEmail { envelope })?;
 
-        serialized += "\n";
+            serialized += "\n";
 
-        let mut file = File::create(file).await?;
-        file.write_all(serialized.as_bytes()).await?;
+            let mut file = File::create(file).await?;
+            file.write_all(serialized.as_bytes()).await?;
 
-        Ok(FileStream {
-            file,
-            closed: false,
+            Ok(FileStream {
+                file,
+                closed: false,
+            })
         })
     }
 }

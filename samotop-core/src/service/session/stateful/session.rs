@@ -76,6 +76,8 @@ where
             state,
             handler,
         } = self.project();
+        // CHECKME: fix for rust-analyzer lint error
+        let state: &mut Option<State<H::Data>> = state;
         match state.take().expect("state must be set") {
             State::Pending(s) => {
                 *state = Some(State::Pending(s));

@@ -1,16 +1,15 @@
-use crate::smtp::commands::*;
 use crate::smtp::error::Error;
 use crate::smtp::extension::{ClientId, Extension, MailBodyParameter, MailParameter, ServerInfo};
 use crate::smtp::net::{ConnectionConfiguration, Connector, MaybeTls};
 use crate::smtp::smtp_client::ClientSecurity;
 use crate::smtp::stream::SmtpDataStream;
 use crate::smtp::util::SmtpProto;
+use crate::{smtp::commands::*, SyncFuture};
 use crate::{Envelope, Transport};
 use async_std::io::{Read, Write};
 use log::{debug, info};
 use pin_project::pin_project;
 use potential::{Lease, Potential};
-use samotop_async_trait::async_trait;
 use std::pin::Pin;
 use std::time::Duration;
 
@@ -162,33 +161,39 @@ where
     }
 }
 
-#[async_trait]
 impl<Conf: ConnectionConfiguration, Conn: Connector> Transport for SmtpTransport<Conf, Conn> {
     type DataStream = SmtpDataStream<Conn::Stream>;
 
-    #[future_is[Sync]]
-    async fn send_stream(&self, envelope: Envelope) -> Result<Self::DataStream, Error> {
-        let mut lease = match self.inner.lease().await {
-            Ok(lease) => lease,
-            Err(gone) => gone.set(Self::connect(&self.configuration, &self.connector).await?),
-        };
-        let timeout = self.configuration.timeout();
+    fn send_stream<'s, 'a>(
+        &'s self,
+        envelope: Envelope,
+    ) -> SyncFuture<'a, Result<Self::DataStream, Error>>
+    where
+        's: 'a,
+    {
+        Box::pin(async move {
+            let mut lease = match self.inner.lease().await {
+                Ok(lease) => lease,
+                Err(gone) => gone.set(Self::connect(&self.configuration, &self.connector).await?),
+            };
+            let timeout = self.configuration.timeout();
 
-        if lease.reuse == 0 {
-            // reuse countdown reached
-            // close and refresh
-            let mut client = SmtpProto::new(Pin::new(&mut lease.stream));
-            client.execute_quit(timeout).await?;
-            // new connection
-            lease.replace(Self::connect(&self.configuration, &self.connector).await?);
-        }
+            if lease.reuse == 0 {
+                // reuse countdown reached
+                // close and refresh
+                let mut client = SmtpProto::new(Pin::new(&mut lease.stream));
+                client.execute_quit(timeout).await?;
+                // new connection
+                lease.replace(Self::connect(&self.configuration, &self.connector).await?);
+            }
 
-        lease.reuse = lease.reuse.saturating_sub(1);
-        let message_id = envelope.message_id().to_owned();
-        // prepare a mail
-        Self::prepare_mail(&self.configuration, &mut lease, envelope, timeout).await?;
-        // Return a data stream carying the lease away
-        Ok(SmtpDataStream::new(lease, message_id, timeout))
+            lease.reuse = lease.reuse.saturating_sub(1);
+            let message_id = envelope.message_id().to_owned();
+            // prepare a mail
+            Self::prepare_mail(&self.configuration, &mut lease, envelope, timeout).await?;
+            // Return a data stream carying the lease away
+            Ok(SmtpDataStream::new(lease, message_id, timeout))
+        })
     }
 }
 

@@ -3,13 +3,15 @@
 
 mod error;
 pub use self::error::*;
-use crate::sendmail::error::{Error, SendmailResult};
+use crate::{
+    sendmail::error::{Error, SendmailResult},
+    SyncFuture,
+};
 use crate::{Envelope, MailDataStream, Transport};
 use async_std::io::Write;
 use async_std::task;
 use futures::{ready, Future};
 use log::info;
-use samotop_async_trait::async_trait;
 use std::convert::AsRef;
 use std::ops::DerefMut;
 use std::pin::Pin;
@@ -42,12 +44,12 @@ impl SendmailTransport {
     }
 }
 
-#[allow(clippy::unwrap_used)]
-#[async_trait]
 impl Transport for SendmailTransport {
     type DataStream = ProcStream;
-    #[future_is[Sync]]
-    async fn send_stream(&self, envelope: Envelope) -> Result<ProcStream, Error> {
+    fn send_stream<'s, 'a>(&'s self, envelope: Envelope) -> SyncFuture<Result<ProcStream, Error>>
+    where
+        's: 'a,
+    {
         let command = self.command.clone();
         let message_id = envelope.message_id().to_string();
 
@@ -58,17 +60,20 @@ impl Transport for SendmailTransport {
             .to_owned();
         let to = envelope.to().to_owned();
 
-        let child = Command::new(command)
-            .arg("-i")
-            .arg("-f")
-            .arg(from)
-            .args(to)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .spawn()
-            .map_err(Error::Io)?;
-
-        Ok(ProcStream::Ready(ProcStreamInner { child, message_id }))
+        Box::pin(async move {
+            Ok(ProcStream::Ready(ProcStreamInner {
+                child: Command::new(command)
+                    .arg("-i")
+                    .arg("-f")
+                    .arg(from)
+                    .args(to)
+                    .stdin(Stdio::piped())
+                    .stdout(Stdio::piped())
+                    .spawn()
+                    .map_err(Error::Io)?,
+                message_id,
+            }))
+        })
     }
 }
 

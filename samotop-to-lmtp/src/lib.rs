@@ -1,29 +1,26 @@
 #[macro_use]
 extern crate log;
 
-mod net;
-
-use crate::net::*;
 use samotop_core::common::*;
 use samotop_core::model::mail::DispatchError;
 use samotop_core::model::mail::DispatchResult;
 use samotop_core::model::mail::Transaction;
 use samotop_core::service::mail::composite::*;
 use samotop_core::service::mail::*;
-use samotop_delivery::prelude::{
-    EmailAddress, Envelope, MailDataStream, SmtpClient, SmtpTransport, Transport,
+use samotop_delivery::{
+    prelude::{EmailAddress, Envelope, MailDataStream, SmtpClient, SmtpTransport, Transport},
+    smtp::net::DefaultConnector,
+    smtp::ConnectionReuseParameters,
 };
-use samotop_delivery::smtp::ConnectionReuseParameters;
 
 pub struct Config<Variant> {
     variant: Variant,
-    address: String,
 }
 
 pub mod variant {
     use super::*;
     pub struct TcpLmtpDispatch {
-        pub transport: Arc<SmtpTransport<SmtpClient, MyCon>>,
+        pub transport: Arc<SmtpTransport<SmtpClient, DefaultConnector>>,
     }
 }
 
@@ -34,10 +31,10 @@ impl Config<variant::TcpLmtpDispatch> {
                 SmtpClient::new(&address)?
                     .lmtp(true)
                     .connection_reuse(ConnectionReuseParameters::ReuseUnlimited)
-                    .connect_with(conn()),
+                    .connect_with(DefaultConnector::default()),
             ),
         };
-        Ok(Self { variant, address })
+        Ok(Self { variant })
     }
 }
 
@@ -115,7 +112,7 @@ fn closed() -> std::io::Error {
 }
 
 impl MailDispatch for LmtpMail<variant::TcpLmtpDispatch> {
-    type Mail = LmtpStream<<SmtpTransport<SmtpClient, MyCon> as Transport>::DataStream>;
+    type Mail = LmtpStream<<SmtpTransport<SmtpClient, DefaultConnector> as Transport>::DataStream>;
     type MailFuture = Pin<Box<dyn Future<Output = DispatchResult<Self::Mail>> + Sync + Send>>;
     fn send_mail(&self, mail: Transaction) -> Self::MailFuture {
         let transport = self.config.variant.transport.clone();
@@ -148,8 +145,8 @@ impl MailDispatch for LmtpMail<variant::TcpLmtpDispatch> {
 
 /// resolves ownership/lifetime trouble by capturing the Arc
 async fn send_stream(
-    transport: Arc<SmtpTransport<SmtpClient, MyCon>>,
+    transport: Arc<SmtpTransport<SmtpClient, DefaultConnector>>,
     envelope: Envelope,
-) -> Result<<SmtpTransport<SmtpClient, MyCon> as Transport>::DataStream> {
+) -> Result<<SmtpTransport<SmtpClient, DefaultConnector> as Transport>::DataStream> {
     Ok(transport.send_stream(envelope).await?)
 }

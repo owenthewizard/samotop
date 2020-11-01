@@ -50,11 +50,7 @@ where
     IO: MayBeTls + Read + Write + Unpin + Sync + Send + 'static,
     P: Parser + Sync + Send + 'static,
 {
-    fn handle(
-        &self,
-        io: Result<IO>,
-        connection: ConnectionInfo,
-    ) -> Pin<Box<dyn Future<Output = Result<()>> + Sync + Send + 'static>> {
+    fn handle(&self, io: Result<IO>, connection: ConnectionInfo) -> S3Fut<Result<()>> {
         let session_service = self.session_service.clone();
         let parser = self.parser.clone();
 
