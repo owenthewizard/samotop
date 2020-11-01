@@ -60,6 +60,7 @@ where
     }
 }
 
+#[async_trait]
 impl<I, S, H, F> SessionService<I> for StatefulSessionService<S, F>
 where
     I: Stream<Item = Result<ReadControl>> + Unpin + Send + Sync + 'static,
@@ -68,10 +69,11 @@ where
     H::Data: Send + Sync,
     F: Fn(Arc<S>) -> H,
 {
-    fn start(&self, input: I) -> SessionFuture {
+    #[future_is[Send + Sync + 'static]]
+    async fn start(&self, input: I) -> SessionStream {
         let handler = (self.handler_factory)(self.mail_service.clone());
-        let handler: Box<dyn Stream<Item = Result<WriteControl>> + Unpin + Sync + Send> =
-            Box::new(session::StatefulSession::new(input, handler));
-        Box::pin(future::ready(handler))
+        let handler: SessionStream = Box::new(session::StatefulSession::new(input, handler));
+        async_setup_ready!();
+        handler
     }
 }

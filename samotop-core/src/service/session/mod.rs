@@ -3,14 +3,7 @@ pub mod stateful;
 use crate::common::*;
 use crate::model::smtp::WriteControl;
 
-pub type SessionFuture = Pin<
-    Box<
-        dyn Future<Output = Box<dyn Stream<Item = Result<WriteControl>> + Unpin + Sync + Send>>
-            + Sync
-            + Send
-            + 'static,
-    >,
->;
+pub type SessionStream = Box<dyn Stream<Item = Result<WriteControl>> + Unpin + Sync + Send>;
 
 /**
 A session service handles the SMTP session.
@@ -21,6 +14,8 @@ This handler will only handle one session and then it will be dropped.
 The handler will receive `ReadControl`s from the line and should produce
 relevant `WriteControl`s to send down the line in response.
 */
+#[async_trait]
 pub trait SessionService<TIn> {
-    fn start(&self, input: TIn) -> SessionFuture;
+    #[future_is[Send + Sync + 'static]]
+    async fn start(&self, input: TIn) -> SessionStream;
 }

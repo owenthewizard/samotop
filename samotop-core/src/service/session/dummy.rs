@@ -18,14 +18,16 @@ impl DummySessionService {
     }
 }
 
+#[async_trait]
 impl<TIn> SessionService<TIn> for DummySessionService
 where
     TIn: Stream<Item = Result<ReadControl>> + Unpin + Send + Sync + 'static,
 {
-    fn start(&self, input: TIn) -> SessionFuture {
-        let handler: Box<dyn Stream<Item = Result<WriteControl>> + Unpin + Sync + Send> =
-            Box::new(DummySessionHandler::new(self.name.clone(), input));
-        Box::pin(future::ready(handler))
+    #[future_is[Send + Sync + 'static]]
+    async fn start(&self, input: TIn) -> SessionStream {
+        let handler: SessionStream = Box::new(DummySessionHandler::new(self.name.clone(), input));
+        async_setup_ready!();
+        handler
     }
 }
 

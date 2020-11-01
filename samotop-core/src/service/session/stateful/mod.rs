@@ -25,15 +25,17 @@ pub enum SessionState<T> {
 
 /// Enables any clonable `MailService` to be used as a `SessionService`
 ///  with the default `BasicSessionHandler`
+#[async_trait]
 impl<I, S> SessionService<I> for S
 where
     I: Stream<Item = Result<ReadControl>> + Unpin + Send + Sync + 'static,
     S: MailService + Clone + Send + Sync + 'static,
 {
-    fn start(&self, input: I) -> SessionFuture {
+    #[future_is[Send + Sync + 'static]]
+    async fn start(&self, input: I) -> SessionStream {
         let handler = BasicSessionHandler::from(self.clone());
-        let handler: Box<dyn Stream<Item = Result<WriteControl>> + Unpin + Sync + Send> =
-            Box::new(StatefulSession::new(input, handler));
-        Box::pin(future::ready(handler))
+        let handler: SessionStream = Box::new(StatefulSession::new(input, handler));
+        async_setup_ready!();
+        handler
     }
 }
