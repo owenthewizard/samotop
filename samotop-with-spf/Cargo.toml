@@ -24,5 +24,5 @@ path = "../samotop-core"
 [dependencies]
 pin-project = "1.0"
 log = "0.4"
-viaspf = "0.0.2"
+viaspf = "0.2"
 trust-dns-resolver = { version = "0.19", default-features = false, features = ["tokio-runtime"] }

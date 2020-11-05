@@ -53,7 +53,7 @@ impl Lookup for TrustDnsResolver {
             .into_iter()
             .map(|mx| {
                 Name::new(&mx.exchange().to_ascii())
-                    .map_err(|e| LookupError::Protocol(Some(e.into())))
+                    .map_err(|e| LookupError::Dns(Some(e.into())))
             })
             .collect::<Result<_, _>>()?)
     }
@@ -67,7 +67,7 @@ impl Lookup for TrustDnsResolver {
             .map(|txt| {
                 txt.iter()
                     .map(|data| {
-                        str::from_utf8(data).map_err(|e| LookupError::Protocol(Some(e.into())))
+                        str::from_utf8(data).map_err(|e| LookupError::Dns(Some(e.into())))
                     })
                     .collect()
             })
@@ -81,7 +81,7 @@ impl Lookup for TrustDnsResolver {
             .map_err(to_lookup_error)?
             .into_iter()
             .map(|name| {
-                Name::new(&name.to_ascii()).map_err(|e| LookupError::Protocol(Some(e.into())))
+                Name::new(&name.to_ascii()).map_err(|e| LookupError::Dns(Some(e.into())))
             })
             .collect::<Result<_, _>>()?)
     }
@@ -91,8 +91,8 @@ fn to_lookup_error(error: ResolveError) -> LookupError {
     use ResolveErrorKind::*;
     match error.kind() {
         NoRecordsFound { .. } => LookupError::NoRecords,
-        Io(_) => LookupError::Protocol(Some(error.into())),
+        Io(_) => LookupError::Dns(Some(error.into())),
         Timeout => LookupError::Timeout,
-        _ => LookupError::Protocol(Some(error.into())),
+        _ => LookupError::Dns(Some(error.into())),
     }
 }

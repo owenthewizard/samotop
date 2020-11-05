@@ -22,12 +22,15 @@ pub struct Provider<T>(pub T);
 #[derive(Clone, Debug)]
 pub struct SpfService<T> {
     inner: T,
-    config: Config,
+    config: Arc<Config>,
 }
 
 impl<T> SpfService<T> {
     pub fn new(inner: T, config: Config) -> Self {
-        Self { inner, config }
+        Self {
+            inner,
+            config: Arc::new(config),
+        }
     }
 }
 
@@ -59,7 +62,7 @@ impl<T: MailDispatch> MailDispatch for SpfService<T> {
 pub struct MailDispatchFut<T> {
     #[pin]
     inner: T,
-    config: Config,
+    config: Arc<Config>,
     transaction: Transaction,
 }
 
