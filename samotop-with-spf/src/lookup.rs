@@ -52,8 +52,7 @@ impl Lookup for TrustDnsResolver {
         Ok(mxs
             .into_iter()
             .map(|mx| {
-                Name::new(&mx.exchange().to_ascii())
-                    .map_err(|e| LookupError::Dns(Some(e.into())))
+                Name::new(&mx.exchange().to_ascii()).map_err(|e| LookupError::Dns(Some(e.into())))
             })
             .collect::<Result<_, _>>()?)
     }
@@ -66,9 +65,7 @@ impl Lookup for TrustDnsResolver {
             .into_iter()
             .map(|txt| {
                 txt.iter()
-                    .map(|data| {
-                        str::from_utf8(data).map_err(|e| LookupError::Dns(Some(e.into())))
-                    })
+                    .map(|data| str::from_utf8(data).map_err(|e| LookupError::Dns(Some(e.into()))))
                     .collect()
             })
             .collect::<Result<_, _>>()?)
@@ -80,9 +77,7 @@ impl Lookup for TrustDnsResolver {
             .reverse_lookup(ip)
             .map_err(to_lookup_error)?
             .into_iter()
-            .map(|name| {
-                Name::new(&name.to_ascii()).map_err(|e| LookupError::Dns(Some(e.into())))
-            })
+            .map(|name| Name::new(&name.to_ascii()).map_err(|e| LookupError::Dns(Some(e.into()))))
             .collect::<Result<_, _>>()?)
     }
 }
