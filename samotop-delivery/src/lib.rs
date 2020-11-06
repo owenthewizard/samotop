@@ -66,7 +66,7 @@ use futures::{io::AsyncWriteExt, Future};
 use std::pin::Pin;
 
 pub type SyncFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Sync + Send + 'a>>;
-type SendResult<T: MailDataStream> = Result<T::Output, T::Error>;
+type SendResult<T> = Result<<T as MailDataStream>::Output, <T as MailDataStream>::Error>;
 
 /// Transport method for emails
 pub trait Transport {

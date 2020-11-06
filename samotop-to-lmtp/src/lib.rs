@@ -1,15 +1,15 @@
 #[macro_use]
 extern crate log;
 
-use samotop_core::common::*;
-use samotop_core::model::mail::DispatchError;
-use samotop_core::model::mail::DispatchResult;
-use samotop_core::model::mail::Transaction;
-use samotop_core::service::mail::composite::*;
-use samotop_core::service::mail::*;
+use samotop_core::{
+    common::*,
+    model::mail::Transaction,
+    model::mail::{DispatchError, DispatchResult},
+    service::mail::{composite::*, *},
+};
 use samotop_delivery::{
     prelude::{EmailAddress, Envelope, MailDataStream, SmtpClient, SmtpTransport, Transport},
-    smtp::net::DefaultConnector,
+    smtp::net::Connector,
     smtp::ConnectionReuseParameters,
 };
 
@@ -18,30 +18,33 @@ pub struct Config<Variant> {
 }
 
 pub mod variant {
+
     use super::*;
-    pub struct TcpLmtpDispatch {
-        pub transport: Arc<SmtpTransport<SmtpClient, DefaultConnector>>,
+    pub struct LmtpDispatch<C: Connector> {
+        pub transport: Arc<SmtpTransport<SmtpClient, C>>,
     }
 }
 
-impl Config<variant::TcpLmtpDispatch> {
-    pub fn tcp_lmtp_dispatch(address: String) -> Result<Self> {
-        let variant = variant::TcpLmtpDispatch {
+impl<C: Connector> Config<variant::LmtpDispatch<C>> {
+    pub fn lmtp_dispatch(address: String, connector: C) -> Result<Self> {
+        let variant = variant::LmtpDispatch {
             transport: Arc::new(
                 SmtpClient::new(&address)?
                     .lmtp(true)
                     .connection_reuse(ConnectionReuseParameters::ReuseUnlimited)
-                    .connect_with(DefaultConnector::default()),
+                    .connect_with(connector),
             ),
         };
         Ok(Self { variant })
     }
 }
 
-impl<ES: EsmtpService, GS: MailGuard, DS: MailDispatch> MailSetup<ES, GS, DS>
-    for Config<variant::TcpLmtpDispatch>
+impl<ES: EsmtpService, GS: MailGuard, DS: MailDispatch, C: Connector> MailSetup<ES, GS, DS>
+    for Config<variant::LmtpDispatch<C>>
+where
+    C: 'static,
 {
-    type Output = CompositeMailService<ES, GS, LmtpMail<variant::TcpLmtpDispatch>>;
+    type Output = CompositeMailService<ES, GS, LmtpMail<variant::LmtpDispatch<C>>>;
     fn setup(self, extend: ES, guard: GS, _dispatch: DS) -> Self::Output {
         (extend, guard, LmtpMail::new(self)).into()
     }
@@ -111,8 +114,11 @@ fn closed() -> std::io::Error {
     )
 }
 
-impl MailDispatch for LmtpMail<variant::TcpLmtpDispatch> {
-    type Mail = LmtpStream<<SmtpTransport<SmtpClient, DefaultConnector> as Transport>::DataStream>;
+impl<C: Connector> MailDispatch for LmtpMail<variant::LmtpDispatch<C>>
+where
+    C: 'static,
+{
+    type Mail = LmtpStream<<SmtpTransport<SmtpClient, C> as Transport>::DataStream>;
     type MailFuture = Pin<Box<dyn Future<Output = DispatchResult<Self::Mail>> + Sync + Send>>;
     fn send_mail(&self, mail: Transaction) -> Self::MailFuture {
         let transport = self.config.variant.transport.clone();
@@ -144,9 +150,9 @@ impl MailDispatch for LmtpMail<variant::TcpLmtpDispatch> {
 }
 
 /// resolves ownership/lifetime trouble by capturing the Arc
-async fn send_stream(
-    transport: Arc<SmtpTransport<SmtpClient, DefaultConnector>>,
+async fn send_stream<C: Connector>(
+    transport: Arc<SmtpTransport<SmtpClient, C>>,
     envelope: Envelope,
-) -> Result<<SmtpTransport<SmtpClient, DefaultConnector> as Transport>::DataStream> {
+) -> Result<<SmtpTransport<SmtpClient, C> as Transport>::DataStream> {
     Ok(transport.send_stream(envelope).await?)
 }
