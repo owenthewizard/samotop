@@ -1,6 +1,6 @@
 [package]
 name = "samotop"
-version = "0.11.0-samotop-dev"
+version = "0.11.1-samotop-dev"
 authors = ["jocutajar <tellnoone@robajz.info>"]
 license = "MIT OR Apache-2.0"
 description = "SMTP server and library built on async-std"

@@ -1,20 +1,20 @@
+use crate::smtp::net::tls::{TlsProvider, TlsUpgrade};
 use crate::smtp::net::Connector;
 use crate::smtp::net::MaybeTls;
 use crate::smtp::net::NetworkStream;
 use crate::smtp::net::State;
 use crate::smtp::net::TlsMode;
-use crate::smtp::tls::{TlsProvider, TlsUpgrade};
 use crate::{smtp::net::ConnectionConfiguration, SyncFuture};
 use async_std::io;
 use async_std::os::unix::net::UnixStream;
 
 #[derive(Debug)]
-pub struct SocksConnector<TLS> {
+pub struct UnixConnector<TLS> {
     pub tls_mode: TlsMode,
     pub provider: TLS,
 }
 
-impl<TLS: Default> Default for SocksConnector<TLS> {
+impl<TLS: Default> Default for UnixConnector<TLS> {
     fn default() -> Self {
         Self {
             tls_mode: TlsMode::StartTls,
@@ -23,7 +23,7 @@ impl<TLS: Default> Default for SocksConnector<TLS> {
     }
 }
 
-impl<TLS> Connector for SocksConnector<TLS>
+impl<TLS> Connector for UnixConnector<TLS>
 where
     TLS: TlsProvider<UnixStream> + Sync + Send + 'static,
 {

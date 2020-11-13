@@ -58,10 +58,12 @@ impl<I, H: SessionHandler> StatefulSession<I, H> {
     fn pop_answer(self: Pin<&mut Self>) -> Option<WriteControl> {
         trace!("popping answer");
         let SessionProj { handler, state, .. } = self.project();
-        match state.as_mut().expect("state must be set") {
+        let answer = match state.as_mut().expect("state must be set") {
             State::Pending(_) => None,
             State::Ready(ref mut data) => handler.pop(data),
-        }
+        };
+        trace!("Answer is: {:?}", answer);
+        answer
     }
 }
 impl<I, H> StatefulSession<I, H>

@@ -68,9 +68,9 @@ where
     H::Data: Send + Sync,
     F: Fn(Arc<S>) -> H,
 {
-    fn start(&self, input: I) -> S3Fut<SessionStream> {
+    fn start(&self, input: I) -> SessionStream {
         let handler = (self.handler_factory)(self.mail_service.clone());
         let handler: SessionStream = Box::new(session::StatefulSession::new(input, handler));
-        Box::pin(future::ready(handler))
+        handler
     }
 }

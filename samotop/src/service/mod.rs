@@ -29,3 +29,6 @@ pub mod tcp {
         mod tls_impl_native;
     }
 }
+
+#[cfg(feature = "lmtp-dispatch")]
+pub use samotop_to_lmtp::net as client;

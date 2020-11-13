@@ -1,6 +1,8 @@
 #[macro_use]
 extern crate log;
 
+pub use samotop_delivery::smtp::net;
+
 use samotop_core::{
     common::*,
     model::mail::Transaction,

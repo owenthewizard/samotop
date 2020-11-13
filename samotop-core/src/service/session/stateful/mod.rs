@@ -30,9 +30,9 @@ where
     I: Stream<Item = Result<ReadControl>> + Unpin + Send + Sync + 'static,
     S: MailService + Clone + Send + Sync + 'static,
 {
-    fn start(&self, input: I) -> S3Fut<SessionStream> {
+    fn start(&self, input: I) -> SessionStream {
         let handler = BasicSessionHandler::from(self.clone());
         let handler: SessionStream = Box::new(StatefulSession::new(input, handler));
-        Box::pin(future::ready(handler))
+        handler
     }
 }

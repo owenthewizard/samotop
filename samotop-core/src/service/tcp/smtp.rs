@@ -9,6 +9,8 @@ use crate::service::parser::Parser;
 use crate::service::session::*;
 use crate::service::tcp::TcpService;
 use futures::stream::SplitStream;
+use futures::SinkExt;
+use samotop_model::smtp::ReadControl;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
@@ -61,11 +63,12 @@ where
             if io.can_encrypt() && !io.is_encrypted() {
                 sess.extensions.enable(&extension::STARTTLS);
             }
-            let (dst, src) = SmtpCodec::new(io, sess).split();
-            let handler = session_service.start(src.parse(parser)).await;
-            handler.forward(dst).await
+            let codec = SmtpCodec::new(io, sess);
+            let sink = codec.get_sender();
+            let source = session_service.start(codec.parse(parser));
+            source.forward(sink.sink_err_into()).await
         })
     }
 }
 
-type SessionInput<IO, P> = Parse<SplitStream<SmtpCodec<IO>>, P>;
+type SessionInput<IO, P> = Parse<SmtpCodec<IO>, P>;

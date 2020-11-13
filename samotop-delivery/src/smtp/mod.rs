@@ -20,7 +20,6 @@ pub mod net;
 pub mod response;
 mod smtp_client;
 mod stream;
-pub mod tls;
 mod transport;
 mod util;
 

@@ -1,4 +1,4 @@
-use crate::{smtp::tls::*, SyncFuture};
+use crate::{smtp::net::tls::*, SyncFuture};
 use async_native_tls::{TlsConnector, TlsStream};
 use async_std::io::{Read, Write};
 

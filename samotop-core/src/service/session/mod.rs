@@ -15,5 +15,5 @@ The handler will receive `ReadControl`s from the line and should produce
 relevant `WriteControl`s to send down the line in response.
 */
 pub trait SessionService<TIn> {
-    fn start(&self, input: TIn) -> S3Fut<SessionStream>;
+    fn start(&self, input: TIn) -> SessionStream;
 }

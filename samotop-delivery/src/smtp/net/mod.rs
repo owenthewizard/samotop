@@ -1,4 +1,5 @@
 //! Traits and impls to represent and establish network-like streams
+pub mod tls;
 
 #[cfg(unix)]
 mod unix;
@@ -8,9 +9,9 @@ pub use self::unix::*;
 mod inet;
 pub use self::inet::*;
 
+use self::tls::{DefaultTls, TlsUpgrade};
 use crate::smtp::extension::ClientId;
 use crate::smtp::extension::ServerInfo;
-use crate::smtp::tls::{DefaultTls, TlsUpgrade};
 use crate::ClientSecurity;
 use crate::{smtp::authentication::Authentication, SyncFuture};
 use async_std::io::{self, Read, Write};

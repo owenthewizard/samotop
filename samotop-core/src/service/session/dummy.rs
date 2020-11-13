@@ -22,9 +22,8 @@ impl<TIn> SessionService<TIn> for DummySessionService
 where
     TIn: Stream<Item = Result<ReadControl>> + Unpin + Send + Sync + 'static,
 {
-    fn start(&self, input: TIn) -> S3Fut<SessionStream> {
-        let handler: SessionStream = Box::new(DummySessionHandler::new(self.name.clone(), input));
-        Box::pin(future::ready(handler))
+    fn start(&self, input: TIn) -> SessionStream {
+        Box::new(DummySessionHandler::new(self.name.clone(), input))
     }
 }
 
