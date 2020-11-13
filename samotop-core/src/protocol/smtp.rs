@@ -644,7 +644,7 @@ mod codec_tests {
         let io = TestIO::from(b"something\r\n..fun\r\n.\r\nCOMMAND\r\n".to_vec());
         let sess = SessionInfo::new(ConnectionInfo::default(), "".to_owned());
         let mut sut = SmtpCodec::new(io, sess);
-        let sender = sut.get_sender();
+        let mut sender = sut.get_sender();
 
         // first comes the session info
         drop(Pin::new(&mut sut).poll_next(&mut cx()));
@@ -684,7 +684,7 @@ mod codec_tests {
         let io = TestIO::from(b".\r\n".to_vec());
         let sess = SessionInfo::new(ConnectionInfo::default(), "".to_owned());
         let mut sut = SmtpCodec::new(io, sess);
-        let sender = sut.get_sender();
+        let mut sender = sut.get_sender();
 
         // first comes the session info
         drop(Pin::new(&mut sut).poll_next(&mut cx()));
