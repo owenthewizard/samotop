@@ -72,7 +72,7 @@ test-examples:
     - du -shx target
     - cargo build --example default
     - RUST_LOG=trace cargo run --example default &
-    - sleep 3
+    - sleep 15
     - |
       curl -v --url 'smtp://localhost:2525' --mail-from from@spf.org --mail-rcpt to@mikesh.info --upload-file - > client.log 2>&1 <<EOF
       From: Moohoo <moo@hoo.com>
