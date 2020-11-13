@@ -61,6 +61,26 @@ test-nightly:
   script:
     - RUST_BACKTRACE=1 cargo test --workspace --examples --bins --tests --all-features --color always
 
+test-examples:
+  stage: build
+  only:
+    - branches
+  cache:
+    paths: *cache-paths
+    policy: pull
+  script:
+    - RUST_LOG=trace cargo run --example default &
+    - |
+      curl -v --url 'smtp://localhost:2525' --mail-from from@spf.org --mail-rcpt to@mikesh.info --upload-file - << EOF
+      From: Moohoo <moo@hoo.com>
+      To: Yeeehaw <ye@haw.com>
+      Subject: Try me
+
+      xoxo
+      EOF 2>&1 > client.log
+    - kill $(jobs -p)
+    - cat client.log
+
 publish-crate:
   variables:
     COMPVER: $CI_COMMIT_TAG

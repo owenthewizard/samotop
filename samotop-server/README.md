@@ -87,22 +87,6 @@ Debug with STARTTLS:
 openssl s_client -connect localhost:25 -debug -starttls smtp
 ```
 
-## Testing
-
-```
-curl --url 'smtp://localhost:2525' \
---mail-from from@spf.org \
---mail-rcpt to@mikesh.info \
---upload-file - <<EOF
-From: Moohoo <moo@hoo.com>
-To: Yeeehaw <ye@haw.com>
-Subject: Try me
-
-xoxo
-EOF
-```
-
-
 ## License
 MIT OR Apache-2.0
 
