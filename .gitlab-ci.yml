@@ -69,6 +69,7 @@ test-examples:
     paths: *cache-paths
     policy: pull
   script:
+    - mkdir -p target
     - du -shx target
     - cargo build --example default
     - RUST_LOG=trace cargo run --example default &
