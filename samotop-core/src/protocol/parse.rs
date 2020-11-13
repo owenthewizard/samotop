@@ -123,6 +123,9 @@ mod parse_tests {
         fn script(&self, input: &[u8]) -> Result<Vec<ReadControl>> {
             Ok(vec![ReadControl::Command(self.0.clone(), Vec::from(input))])
         }
+        fn forward_path(&self, _input: &[u8]) -> Result<samotop_model::smtp::SmtpPath> {
+            unimplemented!()
+        }
     }
     impl Parser for FakeParser<ReadControl> {
         fn command(&self, _input: &[u8]) -> Result<SmtpCommand> {
@@ -135,6 +138,9 @@ mod parse_tests {
         fn script(&self, _input: &[u8]) -> Result<Vec<ReadControl>> {
             Ok(vec![self.0.clone()])
         }
+        fn forward_path(&self, _input: &[u8]) -> Result<samotop_model::smtp::SmtpPath> {
+            unimplemented!()
+        }
     }
     impl Parser for FakeParser<Vec<ReadControl>> {
         fn command(&self, _input: &[u8]) -> Result<SmtpCommand> {
@@ -143,6 +149,9 @@ mod parse_tests {
         fn script(&self, _input: &[u8]) -> Result<Vec<ReadControl>> {
             Ok(self.0.clone())
         }
+        fn forward_path(&self, _input: &[u8]) -> Result<samotop_model::smtp::SmtpPath> {
+            unimplemented!()
+        }
     }
     impl Parser for FakeParser<()> {
         fn command(&self, _input: &[u8]) -> Result<SmtpCommand> {
@@ -150,6 +159,9 @@ mod parse_tests {
         }
         fn script(&self, _input: &[u8]) -> Result<Vec<ReadControl>> {
             Err("fail".into())
+        }
+        fn forward_path(&self, _input: &[u8]) -> Result<samotop_model::smtp::SmtpPath> {
+            unimplemented!()
         }
     }
 

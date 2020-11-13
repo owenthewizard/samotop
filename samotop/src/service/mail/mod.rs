@@ -1,4 +1,5 @@
 pub mod dirmail;
+pub mod mapper;
 
 #[cfg(feature = "spf")]
 pub use samotop_with_spf as spf;

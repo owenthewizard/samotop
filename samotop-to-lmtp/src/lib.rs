@@ -127,12 +127,12 @@ where
         let fut = future::ready((move || {
             let sender = mail
                 .mail
-                .map(|sender| EmailAddress::new(sender.from().to_string()))
+                .map(|sender| EmailAddress::new(sender.from().address()))
                 .transpose()?;
             let recipients: std::result::Result<Vec<_>, _> = mail
                 .rcpts
                 .iter()
-                .map(|rcpt| EmailAddress::new(rcpt.to_string()))
+                .map(|rcpt| EmailAddress::new(rcpt.address()))
                 .collect();
 
             Envelope::new(sender, recipients?, mail.id).map_err(Error::from)

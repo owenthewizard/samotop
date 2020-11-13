@@ -1,16 +1,10 @@
 use crate::common::*;
-use crate::model::io::ConnectionInfo;
-use crate::model::mail::SessionInfo;
-use crate::model::smtp::extension;
-use crate::protocol::parse::*;
-use crate::protocol::smtp::SmtpCodec;
-use crate::protocol::tls::MayBeTls;
-use crate::service::parser::Parser;
-use crate::service::session::*;
-use crate::service::tcp::TcpService;
-use futures::stream::SplitStream;
+use crate::{
+    model::{io::ConnectionInfo, mail::SessionInfo, smtp::extension},
+    protocol::{parse::*, smtp::SmtpCodec, tls::MayBeTls},
+    service::{parser::Parser, session::*, tcp::TcpService},
+};
 use futures::SinkExt;
-use samotop_model::smtp::ReadControl;
 use std::marker::PhantomData;
 use std::sync::Arc;
 

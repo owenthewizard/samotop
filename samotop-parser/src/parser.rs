@@ -1,11 +1,11 @@
 /*
     Aim: wrap generated parser fns in struct
 */
-use super::smtp::grammar::{command, session};
-use samotop_core::common::Result;
+use super::smtp::grammar::*;
 use samotop_core::model::smtp::ReadControl;
 use samotop_core::model::smtp::SmtpCommand;
 use samotop_core::service::parser::Parser;
+use samotop_core::{common::Result, model::smtp::SmtpPath};
 
 static PARSER: SmtpParser = SmtpParser;
 
@@ -24,5 +24,8 @@ impl Parser for SmtpParser {
     }
     fn script(&self, input: &[u8]) -> Result<Vec<ReadControl>> {
         Ok(session(input)?)
+    }
+    fn forward_path(&self, input: &[u8]) -> Result<SmtpPath> {
+        Ok(path_forward(input)?)
     }
 }

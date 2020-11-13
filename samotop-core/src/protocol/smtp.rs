@@ -5,7 +5,7 @@ use crate::protocol::tls::MayBeTls;
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use futures::{
     channel::mpsc::{Receiver, Sender},
-    Sink, SinkExt,
+    SinkExt,
 };
 use memchr::memchr;
 use std::collections::VecDeque;

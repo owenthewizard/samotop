@@ -80,18 +80,24 @@ impl SmtpHelo {
     }
 }
 
-impl fmt::Display for SmtpPath {
-    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+impl SmtpPath {
+    pub fn address(&self) -> String {
         match *self {
             SmtpPath::Direct(ref addr) => match addr {
-                SmtpAddress::Mailbox(ref name, ref host) => write!(f, "<{}@{}>", name, host),
+                SmtpAddress::Mailbox(ref name, ref host) => format!("{}@{}", name, host),
             },
-            SmtpPath::Null => write!(f, "<>"),
-            SmtpPath::Postmaster => write!(f, "<POSTMASTER>"),
+            SmtpPath::Null => String::new(),
+            SmtpPath::Postmaster => "POSTMASTER".to_owned(),
             SmtpPath::Relay(_, ref addr) => match addr {
-                SmtpAddress::Mailbox(ref name, ref host) => write!(f, "<{}@{}>", name, host),
+                SmtpAddress::Mailbox(ref name, ref host) => format!("{}@{}", name, host),
             },
         }
+    }
+}
+
+impl fmt::Display for SmtpPath {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        write!(f, "<{}>", self.address())
     }
 }
 

@@ -53,9 +53,10 @@ log = "0.4"
 bytes = "0.6"
 pin-project = "1.0"
 futures = "0.3"
-async-std = "1.6"
-async-tls = { version = "0.9", optional = true }
+async-std = "1.7"
+async-tls = { version = "0.10", optional = true }
 #async-native-tls = { version = "0.3", optional = true }
+regex = "1.4"
 
 [dev-dependencies]
 futures-await-test = "0.3"
