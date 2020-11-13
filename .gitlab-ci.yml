@@ -69,7 +69,9 @@ test-examples:
     paths: *cache-paths
     policy: pull
   script:
+    - cargo build --example default
     - RUST_LOG=trace cargo run --example default &
+    - sleep 3
     - |
       curl -v --url 'smtp://localhost:2525' --mail-from from@spf.org --mail-rcpt to@mikesh.info --upload-file - << EOF
       From: Moohoo <moo@hoo.com>

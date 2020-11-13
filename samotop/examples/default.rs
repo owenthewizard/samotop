@@ -4,7 +4,7 @@ Example of delivering to LMTP over unix socket
 ## Testing
 
 ```
-curl --url 'smtp://localhost:2525' \
+curl -v --url 'smtp://localhost:2525' \
 --mail-from from@spf.org \
 --mail-rcpt to@mikesh.info \
 --upload-file - <<EOF
