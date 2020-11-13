@@ -74,7 +74,7 @@ test-examples:
     - RUST_LOG=trace cargo run --example default &
     - sleep 3
     - |
-      curl -v --url 'smtp://localhost:2525' --mail-from from@spf.org --mail-rcpt to@mikesh.info --upload-file - <<-EOF  2>&1 > client.log
+      curl -v --url 'smtp://localhost:2525' --mail-from from@spf.org --mail-rcpt to@mikesh.info --upload-file - > client.log 2>&1 <<EOF
       From: Moohoo <moo@hoo.com>
       To: Yeeehaw <ye@haw.com>
       Subject: Try me
