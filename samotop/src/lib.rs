@@ -32,10 +32,16 @@ The [samotop crate is published on crates.io](https://crates.io/crates/samotop).
 - [x] Privacy: TLS/STARTTLS supported using rustls
 - [x] MTA: Simple mail relay, logging smtp session to standard output but able to receive mail from common relays
 - [x] MDA: System-wide mailbox - mailbox for all unclaimed domains / addresses - store mail in a folder so it can be processed further
+- [x] MDA: Domain mailbox - mailbox for unclaimed addresses (through LMTP to another LDA)
+- [x] MDA: User mailbox - mailbox for specific address or alias (through LMTP to another LDA)
+- [x] MDA: Store mail in Maildir (through LMTP to another LDA)
+- [x] MDA: Smart mailbox - multiple mailbox addresses by convention
+- [x] Integration: LMTP socket - can deliver to LDA over unix or network sockets using LMTP
 - [x] Antispam: SPF (through viaspf, todo:async)
 
 ## To do
 
+- [ ] MTA: Queue and queue manager, relay mail to another MTA
 - [ ] Antispam: Strict SMTP (require CRLF, reject if client sends mail before banner or EHLO response)
 - [ ] Antispam: whitelist and blacklist
 - [ ] Antispam: greylisting
@@ -43,14 +49,10 @@ The [samotop crate is published on crates.io](https://crates.io/crates/samotop).
 - [ ] Antispam: is it encrypted?
 - [ ] Antispam: reverse lookup
 - [ ] Antispam: DANE (DNSSEC) with UI - user verifies signatures
-- [ ] Processing: Relay mail to another MTA
-- [ ] Processing: Store mail in Maildir (MDA)
-- [ ] MDA: Domain mailbox - mailbox for unclaimed addresses
-- [ ] MDA: User mailbox - mailbox for specific address or alias
-- [ ] MDA: Smart mailbox - multiple mailbox addresses by convention
 - [ ] Privacy: Refuse unencrypted session
 - [ ] Privacy: Encryption at rests, encrypt e-mails, only the recipient will be able to decrypt
 - [ ] Privacy: Leave no trace, no logs, obfuscated file dates...
+- [ ] Integration: LMTP child process - can deliver to LDA using LMTP protocol over io with a child process
 
 # Installation
 
