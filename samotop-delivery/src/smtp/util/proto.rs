@@ -58,8 +58,8 @@ impl<'s, S: Read + Write> SmtpProto<'s, S> {
     }
     /// Gets the server response after mail data have been fully sent.
     pub async fn read_data_sent_response(&mut self, timeout: Duration) -> SmtpResult {
-        let banner_response = self.read_response(timeout).await?;
-        banner_response.is([250].as_ref())
+        let data_response = self.read_response(timeout).await?;
+        data_response.is([250].as_ref())
     }
     /// Gets the EHLO (ESMTP) response and updates server information.
     /// If this fails with 5xx error (pure SMTP), plain old HELO is used instead.
@@ -69,18 +69,6 @@ impl<'s, S: Read + Write> SmtpProto<'s, S> {
         timeout: Duration,
     ) -> Result<(Response, ServerInfo), Error> {
         match self.execute_ehlo(me.clone(), timeout).await {
-            Err(Error::Permanent(_resp)) => self.execute_helo(me, timeout).await,
-            otherwise => otherwise,
-        }
-    }
-    /// Gets the LHLO (LMTP) response and updates server information.
-    /// If this fails with 5xx error (pure SMTP), plain old HELO is used instead.
-    pub async fn execute_lhlo_or_helo(
-        &mut self,
-        me: ClientId,
-        timeout: Duration,
-    ) -> Result<(Response, ServerInfo), Error> {
-        match self.execute_lhlo(me.clone(), timeout).await {
             Err(Error::Permanent(_resp)) => self.execute_helo(me, timeout).await,
             otherwise => otherwise,
         }
@@ -144,11 +132,11 @@ impl<'s, S: Read + Write> SmtpProto<'s, S> {
         let response = self.execute_command(StarttlsCommand, [220], timeout).await;
         response
     }
-    // /// Sends the rset command
-    // pub async fn execute_rset(&mut self, timeout: Duration) -> SmtpResult {
-    //     let response = self.execute_command(RsetCommand, [250], timeout).await;
-    //     response
-    // }
+    /// Sends the rset command
+    pub async fn execute_rset(&mut self, timeout: Duration) -> SmtpResult {
+        let response = self.execute_command(RsetCommand, [250], timeout).await;
+        response
+    }
     /// Sends the quit command
     pub async fn execute_quit(&mut self, timeout: Duration) -> SmtpResult {
         let response = self.execute_command(QuitCommand, [221], timeout).await;
@@ -203,29 +191,32 @@ impl<'s, S: Read + Write> SmtpProto<'s, S> {
     }
     async fn read_response(&mut self, timeout: Duration) -> SmtpResult {
         with_timeout(timeout, async move {
+            let mut enough = self.buffer.remaining() != 0;
             loop {
                 self.buffer.reserve(1024);
                 let buf = self.buffer.bytes_mut();
-                // It is OK to use uninitialized buffer as long as read fulfills the contract.
-                // In other words, it will only use the given buffer for writing.
-                // TODO: What's the story with clippy::transmute-ptr-to-ptr?
-                #[allow(unsafe_code)]
-                #[allow(clippy::transmute_ptr_to_ptr)]
-                let buf = unsafe { std::mem::transmute(buf) };
-                let read = self.stream.read(buf).await?;
-                if read == 0 {
-                    return Err(io::Error::new(
-                        io::ErrorKind::Other,
-                        format!("incomplete after {} bytes", self.buffer().len()),
-                    )
-                    .into());
+                if !enough {
+                    // It is OK to use uninitialized buffer as long as read fulfills the contract.
+                    // In other words, it will only use the given buffer for writing.
+                    // TODO: What's the story with clippy::transmute-ptr-to-ptr?
+                    #[allow(unsafe_code)]
+                    #[allow(clippy::transmute_ptr_to_ptr)]
+                    let buf = unsafe { std::mem::transmute(buf) };
+                    let read = self.stream.read(buf).await?;
+                    if read == 0 {
+                        return Err(io::Error::new(
+                            io::ErrorKind::Other,
+                            format!("incomplete after {} bytes", self.buffer().len()),
+                        )
+                        .into());
+                    }
+                    // It is OK to use uninitialized buffer as long as read fulfills the contract.
+                    // In other words, read bytes have been written at the beginning of the given buffer
+                    #[allow(unsafe_code)]
+                    unsafe {
+                        self.buffer.advance_mut(read)
+                    };
                 }
-                // It is OK to use uninitialized buffer as long as read fulfills the contract.
-                // In other words, read bytes have been written at the beginning of the given buffer
-                #[allow(unsafe_code)]
-                unsafe {
-                    self.buffer.advance_mut(read)
-                };
                 let response = std::str::from_utf8(self.buffer.bytes())?;
                 debug!("S: {}", escape_crlf(response));
                 break match parse_response(response) {
@@ -239,6 +230,7 @@ impl<'s, S: Read + Write> SmtpProto<'s, S> {
                         if self.buffer.remaining() >= self.line_limit {
                             Err(Error::ResponseParsing("Line limit reached"))
                         } else {
+                            enough = false;
                             continue;
                         }
                     }

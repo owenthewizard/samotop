@@ -34,6 +34,8 @@ struct SmtpDataStreamInner<S> {
     codec: SmtpDataCodec,
     message_id: String,
     timeout: Duration,
+    lmtp: bool,
+    rcpts: u16,
 }
 
 impl<S> SmtpDataStream<S> {
@@ -41,6 +43,8 @@ impl<S> SmtpDataStream<S> {
         inner: Lease<SmtpConnection<S>>,
         message_id: String,
         timeout: Duration,
+        lmtp: bool,
+        rcpts: u16,
     ) -> Self {
         SmtpDataStream {
             state: State::Ready(SmtpDataStreamInner {
@@ -48,6 +52,8 @@ impl<S> SmtpDataStream<S> {
                 codec: SmtpDataCodec::new(),
                 message_id,
                 timeout,
+                lmtp,
+                rcpts,
             }),
         }
     }
@@ -84,6 +90,8 @@ where
                     mut codec,
                     message_id,
                     timeout,
+                    lmtp,
+                    rcpts,
                 }) => {
                     let len = buf.len();
                     let buf = Vec::from(buf);
@@ -94,6 +102,8 @@ where
                             codec,
                             message_id,
                             timeout,
+                            lmtp,
+                            rcpts,
                         })
                     };
                     self.state = State::Encoding(Box::pin(fut));
@@ -138,34 +148,73 @@ where
         // Lease will send the inner client back on drop.
         // Here we take care of closing the stream with final dot
         // and reading the response
+
         trace!("poll_close");
         loop {
             break match std::mem::replace(&mut self.state, State::Busy) {
                 State::Ready(SmtpDataStreamInner {
                     mut inner,
-                    mut codec,
                     message_id,
                     timeout,
+                    lmtp,
+                    rcpts,
+                    ..
                 }) => {
-                    let fut = async move {
-                        // write final dot
-                        codec.encode(&[][..], &mut inner.stream).await?;
-                        // make sure all is in before reading response
-                        inner.stream.flush().await?;
+                    let fut =
+                        async move {
+                            // write final dot
+                            //codec.encode(&[][..], &mut inner.stream).await?;
+                            // make sure all is in before reading response
+                            inner.stream.flush().await?;
+                            let close = inner.reuse == 0;
 
-                        // collect response
-                        trace!("data sent, waiting for confirmation");
-                        let mut client = SmtpProto::new(Pin::new(&mut inner.stream));
-                        let response = client
-                            .read_data_sent_response(timeout)
-                            .await
-                            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+                            // collect response
+                            trace!("data sent, waiting for confirmation");
+                            let mut client = SmtpProto::new(Pin::new(&mut inner.stream));
+                            let mut response = None;
+                            if lmtp {
+                                // there will be multiple responses - one for each RCPT
+                                // TODO: report per recipient response
+                                for i in 0..rcpts {
+                                    let rsp =
+                                        client.read_data_sent_response(timeout).await.map_err(
+                                            |e| std::io::Error::new(std::io::ErrorKind::Other, e),
+                                        )?;
+                                    // Log the message
+                                    debug!("{}: rcpt={} status=sent ({:?})", message_id, i, rsp);
+                                    response = Some(rsp);
+                                }
+                            } else {
+                                let rsp =
+                                    client.read_data_sent_response(timeout).await.map_err(|e| {
+                                        std::io::Error::new(std::io::ErrorKind::Other, e)
+                                    })?;
+                                // Log the message
+                                debug!("{}: status=sent ({:?})", message_id, response);
+                                response = Some(rsp);
+                            }
 
-                        // Log the message
-                        debug!("{}: status=sent ({:?})", message_id, response);
+                            if close {
+                                // reuse countdown reached
+                                // quit and close conn
+                                client.execute_quit(timeout).await.map_err(|e| {
+                                    std::io::Error::new(std::io::ErrorKind::Other, e)
+                                })?;
+                                // drop conn
+                                inner.steal();
+                            } else {
+                                client.execute_rset(timeout).await.map_err(|e| {
+                                    std::io::Error::new(std::io::ErrorKind::Other, e)
+                                })?;
+                            }
 
-                        Ok(response)
-                    };
+                            response.ok_or_else(|| {
+                                std::io::Error::new(
+                                    std::io::ErrorKind::NotFound,
+                                    "No responses were returned",
+                                )
+                            })
+                        };
                     self.state = State::Closing(Box::pin(fut));
                     continue;
                 }

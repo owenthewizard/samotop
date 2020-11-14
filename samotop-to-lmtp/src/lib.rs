@@ -23,21 +23,35 @@ pub mod variant {
 
     use super::*;
     pub struct LmtpDispatch<C: Connector> {
-        pub transport: Arc<SmtpTransport<SmtpClient, C>>,
+        pub client: SmtpClient,
+        pub connector: C,
     }
 }
 
 impl<C: Connector> Config<variant::LmtpDispatch<C>> {
     pub fn lmtp_dispatch(address: String, connector: C) -> Result<Self> {
         let variant = variant::LmtpDispatch {
-            transport: Arc::new(
-                SmtpClient::new(&address)?
-                    .lmtp(true)
-                    .connection_reuse(ConnectionReuseParameters::ReuseUnlimited)
-                    .connect_with(connector),
-            ),
+            client: SmtpClient::new(&address)?.lmtp(true),
+            connector,
         };
         Ok(Self { variant })
+    }
+    pub fn reuse(mut self, lifetimes: u16) -> Self {
+        self.variant.client = match lifetimes {
+            0 => self
+                .variant
+                .client
+                .connection_reuse(ConnectionReuseParameters::ReuseUnlimited),
+            1 => self
+                .variant
+                .client
+                .connection_reuse(ConnectionReuseParameters::NoReuse),
+            n => self
+                .variant
+                .client
+                .connection_reuse(ConnectionReuseParameters::ReuseLimited(n - 1)),
+        };
+        self
     }
 }
 
@@ -46,19 +60,20 @@ impl<ES: EsmtpService, GS: MailGuard, DS: MailDispatch, C: Connector> MailSetup<
 where
     C: 'static,
 {
-    type Output = CompositeMailService<ES, GS, LmtpMail<variant::LmtpDispatch<C>>>;
+    type Output = CompositeMailService<ES, GS, LmtpMail<Arc<SmtpTransport<SmtpClient, C>>>>;
     fn setup(self, extend: ES, guard: GS, _dispatch: DS) -> Self::Output {
-        (extend, guard, LmtpMail::new(self)).into()
+        let transport = Arc::new(self.variant.client.connect_with(self.variant.connector));
+        (extend, guard, LmtpMail::new(transport)).into()
     }
 }
 
-pub struct LmtpMail<Variant> {
-    config: Config<Variant>,
+pub struct LmtpMail<T> {
+    inner: T,
 }
 
-impl<Any> LmtpMail<Any> {
-    fn new(config: Config<Any>) -> Self {
-        Self { config }
+impl<T> LmtpMail<T> {
+    fn new(inner: T) -> Self {
+        Self { inner }
     }
 }
 
@@ -98,7 +113,7 @@ where
                     continue;
                 }
                 LmtpStreamProj::Ready(mut stream, true) => {
-                    ready!(stream.as_mut().poll_flush(cx))?;
+                    ready!(stream.as_mut().poll_close(cx))?;
                     let result = stream.result().map_err(|e| e.into());
                     self.set(LmtpStream::Closed(result));
                     continue;
@@ -116,14 +131,14 @@ fn closed() -> std::io::Error {
     )
 }
 
-impl<C: Connector> MailDispatch for LmtpMail<variant::LmtpDispatch<C>>
+impl<C: Connector> MailDispatch for LmtpMail<Arc<SmtpTransport<SmtpClient, C>>>
 where
     C: 'static,
 {
     type Mail = LmtpStream<<SmtpTransport<SmtpClient, C> as Transport>::DataStream>;
     type MailFuture = Pin<Box<dyn Future<Output = DispatchResult<Self::Mail>> + Sync + Send>>;
     fn send_mail(&self, mail: Transaction) -> Self::MailFuture {
-        let transport = self.config.variant.transport.clone();
+        let transport = self.inner.clone();
         let fut = future::ready((move || {
             let sender = mail
                 .mail
@@ -137,9 +152,12 @@ where
 
             Envelope::new(sender, recipients?, mail.id).map_err(Error::from)
         })())
-        .and_then(move |envelope| send_stream(transport, envelope))
+        .and_then(move |envelope| {
+            trace!("Starting mail transaction.");
+            send_stream(transport, envelope)
+        })
         .and_then(|stream| {
-            trace!("Starting mail.");
+            trace!("Starting mail data stream.");
             future::ready(Ok(LmtpStream::Ready(stream, false)))
         })
         .map_err(|e| {

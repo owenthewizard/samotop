@@ -1,3 +1,5 @@
+use std::io;
+
 use crate::common::*;
 use crate::model::mail::*;
 use crate::model::session::*;
@@ -107,14 +109,17 @@ impl<S: MailService> BasicSessionHandler<S> {
                     session,
                 } = state;
                 let fut = async move {
-                    match sink.close().await {
-                        Ok(()) => {
-                            data.say_mail_queued(mailid.as_str());
-                        }
+                    if match sink.close().await {
+                        Ok(()) => true,
+                        Err(e) if e.kind() == io::ErrorKind::NotConnected => true,
                         Err(e) => {
-                            warn!("Failed to finish mail data for {} - {}", mailid, e);
-                            data.say_mail_queue_failed_temporarily();
+                            warn!("Failed to close mail {}: {}", mailid.as_str(), e);
+                            false
                         }
+                    } {
+                        data.say_mail_queued(mailid.as_str());
+                    } else {
+                        data.say_mail_queue_failed_temporarily();
                     }
                     data.state = State::Connected(session);
                     data

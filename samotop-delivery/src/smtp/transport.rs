@@ -72,7 +72,7 @@ where
         ) -> Result<ServerInfo, Error> {
             let res = match lmtp {
                 false => c.execute_ehlo_or_helo(me, timeout).await?,
-                true => c.execute_lhlo_or_helo(me, timeout).await?,
+                true => c.execute_lhlo(me, timeout).await?,
             };
             Ok(res.1)
         }
@@ -178,21 +178,19 @@ impl<Conf: ConnectionConfiguration, Conn: Connector> Transport for SmtpTransport
             };
             let timeout = self.configuration.timeout();
 
-            if lease.reuse == 0 {
-                // reuse countdown reached
-                // close and refresh
-                let mut client = SmtpProto::new(Pin::new(&mut lease.stream));
-                client.execute_quit(timeout).await?;
-                // new connection
-                lease.replace(Self::connect(&self.configuration, &self.connector).await?);
-            }
-
             lease.reuse = lease.reuse.saturating_sub(1);
             let message_id = envelope.message_id().to_owned();
+            let rcpts = envelope.to().len().min(u16::MAX as usize) as u16;
             // prepare a mail
             Self::prepare_mail(&self.configuration, &mut lease, envelope, timeout).await?;
             // Return a data stream carying the lease away
-            Ok(SmtpDataStream::new(lease, message_id, timeout))
+            Ok(SmtpDataStream::new(
+                lease,
+                message_id,
+                timeout,
+                self.configuration.lmtp(),
+                rcpts,
+            ))
         })
     }
 }
@@ -200,7 +198,7 @@ impl<Conf: ConnectionConfiguration, Conn: Connector> Transport for SmtpTransport
 pub(crate) struct SmtpConnection<S> {
     pub stream: S,
     /// How many times can the stream be used
-    reuse: u16,
+    pub reuse: u16,
     /// Information about the server
     /// Value is None before HELO/EHLO
     pub server_info: ServerInfo,

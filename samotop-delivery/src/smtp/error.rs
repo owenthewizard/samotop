@@ -3,6 +3,7 @@
 use self::Error::*;
 use crate::smtp::response::{Response, Severity};
 use base64::DecodeError;
+use log::warn;
 use std::io;
 use std::str::Utf8Error;
 use std::string::FromUtf8Error;
@@ -71,7 +72,10 @@ impl From<Response> for Error {
         match response.code.severity {
             Severity::TransientNegativeCompletion => Transient(response),
             Severity::PermanentNegativeCompletion => Permanent(response),
-            _ => Client("Unknown error code"),
+            _ => {
+                warn!("Unknown response code: {}, {:?}", response.code, response);
+                Error::Transient(response)
+            }
         }
     }
 }

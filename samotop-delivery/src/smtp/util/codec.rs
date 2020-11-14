@@ -1,5 +1,11 @@
-use async_std::io::{self, Write};
+use async_std::io::{self, Read, Write};
 use async_std::prelude::*;
+use log::debug;
+use pin_project::pin_project;
+use std::{
+    pin::Pin,
+    task::{Context, Poll},
+};
 
 /// The codec used for transparency
 #[derive(Default, Clone, Copy, Debug)]
@@ -24,7 +30,8 @@ impl SmtpDataCodec {
     /// TODO: check line length
     /// FIXME: Fix transfer encoding based on available ESMTP extensions.
     ///        That means also to understand and update MIME headers.
-    pub async fn encode<W: Write + Unpin>(&mut self, frame: &[u8], mut buf: W) -> io::Result<()> {
+    pub async fn encode<W: Write + Unpin>(&mut self, frame: &[u8], buf: W) -> io::Result<()> {
+        let mut buf = BugIO { inner: buf };
         match frame.len() {
             0 => {
                 match self.escape_count {
@@ -56,5 +63,45 @@ impl SmtpDataCodec {
                 Ok(())
             }
         }
+    }
+}
+
+#[pin_project]
+#[derive(Default, Debug, Clone)]
+pub struct BugIO<S> {
+    #[pin]
+    pub inner: S,
+}
+
+impl<S: Read> Read for BugIO<S> {
+    fn poll_read(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut [u8],
+    ) -> Poll<std::io::Result<usize>> {
+        let res = self.project().inner.poll_read(cx, buf);
+        debug!("poll_read {:?} {:?}", res, std::str::from_utf8(buf));
+        res
+    }
+}
+impl<S: Write> Write for BugIO<S> {
+    fn poll_write(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<std::io::Result<usize>> {
+        let res = self.project().inner.poll_write(cx, buf);
+        debug!("poll_write {:?} {:?}", res, std::str::from_utf8(buf));
+        res
+    }
+    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+        let res = self.project().inner.poll_flush(cx);
+        debug!("poll_flush {:?}", res);
+        res
+    }
+    fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+        let res = self.project().inner.poll_close(cx);
+        debug!("poll_close");
+        res
     }
 }
