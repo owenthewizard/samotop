@@ -182,7 +182,13 @@ impl<Conf: ConnectionConfiguration, Conn: Connector> Transport for SmtpTransport
             let message_id = envelope.message_id().to_owned();
             let rcpts = envelope.to().len().min(u16::MAX as usize) as u16;
             // prepare a mail
-            Self::prepare_mail(&self.configuration, &mut lease, envelope, timeout).await?;
+            if let Err(e) =
+                Self::prepare_mail(&self.configuration, &mut lease, envelope, timeout).await
+            {
+                // the connection is broken. Fail now, next call shall establish a new one.
+                lease.steal();
+                return Err(e);
+            }
             // Return a data stream carying the lease away
             Ok(SmtpDataStream::new(
                 lease,
