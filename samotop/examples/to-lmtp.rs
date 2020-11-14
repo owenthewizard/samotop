@@ -1,5 +1,6 @@
 /*!
-Example of delivering to LMTP over unix socket
+Example of delivering to LMTP over unix socket.
+Maps recipients to local users per domain.
  */
 
 use async_std::task;

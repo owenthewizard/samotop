@@ -1,5 +1,5 @@
 /*!
-Example of delivering to LMTP over unix socket
+Example of delivering nowhere except to the console output
 
 ## Testing
 
