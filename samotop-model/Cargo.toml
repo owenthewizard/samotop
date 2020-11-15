@@ -18,3 +18,4 @@ gitlab = { repository = "BrightOpen/BackYard/Samotop", branch = "develop" }
 maintenance = { status = "actively-developed" }
 
 [dependencies]
+futures-io = "0.3"

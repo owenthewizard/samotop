@@ -3,6 +3,7 @@ mod command;
 pub mod extension;
 mod extensions;
 mod reply;
+mod session;
 
 pub use self::command::*;
 pub use self::extensions::*;

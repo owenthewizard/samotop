@@ -98,10 +98,6 @@ pub enum SmtpReply {
     OkHeloInfo {
         local: String,
         remote: String,
-    },
-    OkEhloInfo {
-        local: String,
-        remote: String,
         extensions: Vec<String>,
     },
     // 251 will forward to <forward-path> (See Section 3.4)
@@ -165,7 +161,6 @@ impl SmtpReply {
             OkInfo => 250,
             OkMessageInfo(_) => 250,
             OkHeloInfo { .. } => 250,
-            OkEhloInfo { .. } => 250,
             // will forward to <forward-path> (See Section 3.4)
             UserNotLocalInfo(_) => 251,
             //, but will accept message and attempt delivery (See Section 3.5.3)
@@ -228,11 +223,6 @@ impl SmtpReply {
                 ref remote,
                 ..
             } => format!("{} greets {}", local, remote),
-            OkEhloInfo {
-                ref local,
-                ref remote,
-                ..
-            } => format!("{} greets {}", local, remote),
 
             UserNotLocalInfo(ref forward_path) => {
                 format!("User not local, will forward to {}", forward_path)
@@ -268,7 +258,7 @@ impl SmtpReply {
     }
     pub fn items(&self) -> Vec<String> {
         match *self {
-            OkEhloInfo { ref extensions, .. } => extensions.iter().map(|e| e.to_string()).collect(),
+            OkHeloInfo { ref extensions, .. } => extensions.iter().map(|e| e.to_string()).collect(),
             _ => vec![],
         }
     }

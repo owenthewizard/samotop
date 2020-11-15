@@ -1,5 +1,104 @@
+use crate::{
+    common::*,
+    smtp::{extension, session::SmtpSession, SmtpReply},
+};
 use std::fmt;
 use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
+
+pub trait SmtpSessionCommand {
+    fn apply<'s, 'f>(
+        self,
+        session: &'s mut dyn SmtpSession,
+    ) -> Pin<Box<dyn Future<Output = Result<()>> + 'f>>
+    where
+        's: 'f;
+    fn verb(&self) -> &str;
+}
+pub trait SmtpSessionResponse {
+    fn code() -> u16;
+}
+
+impl SmtpSessionCommand for SmtpHelo {
+    fn apply<'s, 'f>(
+        self,
+        session: &'s mut dyn SmtpSession,
+    ) -> Pin<Box<dyn Future<Output = Result<()>> + 'f>>
+    where
+        's: 'f,
+    {
+        let local = session.transaction().session.service_name.clone();
+        let remote = self.host().to_string();
+        let extensions = session
+            .transaction()
+            .session
+            .extensions
+            .iter()
+            .map(String::from)
+            .collect();
+        let reply = match self {
+            SmtpHelo::Helo(_) => SmtpReply::OkHeloInfo {
+                local,
+                remote,
+                extensions: vec![],
+            },
+            SmtpHelo::Ehlo(_) | SmtpHelo::Lhlo(_) => SmtpReply::OkHeloInfo {
+                local,
+                remote,
+                extensions,
+            },
+        };
+        session.transaction_mut().reset();
+        session.transaction_mut().session.smtp_helo = Some(self);
+        session.say(&reply)
+    }
+
+    fn verb(&self) -> &str {
+        match self {
+            SmtpHelo::Helo(_) => "HELO",
+            SmtpHelo::Ehlo(_) => "EHLO",
+            SmtpHelo::Lhlo(_) => "LHLO",
+        }
+    }
+}
+
+impl SmtpSessionCommand for StartTls {
+    fn apply<'s, 'f>(
+        self,
+        session: &'s mut dyn SmtpSession,
+    ) -> Pin<Box<dyn Future<Output = Result<()>> + 'f>>
+    where
+        's: 'f,
+    {
+        let fut = async move {
+            // you cannot STARTTLS twice so we only advertise it before first use
+            if session
+                .transaction_mut()
+                .session
+                .extensions
+                .disable(&extension::STARTTLS)
+            {
+                let name = session.transaction().session.service_name.clone();
+                session.transaction_mut().reset();
+                // TODO: better message response
+                session.say(&SmtpReply::ServiceReadyInfo(name)).await?;
+                session.start_tls().await?;
+            } else {
+                session
+                    .say(&SmtpReply::CommandNotImplementedFailure)
+                    .await?;
+            };
+            Ok(())
+        };
+        Box::pin(fut)
+    }
+
+    fn verb(&self) -> &str {
+        "STARTTLS"
+    }
+}
+
+#[derive(Eq, PartialEq, Debug, Clone)]
+pub struct StartTls;
 
 #[derive(Eq, PartialEq, Debug, Clone)]
 pub enum SmtpCommand {
@@ -58,6 +157,7 @@ pub enum SmtpAddress {
 pub enum SmtpHelo {
     Helo(SmtpHost),
     Ehlo(SmtpHost),
+    Lhlo(SmtpHost),
 }
 
 impl SmtpHelo {
@@ -66,6 +166,7 @@ impl SmtpHelo {
         match self {
             Helo(_) => false,
             Ehlo(_) => true,
+            Lhlo(_) => true,
         }
     }
     pub fn host(&self) -> &SmtpHost {
@@ -73,6 +174,7 @@ impl SmtpHelo {
         match self {
             Helo(ref host) => host,
             Ehlo(ref host) => host,
+            Lhlo(ref host) => host,
         }
     }
     pub fn name(&self) -> String {
@@ -96,26 +198,26 @@ impl SmtpPath {
 }
 
 impl fmt::Display for SmtpPath {
-    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "<{}>", self.address())
     }
 }
 
 impl fmt::Display for SmtpHost {
-    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         use self::SmtpHost::*;
         match *self {
             Domain(ref h) => f.write_str(h),
-            Ipv4(ref h) => write!(f, "{}", h),
-            Ipv6(ref h) => write!(f, "{}", h),
+            Ipv4(ref h) => write!(f, "[{}]", h),
+            Ipv6(ref h) => write!(f, "[IPv6:{}]", h),
             Invalid {
                 ref label,
                 ref literal,
-            } => write!(f, "{}:{}", label, literal),
+            } => write!(f, "[{}:{}]", label, literal),
             Other {
                 ref label,
                 ref literal,
-            } => write!(f, "{}:{}", label, literal),
+            } => write!(f, "[{}:{}]", label, literal),
         }
     }
 }

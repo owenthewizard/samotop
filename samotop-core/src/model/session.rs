@@ -37,11 +37,15 @@ impl Buffers {
     }
     pub fn say_helo(&mut self, name: &str, remote: String) -> &mut Self {
         let local = name.to_owned();
-        self.say_reply(SmtpReply::OkHeloInfo { local, remote })
+        self.say_reply(SmtpReply::OkHeloInfo {
+            local,
+            remote,
+            extensions: vec![],
+        })
     }
     pub fn say_ehlo(&mut self, name: &str, extensions: Vec<String>, remote: String) -> &mut Self {
         let local = name.to_owned();
-        self.say_reply(SmtpReply::OkEhloInfo {
+        self.say_reply(SmtpReply::OkHeloInfo {
             local,
             remote,
             extensions,

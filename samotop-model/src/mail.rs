@@ -29,6 +29,18 @@ pub struct SessionInfo {
     pub smtp_helo: Option<SmtpHelo>,
 }
 
+impl Transaction {
+    // Resets the SMTP mail transaction buffers
+    // leaves SMTP helo as is
+    // leaves connection info as is
+    pub fn reset(&mut self) {
+        self.id = String::new();
+        self.mail = None;
+        self.rcpts = vec![];
+        self.extra_headers = String::new();
+    }
+}
+
 impl SessionInfo {
     pub fn new(connection: ConnectionInfo, service_name: String) -> Self {
         Self {
