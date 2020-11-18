@@ -145,9 +145,8 @@ impl<S: MailService> BasicSessionHandler<S> {
         Box::pin(ready(data))
     }
 
-    fn cmd_unknown(&self, mut data: SmtpStateBase) -> S3Fut<SmtpStateBase> {
-        data.say_not_implemented();
-        Box::pin(ready(data))
+    fn cmd_unknown(&self, data: SmtpStateBase) -> S3Fut<SmtpStateBase> {
+        SmtpUnknownCommand::default().apply(data)
     }
     fn cmd_helo(&self, data: SmtpStateBase, helo: SmtpHelo) -> S3Fut<SmtpStateBase> {
         helo.apply(data)
