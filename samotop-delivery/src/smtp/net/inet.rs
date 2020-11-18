@@ -1,12 +1,13 @@
 use crate::smtp::net::tls::{TlsProvider, TlsUpgrade};
 use crate::smtp::net::Connector;
-use crate::smtp::net::MaybeTls;
 use crate::smtp::net::NetworkStream;
 use crate::smtp::net::State;
 use crate::smtp::net::TlsMode;
 use crate::{smtp::net::ConnectionConfiguration, SyncFuture};
 use async_std::io;
 use async_std::net::{TcpStream, ToSocketAddrs};
+use samotop_model::common::Pin;
+use samotop_model::io::MayBeTls;
 
 #[derive(Debug)]
 pub struct TcpConnector<TLS> {
@@ -65,7 +66,7 @@ where
             };
 
             match self.tls_mode {
-                TlsMode::Tls => stream.encrypt()?,
+                TlsMode::Tls => Pin::new(&mut stream).encrypt()?,
                 TlsMode::StartTls => { /* ready! */ }
             }
             Ok(stream)

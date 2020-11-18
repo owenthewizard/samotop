@@ -1,5 +1,5 @@
 mod command;
-//mod commands;
+mod commands;
 pub mod extension;
 mod extensions;
 mod reply;
@@ -8,6 +8,7 @@ mod session;
 pub use self::command::*;
 pub use self::extensions::*;
 pub use self::reply::*;
+pub use self::session::*;
 use crate::mail::SessionInfo;
 
 /// Represents the instructions for the client side of the stream.

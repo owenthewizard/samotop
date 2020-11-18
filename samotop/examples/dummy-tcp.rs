@@ -18,8 +18,8 @@ extern crate async_std;
 extern crate env_logger;
 extern crate samotop;
 
+use samotop::io::dummy::DummyTcpService;
 use samotop::server::Server;
-use samotop::service::tcp::dummy::DummyTcpService;
 
 fn main() {
     println!("Run this with RUST_LOG=info to see the port listened on");

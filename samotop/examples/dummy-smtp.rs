@@ -18,11 +18,11 @@ extern crate async_std;
 extern crate env_logger;
 extern crate samotop;
 
+use samotop::io::smtp::SmtpService;
+use samotop::io::tls::TlsEnabled;
+use samotop::parser::SmtpParser;
 use samotop::server::Server;
-use samotop::service::parser::SmtpParser;
-use samotop::service::session::dummy::DummySessionService;
-use samotop::service::tcp::smtp::SmtpService;
-use samotop::service::tcp::tls::TlsEnabled;
+use samotop::session::dummy::DummySessionService;
 
 fn main() {
     println!("Run this with RUST_LOG=info to see the port listened on");

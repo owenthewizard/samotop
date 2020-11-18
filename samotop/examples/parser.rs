@@ -2,7 +2,7 @@
 
 extern crate samotop;
 
-use crate::samotop::service::parser::*;
+use crate::samotop::parser::*;
 
 fn main() {
     let input = String::new()

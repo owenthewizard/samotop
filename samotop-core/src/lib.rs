@@ -1,28 +1,31 @@
 #[macro_use]
 extern crate log;
 
-pub mod model;
+pub mod io;
+pub mod mail;
+pub mod parser;
 pub mod protocol;
-pub mod service;
+pub mod session;
 
 pub mod common {
-    pub use crate::model::{Error, Result};
-    pub type S3Fut<T> = Pin<Box<dyn Future<Output = T> + Sync + Send + 'static>>;
     pub use futures::{
         future, future::BoxFuture, ready, stream, AsyncRead as Read, AsyncReadExt as ReadExt,
         AsyncWrite as Write, AsyncWriteExt as WriteExt, Future, FutureExt, Stream, StreamExt,
         TryFutureExt,
     };
     pub use pin_project::pin_project;
-    pub use std::pin::Pin;
+    pub use samotop_model::{common::*, Error, Result};
     pub use std::sync::Arc;
-    pub use std::task::{Context, Poll};
+}
+
+pub mod smtp {
+    pub use samotop_model::smtp::*;
 }
 
 pub mod test_util {
 
     pub use crate::common::*;
-    use crate::protocol::tls::MayBeTls;
+    use crate::io::MayBeTls;
     use std::collections::VecDeque;
 
     pub fn cx() -> Context<'static> {
@@ -130,7 +133,7 @@ pub mod test_util {
         }
     }
     impl MayBeTls for TestIO {
-        fn start_tls(self: Pin<&mut Self>) -> std::io::Result<()> {
+        fn encrypt(self: Pin<&mut Self>) -> std::io::Result<()> {
             Err(std::io::Error::new(
                 std::io::ErrorKind::BrokenPipe,
                 "TLS not supported",

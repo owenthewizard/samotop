@@ -21,11 +21,12 @@ use async_std::task::{Context, Poll};
 use futures::{ready, Future};
 use log::trace;
 use pin_project::pin_project;
+use samotop_model::io::MayBeTls;
 use std::fmt;
 use std::time::Duration;
 
 pub trait Connector: Sync + Send {
-    type Stream: MaybeTls + Read + Write + Unpin + Sync + Send + 'static;
+    type Stream: MayBeTls + Read + Write + Unpin + Sync + Send + 'static;
     /// This provider of connectivity takes care of resolving
     /// given address (which could be an IP, FQDN, URL...),
     /// establishing a connection and enabling (or not) TLS upgrade.
@@ -51,21 +52,6 @@ pub trait ConnectionConfiguration: Sync + Send {
         encrypted: bool,
     ) -> Option<Box<dyn Authentication>>;
     fn lmtp(&self) -> bool;
-}
-
-/// A stream implementing this trait may be able to upgrade to TLS
-/// But maybe not...
-pub trait MaybeTls {
-    /// Initiates the TLS negotiations.
-    /// The stream must then block all reads/writes until the
-    /// underlying TLS handshake is done.
-    fn encrypt(&mut self) -> Result<(), io::Error>;
-    /// Returns true only if calling encrypt would make sense:
-    /// 1. required encryption setup information is available.
-    /// 2. the stream is not encrypted yet.
-    fn can_encrypt(&self) -> bool;
-    /// Returns true if the stream is already encrypted.
-    fn is_encrypted(&self) -> bool;
 }
 
 pub type DefaultConnector = inet::TcpConnector<DefaultTls>;
@@ -101,14 +87,14 @@ enum State<S, E, U> {
     None,
 }
 
-impl<S, U> MaybeTls for NetworkStream<S, U::Encrypted, U>
+impl<S, U> MayBeTls for NetworkStream<S, U::Encrypted, U>
 where
     U: TlsUpgrade<S>,
 {
     /// Initiates the TLS negotiations.
     /// The stream must then block all reads/writes until the
     /// underlying TLS handshake is done.
-    fn encrypt(&mut self) -> Result<(), io::Error> {
+    fn encrypt(mut self: Pin<&mut Self>) -> Result<(), io::Error> {
         match std::mem::replace(&mut self.state, State::None) {
             State::Enabled(stream, upgrade) => {
                 self.state = State::Handshake(Box::pin(
@@ -146,14 +132,6 @@ where
             State::Handshake(_) => true,
             State::None => false,
         }
-    }
-}
-
-impl<S, E, U> NetworkStream<S, E, U> {
-    /// Returns peer's address
-    pub fn peer_addr(&self) -> io::Result<SocketAddr> {
-        self.peer_addr
-            .ok_or_else(|| io::Error::from(io::ErrorKind::Other))
     }
 }
 

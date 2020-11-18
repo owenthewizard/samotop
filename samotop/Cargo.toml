@@ -28,7 +28,7 @@ default = ["rust-tls", "spf", "lmtp-dispatch"]
 spf = ["samotop-with-spf"]
 lmtp-dispatch = ["samotop-to-lmtp"]
 rust-tls = ["async-tls"]
-#native-tls = ["async-native-tls"]
+native-tls = ["async-native-tls"]
 
 [dependencies.samotop-core]
 version = "0.11.0-samotop-dev"
@@ -55,7 +55,7 @@ pin-project = "1.0"
 futures = "0.3"
 async-std = "1.7"
 async-tls = { version = "0.10", optional = true }
-#async-native-tls = { version = "0.3", optional = true }
+async-native-tls = { version = "0.3", optional = true }
 regex = "1.4"
 
 [dev-dependencies]

@@ -9,17 +9,17 @@ use futures::io::{AsyncWrite as Write, AsyncWriteExt as WriteExt};
 use futures::{ready, Future};
 use log::{debug, trace};
 use potential::Lease;
+use std::fmt;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::time::Duration;
 
 /// FIXME: this needs to be gracefully degraded to 7bit if 8bit/utf8 is not available
-#[allow(missing_debug_implementations)]
+#[derive(Debug)]
 pub struct SmtpDataStream<S> {
     state: State<S>,
 }
 
-#[allow(missing_debug_implementations)]
 enum State<S> {
     Busy,
     Ready(SmtpDataStreamInner<S>),
@@ -28,7 +28,20 @@ enum State<S> {
     Done(Response),
 }
 
-#[allow(missing_debug_implementations)]
+impl<S> fmt::Debug for State<S> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let fake = "*";
+        match self {
+            State::Busy => write!(f, "Busy"),
+            State::Ready(_) => f.debug_tuple("Ready").field(&fake).finish(),
+            State::Encoding(_) => f.debug_tuple("Encoding").field(&fake).finish(),
+            State::Closing(_) => f.debug_tuple("Closing").field(&fake).finish(),
+            State::Done(r) => f.debug_tuple("Done").field(r).finish(),
+        }
+    }
+}
+
+#[derive(Debug)]
 struct SmtpDataStreamInner<S> {
     inner: Lease<SmtpConnection<S>>,
     codec: SmtpDataCodec,

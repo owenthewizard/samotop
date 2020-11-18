@@ -30,6 +30,5 @@ path = "../samotop-model"
 log = "0.4"
 futures = { version = "0.3.7", default-features = false, features = ["std"] }
 pin-project = "1.0"
-uuid = { version = "0.8", features = ["v4"] }
 bytes = "0.6"
 memchr = "2.3"

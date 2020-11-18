@@ -1,104 +1,19 @@
-use crate::{
-    common::*,
-    smtp::{extension, session::SmtpSession, SmtpReply},
-};
+pub use super::commands::*;
+use crate::{common::*, smtp::session::SmtpState};
 use std::fmt;
 use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
 
 pub trait SmtpSessionCommand {
-    fn apply<'s, 'f>(
-        self,
-        session: &'s mut dyn SmtpSession,
-    ) -> Pin<Box<dyn Future<Output = Result<()>> + 'f>>
-    where
-        's: 'f;
     fn verb(&self) -> &str;
+    #[must_use = "apply must be awaited"]
+    fn apply<'s, 'f, S>(self, state: S) -> S2Fut<'f, S>
+    where
+        S: SmtpState + 's,
+        's: 'f;
 }
 pub trait SmtpSessionResponse {
     fn code() -> u16;
 }
-
-impl SmtpSessionCommand for SmtpHelo {
-    fn apply<'s, 'f>(
-        self,
-        session: &'s mut dyn SmtpSession,
-    ) -> Pin<Box<dyn Future<Output = Result<()>> + 'f>>
-    where
-        's: 'f,
-    {
-        let local = session.transaction().session.service_name.clone();
-        let remote = self.host().to_string();
-        let extensions = session
-            .transaction()
-            .session
-            .extensions
-            .iter()
-            .map(String::from)
-            .collect();
-        let reply = match self {
-            SmtpHelo::Helo(_) => SmtpReply::OkHeloInfo {
-                local,
-                remote,
-                extensions: vec![],
-            },
-            SmtpHelo::Ehlo(_) | SmtpHelo::Lhlo(_) => SmtpReply::OkHeloInfo {
-                local,
-                remote,
-                extensions,
-            },
-        };
-        session.transaction_mut().reset();
-        session.transaction_mut().session.smtp_helo = Some(self);
-        session.say(&reply)
-    }
-
-    fn verb(&self) -> &str {
-        match self {
-            SmtpHelo::Helo(_) => "HELO",
-            SmtpHelo::Ehlo(_) => "EHLO",
-            SmtpHelo::Lhlo(_) => "LHLO",
-        }
-    }
-}
-
-impl SmtpSessionCommand for StartTls {
-    fn apply<'s, 'f>(
-        self,
-        session: &'s mut dyn SmtpSession,
-    ) -> Pin<Box<dyn Future<Output = Result<()>> + 'f>>
-    where
-        's: 'f,
-    {
-        let fut = async move {
-            // you cannot STARTTLS twice so we only advertise it before first use
-            if session
-                .transaction_mut()
-                .session
-                .extensions
-                .disable(&extension::STARTTLS)
-            {
-                let name = session.transaction().session.service_name.clone();
-                session.transaction_mut().reset();
-                // TODO: better message response
-                session.say(&SmtpReply::ServiceReadyInfo(name)).await?;
-                session.start_tls().await?;
-            } else {
-                session
-                    .say(&SmtpReply::CommandNotImplementedFailure)
-                    .await?;
-            };
-            Ok(())
-        };
-        Box::pin(fut)
-    }
-
-    fn verb(&self) -> &str {
-        "STARTTLS"
-    }
-}
-
-#[derive(Eq, PartialEq, Debug, Clone)]
-pub struct StartTls;
 
 #[derive(Eq, PartialEq, Debug, Clone)]
 pub enum SmtpCommand {
@@ -153,35 +68,6 @@ pub enum SmtpAddress {
     Mailbox(String, SmtpHost),
 }
 
-#[derive(Eq, PartialEq, Debug, Clone)]
-pub enum SmtpHelo {
-    Helo(SmtpHost),
-    Ehlo(SmtpHost),
-    Lhlo(SmtpHost),
-}
-
-impl SmtpHelo {
-    pub fn is_extended(&self) -> bool {
-        use self::SmtpHelo::*;
-        match self {
-            Helo(_) => false,
-            Ehlo(_) => true,
-            Lhlo(_) => true,
-        }
-    }
-    pub fn host(&self) -> &SmtpHost {
-        use self::SmtpHelo::*;
-        match self {
-            Helo(ref host) => host,
-            Ehlo(ref host) => host,
-            Lhlo(ref host) => host,
-        }
-    }
-    pub fn name(&self) -> String {
-        format!("{}", self.host())
-    }
-}
-
 impl SmtpPath {
     pub fn address(&self) -> String {
         match *self {
@@ -227,23 +113,4 @@ pub struct SmtpConnection {
     pub local_name: String,
     pub local_addr: Option<SocketAddr>,
     pub peer_addr: Option<SocketAddr>,
-}
-
-#[derive(Eq, PartialEq, Debug, Clone)]
-pub enum SmtpMail {
-    Mail(SmtpPath, Vec<String>),
-    Send(SmtpPath, Vec<String>),
-    Saml(SmtpPath, Vec<String>),
-    Soml(SmtpPath, Vec<String>),
-}
-
-impl SmtpMail {
-    pub fn from(&self) -> &SmtpPath {
-        match self {
-            SmtpMail::Mail(p, _) => &p,
-            SmtpMail::Send(p, _) => &p,
-            SmtpMail::Saml(p, _) => &p,
-            SmtpMail::Soml(p, _) => &p,
-        }
-    }
 }

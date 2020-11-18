@@ -1,11 +1,12 @@
 /*
     Aim: wrap generated parser fns in struct
 */
-use super::smtp::grammar::*;
-use samotop_core::model::smtp::ReadControl;
-use samotop_core::model::smtp::SmtpCommand;
-use samotop_core::service::parser::Parser;
-use samotop_core::{common::Result, model::smtp::SmtpPath};
+use crate::grammar::*;
+use samotop_core::{
+    common::Result,
+    parser::Parser,
+    smtp::{ReadControl, SmtpCommand, SmtpPath},
+};
 
 static PARSER: SmtpParser = SmtpParser;
 

@@ -1,4 +1,4 @@
-use samotop_core::model::smtp::*;
+use samotop_core::smtp::*;
 use std::net::{Ipv4Addr, Ipv6Addr};
 use std::str::FromStr;
 
@@ -248,11 +248,11 @@ peg::parser! {
 
 #[cfg(test)]
 mod tests {
-    use super::grammar::*;
     use super::ReadControl::*;
     use super::SmtpCommand::*;
     use super::SmtpHost::*;
     use super::*;
+    use crate::grammar::*;
     use samotop_core::test_util::*;
 
     #[test]

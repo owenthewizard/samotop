@@ -49,6 +49,8 @@ test-stable:
 test-nightly:
   stage: build
   allow_failure: true
+  variables:
+    RUST_BACKTRACE: 1
   only:
     - branches
   cache:
@@ -58,8 +60,13 @@ test-nightly:
     - rustup default nightly
     - rustc --version --verbose
     - cargo --version --verbose
+    - rustup component add clippy rustfmt
+    - cargo install cargo-readme
   script:
-    - RUST_BACKTRACE=1 cargo test --workspace --examples --bins --tests --all-features --color always
+    - cargo test --workspace --all-features --color always
+    - cargo clippy --workspace --all-features --color always -- -Dclippy::all
+    - cargo check --workspace --benches --color always
+    - ./fix.sh
 
 test-examples:
   stage: build

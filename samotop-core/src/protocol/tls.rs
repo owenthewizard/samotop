@@ -1,117 +1,103 @@
+use std::fmt;
+
 use crate::common::*;
-use crate::service::tcp::tls::TlsProvider;
-use crate::service::tcp::tls::TlsProviderFactory;
-use std::ops::Deref;
-use std::ops::DerefMut;
+use crate::io::tls::{TlsProvider, TlsProviderFactory};
+use crate::io::*;
 
-pub trait MayBeTls {
-    fn can_encrypt(&self) -> bool;
-    fn is_encrypted(&self) -> bool;
-    fn start_tls(self: Pin<&mut Self>) -> std::io::Result<()>;
+#[pin_project(project=TlsCapProj)]
+pub struct TlsCapable<IO, P: TlsProvider<IO>> {
+    state: State<IO, P>,
 }
 
-impl<T, TLSIO> MayBeTls for T
-where
-    T: DerefMut<Target = TLSIO> + Unpin,
-    TLSIO: MayBeTls + Unpin,
-{
-    fn start_tls(mut self: Pin<&mut Self>) -> std::io::Result<()> {
-        Pin::new(self.deref_mut()).start_tls()
-    }
-    fn can_encrypt(&self) -> bool {
-        Deref::deref(self).can_encrypt()
-    }
-    fn is_encrypted(&self) -> bool {
-        Deref::deref(self).is_encrypted()
-    }
-}
-
-#[pin_project(project=Tls)]
-pub enum TlsCapable<IO, P: TlsProvider<IO>> {
+enum State<IO, P: TlsProvider<IO>> {
+    /// TLS upgrade is not enabled, only plaintext or wrapper mode
     PlainText(IO),
-    Enabled(Option<IO>, P),
-    HandShake(#[pin] P::UpgradeFuture),
+    /// Plain TCP stream with name and potential TLS upgrade
+    Enabled(IO, P),
+    /// Pending TLS handshake
+    Handshake(Pin<Box<dyn Future<Output = std::io::Result<P::EncryptedIO>> + Sync + Send>>),
+    /// Encrypted TCP stream
     Encrypted(P::EncryptedIO),
+    /// TLS failed or in transition state
     Failed,
 }
 
 impl<IO: Read + Write + Unpin, P: TlsProvider<IO>> MayBeTls for TlsCapable<IO, P> {
-    fn start_tls(mut self: Pin<&mut Self>) -> std::io::Result<()> {
-        match self.as_mut().project() {
-            Tls::Enabled(io, provider) => {
+    fn encrypt(mut self: Pin<&mut Self>) -> std::io::Result<()> {
+        match std::mem::replace(&mut self.state, State::Failed) {
+            State::Enabled(io, provider) => {
                 trace!("Switching to TLS");
                 // Calling `upgrade_to_tls` will start the TLS handshake
                 // The handshake is a future we can await to get an encrypted
                 // stream back.
-                let io = io.take().expect("start_tls: Workaround for Pin borrows");
-                let handshake = TlsCapable::HandShake(provider.upgrade_to_tls(io));
-                self.set(handshake);
+                let newme = State::Handshake(Box::pin(provider.upgrade_to_tls(io)));
+                self.state = newme;
                 Ok(())
             }
-            Tls::PlainText(_) => self.fail("start_tls: TLS is not enabled"),
-            Tls::HandShake(_) => self.fail("start_tls: TLS handshake already in progress"),
-            Tls::Encrypted(_) => self.fail("start_tls: TLS is already on"),
-            Tls::Failed => self.fail("start_tls: TLS setup failed"),
+            State::PlainText(_) => self.fail("start_tls: TLS is not enabled"),
+            State::Handshake(_) => self.fail("start_tls: TLS handshake already in progress"),
+            State::Encrypted(_) => self.fail("start_tls: TLS is already on"),
+            State::Failed => self.fail("start_tls: TLS setup failed"),
         }
     }
     fn can_encrypt(&self) -> bool {
-        match self {
-            TlsCapable::PlainText(_) => false,
-            TlsCapable::Enabled(_, _) => true,
-            TlsCapable::HandShake(_) => false,
-            TlsCapable::Encrypted(_) => false,
-            TlsCapable::Failed => false,
+        match self.state {
+            State::PlainText(_) => false,
+            State::Enabled(_, _) => true,
+            State::Handshake(_) => false,
+            State::Encrypted(_) => false,
+            State::Failed => false,
         }
     }
     fn is_encrypted(&self) -> bool {
-        match self {
-            TlsCapable::PlainText(_) => false,
-            TlsCapable::Enabled(_, _) => false,
-            TlsCapable::HandShake(_) => true,
-            TlsCapable::Encrypted(_) => true,
-            TlsCapable::Failed => false,
+        match self.state {
+            State::PlainText(_) => false,
+            State::Enabled(_, _) => false,
+            State::Handshake(_) => true,
+            State::Encrypted(_) => true,
+            State::Failed => false,
+        }
+    }
+}
+impl<IO: Read + Write + Unpin> TlsCapable<IO, TlsDisabled> {
+    pub fn disabled(io: IO) -> Self {
+        TlsCapable {
+            state: State::PlainText(io),
         }
     }
 }
 impl<IO: Read + Write + Unpin, P: TlsProvider<IO>> TlsCapable<IO, P> {
     pub fn yes(io: IO, provider: P) -> Self {
-        TlsCapable::new(io, Some(provider))
+        TlsCapable {
+            state: State::Enabled(io, provider),
+        }
     }
     pub fn no(io: IO) -> Self {
-        TlsCapable::new(io, None)
-    }
-    fn new(io: IO, provider: Option<P>) -> Self {
-        match provider {
-            None => TlsCapable::PlainText(io),
-            Some(provider) => TlsCapable::Enabled(Some(io), provider),
+        TlsCapable {
+            state: State::PlainText(io),
         }
     }
     fn poll_tls(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
-        match self.as_mut().project() {
-            Tls::HandShake(mut handshake) => {
+        match &mut self.state {
+            State::Handshake(ref mut h) => {
                 trace!("Waiting for TLS handshake");
-                match Pin::new(&mut handshake).poll(cx) {
-                    Poll::Ready(Err(e)) => {
-                        self.set(TlsCapable::Failed);
-                        Poll::Ready(Err(e))
-                    }
+                match Pin::new(h).poll(cx)? {
                     Poll::Pending => {
                         trace!("TLS is not ready yet");
                         Poll::Pending
                     }
-                    Poll::Ready(Ok(stream)) => {
+                    Poll::Ready(encrypted) => {
                         trace!("TLS is on!");
-                        self.set(TlsCapable::Encrypted(stream));
+                        self.state = State::Encrypted(encrypted);
                         Poll::Ready(Ok(()))
                     }
                 }
             }
-            Tls::Enabled(_, _) | Tls::PlainText(_) | Tls::Encrypted(_) => Poll::Ready(Ok(())),
-            Tls::Failed => Self::ready_failed(),
+            _otherwise => Poll::Ready(Ok(())),
         }
     }
     fn fail<T>(mut self: Pin<&mut Self>, msg: &str) -> std::io::Result<T> {
-        self.set(TlsCapable::Failed);
+        self.state = State::Failed;
         Err(std::io::Error::new(std::io::ErrorKind::BrokenPipe, msg))
     }
     fn failed() -> std::io::Error {
@@ -128,15 +114,17 @@ impl<IO: Read + Write + Unpin, P: TlsProvider<IO>> Read for TlsCapable<IO, P> {
         cx: &mut Context<'_>,
         buf: &mut [u8],
     ) -> Poll<std::io::Result<usize>> {
+        trace!("poll_read on {:?}", self.state);
         ready!(self.as_mut().poll_tls(cx))?;
-        match self.project() {
-            Tls::Encrypted(ref mut io) => Pin::new(io).poll_read(cx, buf),
-            Tls::PlainText(ref mut io) => Pin::new(io).poll_read(cx, buf),
-            Tls::Enabled(Some(ref mut io), _) => Pin::new(io).poll_read(cx, buf),
-            Tls::Enabled(None, _) => unreachable!("poll_read: Workaround for Pin borrows"),
-            Tls::HandShake(_) => unreachable!("poll_read: This path is handled in poll_tls()"),
-            Tls::Failed => Self::ready_failed(),
-        }
+        let result = match self.state {
+            State::Encrypted(ref mut io) => Pin::new(io).poll_read(cx, buf),
+            State::PlainText(ref mut io) => Pin::new(io).poll_read(cx, buf),
+            State::Enabled(ref mut io, _) => Pin::new(io).poll_read(cx, buf),
+            State::Handshake(_) => unreachable!("poll_read: This path is handled in poll_tls()"),
+            State::Failed => Self::ready_failed(),
+        };
+        trace!("poll_read got {:?}", result);
+        result
     }
 }
 
@@ -147,64 +135,58 @@ impl<IO: Read + Write + Unpin, P: TlsProvider<IO>> Write for TlsCapable<IO, P> {
         buf: &[u8],
     ) -> Poll<std::io::Result<usize>> {
         ready!(self.as_mut().poll_tls(cx))?;
-        match self.project() {
-            Tls::Encrypted(ref mut io) => Pin::new(io).poll_write(cx, buf),
-            Tls::PlainText(ref mut io) => Pin::new(io).poll_write(cx, buf),
-            Tls::Enabled(Some(ref mut io), _) => Pin::new(io).poll_write(cx, buf),
-            Tls::Enabled(None, _) => unreachable!("poll_write: Workaround for Pin borrows"),
-            Tls::HandShake(_) => unreachable!("poll_write: This path is handled in poll_tls()"),
-            Tls::Failed => Self::ready_failed(),
+        match self.state {
+            State::Encrypted(ref mut io) => Pin::new(io).poll_write(cx, buf),
+            State::PlainText(ref mut io) => Pin::new(io).poll_write(cx, buf),
+            State::Enabled(ref mut io, _) => Pin::new(io).poll_write(cx, buf),
+            State::Handshake(_) => unreachable!("poll_write: This path is handled in poll_tls()"),
+            State::Failed => Self::ready_failed(),
         }
     }
     fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
         ready!(self.as_mut().poll_tls(cx))?;
-        match self.project() {
-            Tls::Encrypted(ref mut io) => Pin::new(io).poll_flush(cx),
-            Tls::PlainText(ref mut io) => Pin::new(io).poll_flush(cx),
-            Tls::Enabled(Some(ref mut io), _) => Pin::new(io).poll_flush(cx),
-            Tls::Enabled(None, _) => unreachable!("poll_flush: Workaround for Pin borrows"),
-            Tls::HandShake(_) => unreachable!("poll_flush: This path is handled in poll_tls()"),
-            Tls::Failed => Self::ready_failed(),
+        match self.state {
+            State::Encrypted(ref mut io) => Pin::new(io).poll_flush(cx),
+            State::PlainText(ref mut io) => Pin::new(io).poll_flush(cx),
+            State::Enabled(ref mut io, _) => Pin::new(io).poll_flush(cx),
+            State::Handshake(_) => unreachable!("poll_flush: This path is handled in poll_tls()"),
+            State::Failed => Self::ready_failed(),
         }
     }
     fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
         ready!(self.as_mut().poll_tls(cx))?;
-        match self.project() {
-            Tls::Encrypted(ref mut io) => Pin::new(io).poll_close(cx),
-            Tls::PlainText(ref mut io) => Pin::new(io).poll_close(cx),
-            Tls::Enabled(Some(ref mut io), _) => Pin::new(io).poll_close(cx),
-            Tls::Enabled(None, _) => unreachable!("poll_close: Workaround for Pin borrows"),
-            Tls::HandShake(_) => unreachable!("poll_close: This path is handled in poll_tls()"),
-            Tls::Failed => Self::ready_failed(),
+        match self.state {
+            State::Encrypted(ref mut io) => Pin::new(io).poll_close(cx),
+            State::PlainText(ref mut io) => Pin::new(io).poll_close(cx),
+            State::Enabled(ref mut io, _) => Pin::new(io).poll_close(cx),
+            State::Handshake(_) => unreachable!("poll_close: This path is handled in poll_tls()"),
+            State::Failed => Self::ready_failed(),
         }
     }
 }
 
 impl<IO, P: TlsProvider<IO>> std::fmt::Debug for TlsCapable<IO, P> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::result::Result<(), std::fmt::Error> {
-        match self {
-            TlsCapable::PlainText(_) => write!(f, "PlainText(...)"),
-            TlsCapable::Enabled(_, _) => write!(f, "Enabled(...)"),
-            TlsCapable::HandShake(_) => write!(f, "HandShake(...)"),
-            TlsCapable::Encrypted(_) => write!(f, "Encrypted(...)"),
-            TlsCapable::Failed => write!(f, "Failed"),
-        }
+        self.state.fmt(f)
     }
 }
+
+impl<IO, P: TlsProvider<IO>> fmt::Debug for State<IO, P> {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        use State as S;
+        fmt.write_str(match self {
+            S::PlainText(_) => "PlainText(stream)",
+            S::Enabled(_, _) => "Enabled(stream, upgrade)",
+            S::Encrypted(_) => "Encrypted(tls_stream)",
+            S::Handshake(_) => "Handshake(tls_handshake)",
+            S::Failed => "Failed",
+        })
+    }
+}
+
 #[derive(Clone)]
 pub struct TlsDisabled;
 
-impl MayBeTls for TlsDisabled {
-    fn start_tls(self: Pin<&mut Self>) -> std::io::Result<()> {
-        unreachable!()
-    }
-    fn can_encrypt(&self) -> bool {
-        false
-    }
-    fn is_encrypted(&self) -> bool {
-        false
-    }
-}
 impl<IO> TlsProviderFactory<IO> for TlsDisabled {
     type Provider = TlsDisabled;
     fn get(&self) -> Option<Self::Provider> {
@@ -213,8 +195,7 @@ impl<IO> TlsProviderFactory<IO> for TlsDisabled {
 }
 impl<IO> TlsProvider<IO> for TlsDisabled {
     type EncryptedIO = TlsDisabled;
-    type UpgradeFuture = future::Ready<std::io::Result<Self::EncryptedIO>>;
-    fn upgrade_to_tls(&self, _io: IO) -> Self::UpgradeFuture {
+    fn upgrade_to_tls(&self, _io: IO) -> S3Fut<std::io::Result<Self::EncryptedIO>> {
         unreachable!()
     }
 }
