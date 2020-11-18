@@ -3,7 +3,7 @@
 extern crate samotop_core;
 extern crate samotop_parser;
 
-use samotop_core::service::parser::Parser;
+use samotop_core::parser::Parser;
 use samotop_parser::SmtpParser;
 
 fn main() {

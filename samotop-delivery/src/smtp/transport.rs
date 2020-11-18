@@ -1,6 +1,6 @@
 use crate::smtp::error::Error;
 use crate::smtp::extension::{ClientId, Extension, MailBodyParameter, MailParameter, ServerInfo};
-use crate::smtp::net::{ConnectionConfiguration, Connector, MaybeTls};
+use crate::smtp::net::{ConnectionConfiguration, Connector};
 use crate::smtp::smtp_client::ClientSecurity;
 use crate::smtp::stream::SmtpDataStream;
 use crate::smtp::util::SmtpProto;
@@ -10,6 +10,7 @@ use async_std::io::{Read, Write};
 use log::{debug, info};
 use pin_project::pin_project;
 use potential::{Lease, Potential};
+use samotop_model::io::MayBeTls;
 use std::pin::Pin;
 use std::time::Duration;
 
@@ -200,7 +201,7 @@ impl<Conf: ConnectionConfiguration, Conn: Connector> Transport for SmtpTransport
         })
     }
 }
-
+#[derive(Debug)]
 pub(crate) struct SmtpConnection<S> {
     pub stream: S,
     /// How many times can the stream be used

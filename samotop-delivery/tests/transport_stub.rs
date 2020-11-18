@@ -19,9 +19,8 @@ mod test {
         sender_ko.send(envelope.clone(), message).await.unwrap_err();
     }
 
-    #[async_attributes::test]
-    #[ignore] // ignored as this needs a running server
-    async fn stub_transport_stream_is_sync() {
+    #[test]
+    fn stub_transport_stream_is_sync() {
         fn is_sync<T: Sync>(_tested: T) {};
 
         let envelope = Envelope::new(

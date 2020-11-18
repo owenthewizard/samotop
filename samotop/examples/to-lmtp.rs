@@ -5,13 +5,13 @@ Maps recipients to local users per domain.
 
 use async_std::task;
 use regex::Regex;
-use samotop::service::mail::default::DefaultMailService;
-use samotop::service::mail::lmtp::Config as LmtpConfig;
-use samotop::service::mail::MailServiceBuilder;
-use samotop::service::parser::SmtpParser;
-use samotop::service::tcp::{smtp::SmtpService, tls::TlsEnabled};
-use samotop::service::{client::UnixConnector, mail::mapper::Config};
-use samotop::{server::Server, service::client::tls::NoTls};
+use samotop::{
+    client::{tls::NoTls, UnixConnector},
+    io::{smtp::SmtpService, tls::TlsEnabled},
+    mail::{lmtp::Config as LmtpConfig, mapper::Config, Builder, DefaultMailService},
+    parser::SmtpParser,
+    server::Server,
+};
 use std::sync::Arc;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
@@ -27,7 +27,8 @@ async fn main_fut() -> Result<()> {
         (Regex::new("[^@a-zA-Z0-9]+")?, "-".to_owned()), // sanitize the user name example.org@localhost => example-org@localhost
     ]);
     let lmtp_connector: UnixConnector<NoTls> = UnixConnector::default();
-    let mail_service = DefaultMailService::new("test-samotop".to_owned())
+    let mail_service = Builder::default()
+        .using(DefaultMailService::new("test-samotop".to_owned()))
         .using(
             LmtpConfig::lmtp_dispatch("/var/run/dovecot/lmtp".to_owned(), lmtp_connector)?.reuse(0),
         )

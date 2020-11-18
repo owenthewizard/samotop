@@ -1,7 +1,7 @@
 use crate::common::*;
-use crate::model::mail::SessionInfo;
-use crate::model::smtp::{ReadControl, WriteControl};
-use crate::protocol::tls::MayBeTls;
+use crate::io::MayBeTls;
+use crate::mail::SessionInfo;
+use crate::smtp::{ReadControl, WriteControl};
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use futures::{
     channel::mpsc::{Receiver, Sender},
@@ -250,7 +250,7 @@ impl<IO: Read + Write + MayBeTls> SmtpCodec<IO> {
                             }
                             PendingWrite::StartTls => {
                                 trace!("starting TLS");
-                                projection.io.as_mut().start_tls()?;
+                                projection.io.as_mut().encrypt()?;
                                 continue;
                             }
                             PendingWrite::Data(mut pending) => {
@@ -564,8 +564,8 @@ QUIT
 #[cfg(test)]
 mod codec_tests {
     use super::*;
-    use crate::model::io::ConnectionInfo;
-    use crate::model::smtp::SmtpReply;
+    use crate::io::ConnectionInfo;
+    use crate::smtp::SmtpReply;
     use crate::test_util::*;
     use ReadControl::*;
 

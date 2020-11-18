@@ -24,9 +24,8 @@ mod test {
         println!("sending");
         client.connect_and_send(envelope, message).await.unwrap();
     }
-    #[async_attributes::test]
-    #[ignore] // ignored as this needs a running server
-    async fn smtp_transport_stream_is_sync() {
+    #[test]
+    fn smtp_transport_stream_is_sync() {
         fn is_sync<T: Sync>(_tested: T) {};
 
         let envelope = Envelope::new(

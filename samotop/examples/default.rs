@@ -19,10 +19,10 @@ EOF
  */
 
 use async_std::task;
+use samotop::io::{smtp::SmtpService, tls::TlsEnabled};
+use samotop::mail::DefaultMailService;
+use samotop::parser::SmtpParser;
 use samotop::server::Server;
-use samotop::service::mail::default::DefaultMailService;
-use samotop::service::parser::SmtpParser;
-use samotop::service::tcp::{smtp::SmtpService, tls::TlsEnabled};
 use std::sync::Arc;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;

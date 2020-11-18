@@ -3,12 +3,7 @@ extern crate log;
 
 pub use samotop_delivery::smtp::net;
 
-use samotop_core::{
-    common::*,
-    model::mail::Transaction,
-    model::mail::{DispatchError, DispatchResult},
-    service::mail::{composite::*, *},
-};
+use samotop_core::{common::*, mail::*};
 use samotop_delivery::{
     prelude::{EmailAddress, Envelope, MailDataStream, SmtpClient, SmtpTransport, Transport},
     smtp::net::Connector,
@@ -55,15 +50,13 @@ impl<C: Connector> Config<variant::LmtpDispatch<C>> {
     }
 }
 
-impl<ES: EsmtpService, GS: MailGuard, DS: MailDispatch, C: Connector> MailSetup<ES, GS, DS>
-    for Config<variant::LmtpDispatch<C>>
+impl<C: Connector> MailSetup for Config<variant::LmtpDispatch<C>>
 where
     C: 'static,
 {
-    type Output = CompositeMailService<ES, GS, LmtpMail<Arc<SmtpTransport<SmtpClient, C>>>>;
-    fn setup(self, extend: ES, guard: GS, _dispatch: DS) -> Self::Output {
+    fn setup(self, builder: &mut Builder) {
         let transport = Arc::new(self.variant.client.connect_with(self.variant.connector));
-        (extend, guard, LmtpMail::new(transport)).into()
+        builder.dispatch.push(Box::new(LmtpMail::new(transport)))
     }
 }
 
@@ -135,32 +128,36 @@ impl<C: Connector> MailDispatch for LmtpMail<Arc<SmtpTransport<SmtpClient, C>>>
 where
     C: 'static,
 {
-    type Mail = LmtpStream<<SmtpTransport<SmtpClient, C> as Transport>::DataStream>;
-    type MailFuture = Pin<Box<dyn Future<Output = DispatchResult<Self::Mail>> + Sync + Send>>;
-    fn send_mail(&self, mail: Transaction) -> Self::MailFuture {
+    fn send_mail<'a, 's, 'f>(
+        &'a self,
+        _session: &'s SessionInfo,
+        mut transaction: Transaction,
+    ) -> S2Fut<'f, DispatchResult>
+    where
+        'a: 'f,
+        's: 'f,
+    {
         let transport = self.inner.clone();
-        let fut = future::ready((move || {
-            let sender = mail
+        let fut = async move {
+            let sender = transaction
                 .mail
-                .map(|sender| EmailAddress::new(sender.from().address()))
+                .as_ref()
+                .map(|sender| EmailAddress::new(sender.path().address()))
                 .transpose()?;
-            let recipients: std::result::Result<Vec<_>, _> = mail
+            let recipients: std::result::Result<Vec<_>, _> = transaction
                 .rcpts
                 .iter()
                 .map(|rcpt| EmailAddress::new(rcpt.address()))
                 .collect();
 
-            Envelope::new(sender, recipients?, mail.id).map_err(Error::from)
-        })())
-        .and_then(move |envelope| {
+            let envelope =
+                Envelope::new(sender, recipients?, transaction.id.clone()).map_err(Error::from)?;
             trace!("Starting mail transaction.");
-            send_stream(transport, envelope)
-        })
-        .and_then(|stream| {
-            trace!("Starting mail data stream.");
-            future::ready(Ok(LmtpStream::Ready(stream, false)))
-        })
-        .map_err(|e| {
+            let stream = send_stream(transport, envelope).await?;
+            transaction.sink = Some(Box::pin(stream));
+            Ok(transaction)
+        };
+        let fut = fut.map_err(|e: Error| {
             error!("Failed to start mail: {:?}", e);
             DispatchError::FailedTemporarily
         });
