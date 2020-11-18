@@ -1,4 +1,5 @@
 pub use super::commands::*;
+use super::ReadControl;
 use crate::{common::*, smtp::session::SmtpState};
 use std::fmt;
 use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
@@ -10,9 +11,6 @@ pub trait SmtpSessionCommand {
     where
         S: SmtpState + 's,
         's: 'f;
-}
-pub trait SmtpSessionResponse {
-    fn code() -> u16;
 }
 
 #[derive(Eq, PartialEq, Debug, Clone)]
@@ -34,6 +32,79 @@ pub enum SmtpCommand {
     Other(String, Vec<String>),
 }
 
+impl SmtpSessionCommand for SmtpCommand {
+    fn verb(&self) -> &str {
+        use SmtpCommand as C;
+        match self {
+            C::Helo(helo) => helo.verb(),
+            C::Mail(mail) => mail.verb(),
+            C::Rcpt(_) => "RCPT",
+            C::Data => SmtpData.verb(),
+            C::Quit => SmtpQuit.verb(),
+            C::Rset => SmtpRset.verb(),
+            C::Noop(_) => SmtpNoop.verb(),
+            C::StartTls => StartTls.verb(),
+            C::Expn(_) => "EXPN",
+            C::Vrfy(_) => "VRFY",
+            C::Help(_) => "HELP",
+            C::Turn => "TURN",
+            C::Other(verb, _) => verb.as_str(),
+        }
+    }
+
+    fn apply<'s, 'f, S>(self, data: S) -> S2Fut<'f, S>
+    where
+        S: SmtpState + 's,
+        's: 'f,
+    {
+        use SmtpCommand as C;
+        match self {
+            C::Helo(helo) => helo.apply(data),
+            C::Mail(mail) => mail.apply(data),
+            C::Rcpt(path) => SmtpRcpt::from(path).apply(data),
+            C::Data => SmtpData.apply(data),
+            C::Quit => SmtpQuit.apply(data),
+            C::Rset => SmtpRset.apply(data),
+            C::Noop(_) => SmtpNoop.apply(data),
+            C::StartTls => StartTls.apply(data),
+            C::Expn(_) | C::Vrfy(_) | C::Help(_) | C::Turn | C::Other(_, _) => {
+                SmtpUnknownCommand::default().apply(data)
+            }
+        }
+    }
+}
+
+impl SmtpSessionCommand for ReadControl {
+    fn verb(&self) -> &str {
+        match self {
+            ReadControl::PeerConnected(sess) => sess.verb(),
+            ReadControl::PeerShutdown => SessionShutdown.verb(),
+            ReadControl::Raw(_) => "",
+            ReadControl::Command(cmd, _) => cmd.verb(),
+            ReadControl::MailDataChunk(_) => "",
+            ReadControl::EndOfMailData(_) => MailBodyEnd.verb(),
+            ReadControl::Empty(_) => "",
+            ReadControl::EscapeDot(_) => "",
+        }
+    }
+
+    fn apply<'s, 'f, S>(self, state: S) -> S2Fut<'f, S>
+    where
+        S: SmtpState + 's,
+        's: 'f,
+    {
+        match self {
+            ReadControl::PeerConnected(sess) => sess.apply(state),
+            ReadControl::PeerShutdown => SessionShutdown.apply(state),
+            ReadControl::Raw(_) => SmtpInvalidCommand::default().apply(state),
+            ReadControl::Command(cmd, _) => cmd.apply(state),
+            ReadControl::MailDataChunk(bytes) => MailBodyChunk(bytes).apply(state),
+            ReadControl::EndOfMailData(_) => MailBodyEnd.apply(state),
+            ReadControl::Empty(_) => Box::pin(ready(state)),
+            ReadControl::EscapeDot(_) => Box::pin(ready(state)),
+        }
+    }
+}
 #[derive(Eq, PartialEq, Debug, Clone)]
 pub enum SmtpHost {
     Domain(String),

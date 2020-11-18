@@ -42,6 +42,9 @@ pub trait SmtpState: Send + Sync {
     fn say_not_implemented(&mut self) -> SayResult {
         self.say_reply(SmtpReply::CommandNotImplementedFailure)
     }
+    fn say_invalid_syntax(&mut self) -> SayResult {
+        self.say_reply(SmtpReply::CommandSyntaxFailure)
+    }
     fn say_command_sequence_fail(&mut self) -> SayResult {
         self.say_reply(SmtpReply::CommandSequenceFailure)
     }
@@ -132,6 +135,16 @@ impl Default for SmtpStateBase {
     fn default() -> Self {
         SmtpStateBase {
             service: Box::new(DefaultMailService::default()),
+            writes: Default::default(),
+            transaction: Default::default(),
+            session: Default::default(),
+        }
+    }
+}
+impl SmtpStateBase {
+    pub fn new(service: impl MailService + Send + Sync + 'static) -> Self {
+        SmtpStateBase {
+            service: Box::new(service),
             writes: Default::default(),
             transaction: Default::default(),
             session: Default::default(),

@@ -1,109 +1,91 @@
-use super::SessionHandler;
+use samotop_model::smtp::SmtpSessionCommand;
+
 use crate::common::*;
-use crate::smtp::{ReadControl, WriteControl};
+use crate::smtp::{ReadControl, SmtpState, WriteControl};
 
 #[pin_project(project=SessionProj)]
-pub struct StatefulSession<I, H: SessionHandler> {
+pub struct StatefulSession<I, S> {
     #[pin]
     input: I,
-    handler: H,
-    state: Option<State<H::Data>>,
+    state: State<S>,
 }
 
 enum State<T> {
     Ready(T),
     Pending(S2Fut<'static, T>),
+    Taken,
 }
 
-impl<I, H> Stream for StatefulSession<I, H>
+impl<T> Default for State<T> {
+    fn default() -> Self {
+        Self::Taken
+    }
+}
+
+impl<I, S> Stream for StatefulSession<I, S>
 where
     I: Stream<Item = Result<ReadControl>>,
-    H: SessionHandler,
+    S: SmtpState + 'static,
 {
     type Item = Result<WriteControl>;
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         trace!("polling next");
         loop {
-            ready!(self.as_mut().poll_pending(cx))?;
-
-            if let Some(answer) = self.as_mut().pop_answer() {
+            if let Some(answer) = ready!(self.as_mut().poll_pop(cx)) {
+                trace!("Answer is: {:?}", answer);
                 break Poll::Ready(Some(Ok(answer)));
-            } else {
-                match ready!(self.as_mut().poll_input(cx)?) {
-                    Some(()) => continue,
-                    None => break Poll::Ready(None),
-                }
             }
+            let proj = self.as_mut().project();
+            break match std::mem::take(proj.state) {
+                State::Taken => Poll::Ready(None),
+                State::Pending(_) => unreachable!("handled by previous poll"),
+                State::Ready(data) => match proj.input.poll_next(cx) {
+                    Poll::Pending => {
+                        *proj.state = State::Ready(data);
+                        Poll::Pending
+                    }
+                    Poll::Ready(None) => {
+                        *proj.state = State::Pending(ReadControl::PeerShutdown.apply(data));
+                        continue;
+                    }
+                    Poll::Ready(Some(Ok(control))) => {
+                        *proj.state = State::Pending(control.apply(data));
+                        continue;
+                    }
+                    Poll::Ready(Some(Err(e))) => {
+                        error!("reading SMTP input failed: {:?}", e);
+                        Poll::Ready(Some(Ok(WriteControl::Shutdown(
+                            samotop_model::smtp::SmtpReply::ProcesingError,
+                        ))))
+                    }
+                },
+            };
         }
     }
 }
 
-impl<I, H: SessionHandler> StatefulSession<I, H> {
-    pub fn new(input: I, handler: H) -> Self {
-        Self {
-            state: Some(State::Ready(H::Data::default())),
-            handler,
-            input,
-        }
-    }
-    fn poll_pending(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        trace!("polling pending");
-        let SessionProj { state, .. } = self.project();
-        match state.as_mut().expect("state must be set") {
-            State::Ready(_) => (),
-            State::Pending(ref mut fut) => {
-                *state = Some(State::Ready(ready!(fut.as_mut().poll(cx))))
-            }
-        }
-        Poll::Ready(Ok(()))
-    }
-    fn pop_answer(self: Pin<&mut Self>) -> Option<WriteControl> {
-        trace!("popping answer");
-        let SessionProj { handler, state, .. } = self.project();
-        let answer = match state.as_mut().expect("state must be set") {
-            State::Pending(_) => None,
-            State::Ready(ref mut data) => handler.pop(data),
-        };
-        trace!("Answer is: {:?}", answer);
-        answer
-    }
-}
-impl<I, H> StatefulSession<I, H>
+impl<I, S> StatefulSession<I, S>
 where
-    I: Stream<Item = Result<ReadControl>>,
-    H: SessionHandler,
+    S: SmtpState + 'static,
 {
-    fn poll_input(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Result<()>>> {
-        trace!("polling input");
-        let SessionProj {
+    pub fn new(input: I, state: S) -> Self {
+        Self {
+            state: State::Ready(state),
             input,
-            state,
-            handler,
-        } = self.project();
-        // CHECKME: fix for rust-analyzer lint error
-        let state: &mut Option<State<H::Data>> = state;
-        match state.take().expect("state must be set") {
-            State::Pending(s) => {
-                *state = Some(State::Pending(s));
-                // allow poll_pending to run in the loop
-                Poll::Ready(Some(Ok(())))
+        }
+    }
+    fn poll_pop(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<WriteControl>> {
+        trace!("polling pending");
+        let proj = self.project();
+        match proj.state {
+            State::Taken => Poll::Ready(None),
+            State::Ready(ref mut data) => Poll::Ready(data.pop()),
+            State::Pending(ref mut fut) => {
+                let mut data = ready!(fut.as_mut().poll(cx));
+                let pop = Poll::Ready(data.pop());
+                *proj.state = State::Ready(data);
+                pop
             }
-            State::Ready(data) => match input.poll_next(cx)? {
-                Poll::Ready(None) => {
-                    *state = Some(State::Pending(
-                        handler.handle(data, ReadControl::PeerShutdown),
-                    ));
-                    Poll::Ready(None)
-                }
-                Poll::Ready(Some(control)) => {
-                    *state = Some(State::Pending(handler.handle(data, control)));
-                    Poll::Ready(Some(Ok(())))
-                }
-                Poll::Pending => {
-                    *state = Some(State::Ready(data));
-                    Poll::Pending
-                }
-            },
         }
     }
 }

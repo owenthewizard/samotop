@@ -1,3 +1,5 @@
+#![feature(future_poll_fn)]
+
 #[macro_use]
 extern crate log;
 
