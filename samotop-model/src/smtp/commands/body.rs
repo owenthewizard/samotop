@@ -1,5 +1,4 @@
 use crate::{common::*, smtp::SmtpSessionCommand};
-use core::future::poll_fn;
 
 /// A chunk of the mail body
 #[derive(Default, Eq, PartialEq, Debug, Clone)]
