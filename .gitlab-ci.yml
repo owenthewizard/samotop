@@ -91,7 +91,7 @@ test-examples:
       EOF
     - cat client.log
   services:
-    - name: dovecot/dovecot:2.3
+    - name: dovecot/dovecot:2.3.11
       alias: dovecot
 
 publish-crate:
