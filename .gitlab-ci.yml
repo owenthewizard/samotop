@@ -83,9 +83,13 @@ test-nightly:
     - du -shx target
     - cargo build --example ${EXAMPLE:?}
     - RUST_LOG=trace cargo run --example ${EXAMPLE:?} &
-    - sleep 15
+    - sleep 10
     - |
-      curl -v --url 'smtp://localhost:2525' --mail-from from@spf.org --mail-rcpt to@mikesh.info --upload-file - > client.log 2>&1 <<EOF
+      curl -v --url 'smtp://localhost:2525' \
+      --mail-from from@spf.org \
+      --mail-rcpt to@mikesh.info \
+      --upload-file - > client.log 2>&1 <<EOF \
+      || echo "${FAILED:=sending mail failed}"
       From: Moohoo <moo@hoo.com>
       To: Yeeehaw <ye@haw.com>
       Subject: Try me
@@ -93,6 +97,7 @@ test-nightly:
       xoxo
       EOF
     - cat client.log | grep -v '* Expire in'
+    - test -z "${FAILED}"
 
 example-lmtp:
   extends: .example-template
