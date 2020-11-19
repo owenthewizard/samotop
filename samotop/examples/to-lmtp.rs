@@ -1,6 +1,21 @@
 /*!
-Example of delivering to LMTP over unix socket.
+Example of delivering to LMTP over unix socket (dovecot).
 Maps recipients to local users per domain.
+
+## Testing
+
+```
+curl -v --url 'smtp://localhost:2525' \
+--mail-from from@spf.org \
+--mail-rcpt to@mikesh.info \
+--upload-file - <<EOF
+From: Moohoo <moo@hoo.com>
+To: Yeeehaw <ye@haw.com>
+Subject: Try me
+
+xoxo
+EOF
+```
  */
 
 use async_std::task;
