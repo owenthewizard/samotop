@@ -90,6 +90,20 @@ test-examples:
       xoxo
       EOF
     - cat client.log
+
+    - cargo build --example to-lmtp-tcp
+    - RUST_LOG=trace cargo run --example to-lmtp-tcp &
+    - sleep 15
+    - |
+      curl -v --url 'smtp://localhost:2525' --mail-from from@spf.org --mail-rcpt to@mikesh.info --upload-file - > client.log 2>&1 <<EOF
+      From: Moohoo <moo@hoo.com>
+      To: Yeeehaw <ye@haw.com>
+      Subject: Try me
+
+      xoxo
+      EOF
+    - cat client.log
+
   services:
     - name: dovecot/dovecot:2.3.11
       alias: dovecot
