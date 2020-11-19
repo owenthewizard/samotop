@@ -90,6 +90,9 @@ test-examples:
       xoxo
       EOF
     - cat client.log
+  services:
+    - name: dovecot/dovecot:2.3
+      alias: dovecot
 
 publish-crate:
   variables:
