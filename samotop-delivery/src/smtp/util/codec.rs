@@ -8,6 +8,10 @@ use std::{
 };
 
 /// The codec used for transparency
+/// TODO: replace CR and LF by CRLF
+/// TODO: check line length
+/// FIXME: Fix transfer encoding based on available ESMTP extensions.
+///        That means also to understand and update MIME headers.
 #[derive(Default, Clone, Copy, Debug)]
 #[cfg_attr(
     feature = "serde-impls",
@@ -25,44 +29,38 @@ impl SmtpDataCodec {
 }
 
 impl SmtpDataCodec {
-    /// Adds transparency
-    /// TODO: replace CR and LF by CRLF
-    /// TODO: check line length
-    /// FIXME: Fix transfer encoding based on available ESMTP extensions.
-    ///        That means also to understand and update MIME headers.
+    /// Close the data stream - this writes the appropriate final dot
+    pub async fn close<W: Write + Unpin>(&mut self, buf: W) -> io::Result<()> {
+        let mut buf = BugIO { inner: buf };
+        match self.escape_count {
+            0 => buf.write_all(b"\r\n.\r\n").await?,
+            1 => buf.write_all(b"\n.\r\n").await?,
+            2 => buf.write_all(b".\r\n").await?,
+            _ => unreachable!(),
+        }
+        self.escape_count = 0;
+        Ok(())
+    }
+    /// Encode data - it does not handle final dot
     pub async fn encode<W: Write + Unpin>(&mut self, frame: &[u8], buf: W) -> io::Result<()> {
         let mut buf = BugIO { inner: buf };
-        match frame.len() {
-            0 => {
-                match self.escape_count {
-                    0 => buf.write_all(b"\r\n.\r\n").await?,
-                    1 => buf.write_all(b"\n.\r\n").await?,
-                    2 => buf.write_all(b".\r\n").await?,
-                    _ => unreachable!(),
-                }
-                self.escape_count = 0;
-                Ok(())
+        let mut start = 0;
+        for (idx, byte) in frame.iter().enumerate() {
+            match self.escape_count {
+                0 => self.escape_count = if *byte == b'\r' { 1 } else { 0 },
+                1 => self.escape_count = if *byte == b'\n' { 2 } else { 0 },
+                2 => self.escape_count = if *byte == b'.' { 3 } else { 0 },
+                _ => unreachable!(),
             }
-            _ => {
-                let mut start = 0;
-                for (idx, byte) in frame.iter().enumerate() {
-                    match self.escape_count {
-                        0 => self.escape_count = if *byte == b'\r' { 1 } else { 0 },
-                        1 => self.escape_count = if *byte == b'\n' { 2 } else { 0 },
-                        2 => self.escape_count = if *byte == b'.' { 3 } else { 0 },
-                        _ => unreachable!(),
-                    }
-                    if self.escape_count == 3 {
-                        self.escape_count = 0;
-                        buf.write_all(&frame[start..idx]).await?;
-                        buf.write_all(b".").await?;
-                        start = idx;
-                    }
-                }
-                buf.write_all(&frame[start..]).await?;
-                Ok(())
+            if self.escape_count == 3 {
+                self.escape_count = 0;
+                buf.write_all(&frame[start..idx]).await?;
+                buf.write_all(b".").await?;
+                start = idx;
             }
         }
+        buf.write_all(&frame[start..]).await?;
+        Ok(())
     }
 }
 

@@ -171,12 +171,12 @@ where
                     timeout,
                     lmtp,
                     rcpts,
-                    ..
+                    mut codec,
                 }) => {
                     let fut =
                         async move {
                             // write final dot
-                            //codec.encode(&[][..], &mut inner.stream).await?;
+                            codec.close(&mut inner.stream).await?;
                             // make sure all is in before reading response
                             inner.stream.flush().await?;
                             let close = inner.reuse == 0;
