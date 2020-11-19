@@ -250,7 +250,7 @@ impl<IO: Read + Write + MayBeTls> SmtpCodec<IO> {
                             }
                             PendingWrite::StartTls => {
                                 trace!("starting TLS");
-                                projection.io.as_mut().encrypt()?;
+                                projection.io.as_mut().encrypt();
                                 continue;
                             }
                             PendingWrite::Data(mut pending) => {

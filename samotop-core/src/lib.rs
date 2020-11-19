@@ -131,11 +131,8 @@ pub mod test_util {
         }
     }
     impl MayBeTls for TestIO {
-        fn encrypt(self: Pin<&mut Self>) -> std::io::Result<()> {
-            Err(std::io::Error::new(
-                std::io::ErrorKind::BrokenPipe,
-                "TLS not supported",
-            ))
+        fn encrypt(self: Pin<&mut Self>) {
+            panic!("not allowed")
         }
         fn can_encrypt(&self) -> bool {
             false

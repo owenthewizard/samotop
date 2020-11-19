@@ -36,7 +36,8 @@ pub trait MayBeTls {
     /// Initiates the TLS negotiations.
     /// The stream must then block all reads/writes until the
     /// underlying TLS handshake is done.
-    fn encrypt(self: Pin<&mut Self>) -> std::io::Result<()>;
+    /// If it is not possible to encrypt and subsequent reads/writes must fail.
+    fn encrypt(self: Pin<&mut Self>);
     /// Returns true only if calling encrypt would make sense:
     /// 1. required encryption setup information is available.
     /// 2. the stream is not encrypted yet.
@@ -50,7 +51,7 @@ where
     T: DerefMut<Target = TLSIO> + Unpin,
     TLSIO: MayBeTls + Unpin,
 {
-    fn encrypt(mut self: Pin<&mut Self>) -> std::io::Result<()> {
+    fn encrypt(mut self: Pin<&mut Self>) {
         Pin::new(self.deref_mut()).encrypt()
     }
     fn can_encrypt(&self) -> bool {

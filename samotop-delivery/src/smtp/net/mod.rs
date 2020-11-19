@@ -83,7 +83,7 @@ enum State<S, E, U> {
     Handshake(Pin<Box<dyn Future<Output = io::Result<E>> + Sync + Send>>),
     /// Transitional state to help take owned values from the enum
     /// Invalid outside of an &mut own method call/future
-    None,
+    Failed,
 }
 
 impl<S, U> MayBeTls for NetworkStream<S, U::Encrypted, U>
@@ -93,20 +93,16 @@ where
     /// Initiates the TLS negotiations.
     /// The stream must then block all reads/writes until the
     /// underlying TLS handshake is done.
-    fn encrypt(mut self: Pin<&mut Self>) -> Result<(), io::Error> {
-        match std::mem::replace(&mut self.state, State::None) {
+    fn encrypt(mut self: Pin<&mut Self>) {
+        match std::mem::replace(&mut self.state, State::Failed) {
             State::Enabled(stream, upgrade) => {
                 self.state = State::Handshake(Box::pin(
                     upgrade.upgrade_to_tls(stream, self.peer_name.clone()),
                 ));
-                Ok(())
             }
             otherwise => {
-                self.state = otherwise;
-                Err(io::Error::new(
-                    io::ErrorKind::Other,
-                    "Invalid state to encrypt now",
-                ))
+                error!("Invalid state to encrypt now: {:?}", otherwise);
+                self.state = State::Failed;
             }
         }
     }
@@ -119,7 +115,7 @@ where
             State::Disabled(_) => false,
             State::Encrypted(_) => false,
             State::Handshake(_) => false,
-            State::None => false,
+            State::Failed => false,
         }
     }
     /// Returns true if the stream is already encrypted (or hand shaking).
@@ -129,7 +125,7 @@ where
             State::Disabled(_) => false,
             State::Encrypted(_) => true,
             State::Handshake(_) => true,
-            State::None => false,
+            State::Failed => false,
         }
     }
 }
@@ -137,7 +133,7 @@ where
 impl<S, E, U> NetworkStream<S, E, U> {
     fn poll_tls(self: Pin<&mut Self>, cx: &mut Context) -> Poll<io::Result<()>> {
         let proj = self.project();
-        match std::mem::replace(proj.state, State::None) {
+        match std::mem::replace(proj.state, State::Failed) {
             State::Handshake(mut h) => match Pin::new(&mut h).poll(cx)? {
                 Poll::Pending => {
                     *proj.state = State::Handshake(h);
@@ -175,7 +171,7 @@ where
             State::Handshake(_) => {
                 unreachable!("Handshake is handled by poll_tls");
             }
-            State::None => Poll::Ready(Err(broken())),
+            State::Failed => Poll::Ready(Err(broken())),
         };
         trace!("poll_read got {:?}", result);
         result
@@ -200,7 +196,7 @@ where
             State::Handshake(_) => {
                 unreachable!("Handshake is handled by poll_tls");
             }
-            State::None => Poll::Ready(Err(broken())),
+            State::Failed => Poll::Ready(Err(broken())),
         }
     }
 
@@ -213,7 +209,7 @@ where
             State::Handshake(_) => {
                 unreachable!("Handshake is handled by poll_tls");
             }
-            State::None => Poll::Ready(Err(broken())),
+            State::Failed => Poll::Ready(Err(broken())),
         }
     }
 
@@ -226,7 +222,7 @@ where
             State::Handshake(_) => {
                 unreachable!("Handshake is handled by poll_tls");
             }
-            State::None => Poll::Ready(Err(broken())),
+            State::Failed => Poll::Ready(Err(broken())),
         }
     }
 }
@@ -243,7 +239,7 @@ impl<S, E, U> fmt::Debug for State<S, E, U> {
             Enabled(_, _) => "Enabled(stream, upgrade)",
             Encrypted(_) => "Encrypted(tls_stream)",
             Handshake(_) => "Handshake(tls_handshake)",
-            None => "None",
+            Failed => "Failed",
         })
     }
 }

@@ -90,7 +90,7 @@ where
             };
             if encrypt {
                 client.execute_starttls(timeout).await?;
-                client.stream_mut().encrypt()?;
+                client.stream_mut().encrypt();
                 server_info = say_helo(lmtp, &mut client, my_id, timeout).await?;
             }
         }

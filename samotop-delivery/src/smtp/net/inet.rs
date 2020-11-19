@@ -66,7 +66,7 @@ where
             };
 
             match self.tls_mode {
-                TlsMode::Tls => Pin::new(&mut stream).encrypt()?,
+                TlsMode::Tls => Pin::new(&mut stream).encrypt(),
                 TlsMode::StartTls => { /* ready! */ }
             }
             Ok(stream)

@@ -23,7 +23,7 @@ enum State<IO, P: TlsProvider<IO>> {
 }
 
 impl<IO: Read + Write + Unpin, P: TlsProvider<IO>> MayBeTls for TlsCapable<IO, P> {
-    fn encrypt(mut self: Pin<&mut Self>) -> std::io::Result<()> {
+    fn encrypt(mut self: Pin<&mut Self>) {
         match std::mem::replace(&mut self.state, State::Failed) {
             State::Enabled(io, provider) => {
                 trace!("Switching to TLS");
@@ -32,7 +32,6 @@ impl<IO: Read + Write + Unpin, P: TlsProvider<IO>> MayBeTls for TlsCapable<IO, P
                 // stream back.
                 let newme = State::Handshake(Box::pin(provider.upgrade_to_tls(io)));
                 self.state = newme;
-                Ok(())
             }
             State::PlainText(_) => self.fail("start_tls: TLS is not enabled"),
             State::Handshake(_) => self.fail("start_tls: TLS handshake already in progress"),
@@ -96,9 +95,9 @@ impl<IO: Read + Write + Unpin, P: TlsProvider<IO>> TlsCapable<IO, P> {
             _otherwise => Poll::Ready(Ok(())),
         }
     }
-    fn fail<T>(mut self: Pin<&mut Self>, msg: &str) -> std::io::Result<T> {
+    fn fail(mut self: Pin<&mut Self>, msg: &str) {
+        error!("{}", msg);
         self.state = State::Failed;
-        Err(std::io::Error::new(std::io::ErrorKind::BrokenPipe, msg))
     }
     fn failed() -> std::io::Error {
         std::io::Error::new(std::io::ErrorKind::BrokenPipe, "Tls setup failed")
