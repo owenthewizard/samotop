@@ -45,13 +45,9 @@ where
 
             let envelope =
                 Envelope::new(sender, recipients?, transaction.id.clone()).map_err(Error::from)?;
-            trace!("Starting mail transaction.");
-            match self.transport.send_stream(envelope).await {
-                Ok(stream) => transaction.sink = Some(Box::pin(stream)),
-                Err(e) => {
-                    return Err(e.into());
-                }
-            }
+            trace!("Starting downstream mail transaction.");
+            let stream = self.transport.send_stream(envelope).await?;
+            transaction.sink = Some(Box::pin(stream));
 
             Ok(transaction)
         };
