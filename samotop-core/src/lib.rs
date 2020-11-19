@@ -4,7 +4,7 @@ extern crate log;
 pub mod io;
 pub mod mail;
 pub mod protocol;
-pub mod session;
+pub mod smtp;
 
 pub mod common {
     pub use futures::{
@@ -18,9 +18,6 @@ pub mod common {
 }
 pub mod parser {
     pub use samotop_model::parser::*;
-}
-pub mod smtp {
-    pub use samotop_model::smtp::*;
 }
 
 pub mod test_util {

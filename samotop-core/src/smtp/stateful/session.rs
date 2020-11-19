@@ -1,7 +1,5 @@
-use samotop_model::smtp::SmtpSessionCommand;
-
 use crate::common::*;
-use crate::smtp::{ReadControl, SmtpState, WriteControl};
+use crate::smtp::{ReadControl, SmtpSessionCommand, SmtpState, WriteControl};
 
 #[pin_project(project=SessionProj)]
 pub struct StatefulSession<I, S> {

@@ -1,6 +1,6 @@
 use crate::common::*;
 use crate::io::ConnectionInfo;
-use crate::io::TcpService;
+use crate::io::IoService;
 use crate::protocol::tls::{TlsCapable, TlsDisabled};
 
 pub trait TlsProviderFactory<IO> {
@@ -48,9 +48,9 @@ impl<T, P> TlsEnabled<T, P> {
     }
 }
 
-impl<T, IO, P> TcpService<IO> for TlsEnabled<T, P>
+impl<T, IO, P> IoService<IO> for TlsEnabled<T, P>
 where
-    T: TcpService<TlsCapable<IO, P::Provider>> + Send + Sync,
+    T: IoService<TlsCapable<IO, P::Provider>> + Send + Sync,
     IO: Read + Write + Unpin + Sync + Send,
     P: TlsProviderFactory<IO> + Send + Sync,
 {

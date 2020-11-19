@@ -65,13 +65,13 @@ impl<'a> Server<'a> {
     }
     pub async fn serve<S>(mut self: Server<'a>, service: S) -> Result<()>
     where
-        S: TcpService<TcpStream> + Send + Sync,
+        S: IoService<TcpStream> + Send + Sync,
     {
         Self::serve_ports(service, self.resolve_ports().await?).await
     }
     async fn serve_ports<S>(service: S, addrs: impl IntoIterator<Item = SocketAddr>) -> Result<()>
     where
-        S: TcpService<TcpStream> + Send + Sync,
+        S: IoService<TcpStream> + Send + Sync,
     {
         let svc = Arc::new(service);
         addrs
@@ -88,7 +88,7 @@ impl<'a> Server<'a> {
     }
     async fn serve_port<S>(service: S, addr: SocketAddr) -> Result<()>
     where
-        S: TcpService<TcpStream> + Clone,
+        S: IoService<TcpStream> + Clone,
     {
         trace!("Binding on {}", addr);
         let listener = TcpListener::bind(addr)

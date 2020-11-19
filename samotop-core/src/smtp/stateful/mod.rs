@@ -2,8 +2,7 @@ mod session;
 
 pub use self::session::*;
 use crate::mail::*;
-use crate::session::*;
-use crate::smtp::SmtpStateBase;
+use crate::smtp::*;
 
 /// Enables any clonable `MailService` to be used as a `SessionService`
 ///  with the default `BasicSessionHandler`

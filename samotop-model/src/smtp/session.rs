@@ -7,7 +7,7 @@ use crate::{
 };
 use std::collections::VecDeque;
 
-pub type SayResult = ();
+type SayResult = ();
 
 pub trait SyncMailService: MailService + Sync + Send {}
 impl<T> SyncMailService for T where T: MailService + Sync + Send {}

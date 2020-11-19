@@ -1,8 +1,7 @@
 pub mod dummy;
 pub mod stateful;
 use crate::common::*;
-use crate::smtp::ReadControl;
-use crate::smtp::WriteControl;
+pub use samotop_model::smtp::*;
 
 pub type InputStream = Box<dyn Stream<Item = Result<ReadControl>> + Unpin + Sync + Send>;
 pub type OutputStream = Box<dyn Stream<Item = Result<WriteControl>> + Unpin + Sync + Send>;

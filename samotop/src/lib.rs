@@ -180,10 +180,6 @@ mod common {
     pub struct Provider<T>(pub T);
 }
 
-pub mod session {
-    pub use samotop_core::session::*;
-}
-
 pub mod parser {
     pub use samotop_core::parser::*;
     pub use samotop_parser::*;

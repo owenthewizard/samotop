@@ -1,6 +1,5 @@
 use crate::common::*;
-use crate::session::*;
-use crate::smtp::{ReadControl, SmtpReply, WriteControl};
+use crate::smtp::*;
 use futures::prelude::*;
 use pin_project::pin_project;
 use std::pin::Pin;

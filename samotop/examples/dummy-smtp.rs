@@ -22,7 +22,7 @@ use samotop::io::smtp::SmtpService;
 use samotop::io::tls::TlsEnabled;
 use samotop::parser::SmtpParser;
 use samotop::server::Server;
-use samotop::session::dummy::DummySessionService;
+use samotop::smtp::dummy::DummySessionService;
 
 fn main() {
     println!("Run this with RUST_LOG=info to see the port listened on");

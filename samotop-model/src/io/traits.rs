@@ -15,11 +15,11 @@ shortage by blocking on the `handle()` call.
 
 The `SmtpService` and `DummyTcpService` implement this trait.
 */
-pub trait TcpService<IO> {
+pub trait IoService<IO> {
     fn handle(&self, io: Result<IO>, connection: ConnectionInfo) -> S3Fut<Result<()>>;
 }
 
-impl<IO, S: TcpService<IO> + ?Sized, T: Deref<Target = S>> TcpService<IO> for T
+impl<IO, S: IoService<IO> + ?Sized, T: Deref<Target = S>> IoService<IO> for T
 where
     IO: Sync + Send,
     S: Sync + Send,

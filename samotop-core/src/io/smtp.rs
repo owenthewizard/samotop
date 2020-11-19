@@ -1,11 +1,10 @@
 use crate::common::*;
 use crate::{
-    io::{ConnectionInfo, MayBeTls, TcpService},
+    io::{ConnectionInfo, IoService, MayBeTls},
     mail::SessionInfo,
     parser::Parser,
     protocol::{parse::*, smtp::SmtpCodec},
-    session::*,
-    smtp::extension,
+    smtp::*,
 };
 use futures::SinkExt;
 use std::marker::PhantomData;
@@ -43,7 +42,7 @@ where
     }
 }
 
-impl<S, P, IO> TcpService<IO> for SmtpService<S, P, IO>
+impl<S, P, IO> IoService<IO> for SmtpService<S, P, IO>
 where
     S: SessionService + Send + Sync + 'static,
     IO: MayBeTls + Read + Write + Unpin + Sync + Send + 'static,
