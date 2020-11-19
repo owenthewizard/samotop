@@ -17,11 +17,8 @@ impl DummySessionService {
     }
 }
 
-impl<TIn> SessionService<TIn> for DummySessionService
-where
-    TIn: Stream<Item = Result<ReadControl>> + Unpin + Send + Sync + 'static,
-{
-    fn start(&self, input: TIn) -> SessionStream {
+impl SessionService for DummySessionService {
+    fn start(&self, input: InputStream) -> OutputStream {
         Box::new(DummySessionHandler::new(self.name.clone(), input))
     }
 }

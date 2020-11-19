@@ -30,7 +30,7 @@ pub struct SmtpService<S, P, IO> {
 
 impl<S, P, IO> SmtpService<S, P, IO>
 where
-    S: SessionService<SessionInput<IO, Arc<P>>> + Send + Sync + 'static,
+    S: SessionService + Send + Sync + 'static,
     P: Parser + Sync + Send + 'static,
     IO: MayBeTls + Read + Write + Unpin + Sync + Send + 'static,
 {
@@ -45,7 +45,7 @@ where
 
 impl<S, P, IO> TcpService<IO> for SmtpService<S, P, IO>
 where
-    S: SessionService<SessionInput<IO, Arc<P>>> + Send + Sync + 'static,
+    S: SessionService + Send + Sync + 'static,
     IO: MayBeTls + Read + Write + Unpin + Sync + Send + 'static,
     P: Parser + Sync + Send + 'static,
 {
@@ -62,10 +62,8 @@ where
             }
             let codec = SmtpCodec::new(io, sess);
             let sink = codec.get_sender();
-            let source = session_service.start(codec.parse(parser));
+            let source = session_service.start(Box::new(codec.parse(parser)));
             source.forward(sink.sink_err_into()).await
         })
     }
 }
-
-type SessionInput<IO, P> = Parse<SmtpCodec<IO>, P>;
