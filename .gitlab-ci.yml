@@ -24,11 +24,14 @@ build:
     - rustc --version --verbose
     - cargo --version --verbose
   script:
+    - mkdir -p target
+    - du -shx target
     - cargo build --color always
     - cargo test --all --color always
     - case "$CI_COMMIT_REF_NAME" in master|develop) echo will also build/test release ;; *) exit 0 ;; esac
     - cargo build --release --color always
     - cargo test --all --release --color always
+    - du -shx target
 
 test-stable:
   stage: build
@@ -79,8 +82,6 @@ test-nightly:
     - name: dovecot/dovecot:2.3.11
       alias: dovecot
   script:
-    - mkdir -p target
-    - du -shx target
     - cargo build --example ${EXAMPLE:?}
     - RUST_LOG=trace cargo run --example ${EXAMPLE:?} &
     - sleep 10
@@ -110,6 +111,7 @@ example-default:
     EXAMPLE: default
 
 example-dir:
+  when: manual
   extends: .example-template
   variables:
     EXAMPLE: to-dirmail
