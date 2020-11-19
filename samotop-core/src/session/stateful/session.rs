@@ -29,33 +29,38 @@ where
 {
     type Item = Result<WriteControl>;
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        trace!("polling next");
+        trace!("poll_next");
         loop {
             if let Some(answer) = ready!(self.as_mut().poll_pop(cx)) {
-                trace!("Answer is: {:?}", answer);
                 break Poll::Ready(Some(Ok(answer)));
             }
             let proj = self.as_mut().project();
             break match std::mem::take(proj.state) {
                 State::Taken => Poll::Ready(None),
                 State::Pending(_) => unreachable!("handled by previous poll"),
-                State::Ready(data) => match proj.input.poll_next(cx) {
-                    Poll::Pending => {
-                        *proj.state = State::Ready(data);
-                        Poll::Pending
-                    }
-                    Poll::Ready(None) => Poll::Ready(None),
-                    Poll::Ready(Some(Ok(control))) => {
-                        *proj.state = State::Pending(control.apply(data));
-                        continue;
-                    }
-                    Poll::Ready(Some(Err(e))) => {
-                        error!("reading SMTP input failed: {:?}", e);
-                        Poll::Ready(Some(Ok(WriteControl::Shutdown(
-                            samotop_model::smtp::SmtpReply::ProcesingError,
-                        ))))
-                    }
-                },
+                State::Ready(data) => {
+                    trace!("poll_next polling input");
+                    let res = match proj.input.poll_next(cx) {
+                        Poll::Pending => {
+                            *proj.state = State::Ready(data);
+                            Poll::Pending
+                        }
+                        Poll::Ready(None) => Poll::Ready(None),
+                        Poll::Ready(Some(Ok(control))) => {
+                            trace!("poll_next polled input {:?}", control);
+                            *proj.state = State::Pending(control.apply(data));
+                            continue;
+                        }
+                        Poll::Ready(Some(Err(e))) => {
+                            error!("reading SMTP input failed: {:?}", e);
+                            Poll::Ready(Some(Ok(WriteControl::Shutdown(
+                                samotop_model::smtp::SmtpReply::ProcesingError,
+                            ))))
+                        }
+                    };
+                    trace!("poll_next polled input {:?}", res);
+                    res
+                }
             };
         }
     }
@@ -72,9 +77,9 @@ where
         }
     }
     fn poll_pop(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<WriteControl>> {
-        trace!("polling pending");
+        trace!("poll_pop");
         let proj = self.project();
-        match proj.state {
+        let res = match proj.state {
             State::Taken => Poll::Ready(None),
             State::Ready(ref mut data) => Poll::Ready(data.pop()),
             State::Pending(ref mut fut) => {
@@ -83,6 +88,8 @@ where
                 *proj.state = State::Ready(data);
                 pop
             }
-        }
+        };
+        trace!("popped {:?}", res);
+        res
     }
 }

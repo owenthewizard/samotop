@@ -167,10 +167,10 @@ mod tests {
     #[test]
     fn test_using() {
         let setup = TestSetup;
-        let mut builder = Builder::default();
+        let builder = Builder::default();
         let composite = builder.using(setup);
         hungry(composite);
     }
 
-    fn hungry(_svc: impl MailService + Send + Sync + Clone + std::fmt::Debug + 'static) {}
+    fn hungry(_svc: impl MailService + Send + Sync + 'static) {}
 }
