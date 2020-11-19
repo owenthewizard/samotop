@@ -89,6 +89,7 @@ test-examples:
 
       xoxo
       EOF
+    - kill -n 15 $(jobs -p)
     - cat client.log
 
     - cargo build --example to-lmtp-tcp
