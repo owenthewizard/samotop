@@ -40,6 +40,7 @@
     clippy::unwrap_used
 )]
 
+pub mod dir;
 #[cfg(feature = "file-transport")]
 pub mod file;
 #[cfg(feature = "sendmail-transport")]
