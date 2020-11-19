@@ -42,9 +42,10 @@ where
 {
     fn setup(self, builder: &mut Builder) {
         builder.esmtp.push(Box::new(EnableEightBit));
-        builder
-            .dispatch
-            .push(Box::new(SimpleDirMail::new(self.dir.as_ref().to_owned())));
+        builder.dispatch.insert(
+            0,
+            Box::new(SimpleDirMail::new(self.dir.as_ref().to_owned())),
+        );
     }
 }
 

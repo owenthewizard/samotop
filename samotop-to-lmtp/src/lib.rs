@@ -56,7 +56,9 @@ where
 {
     fn setup(self, builder: &mut Builder) {
         let transport = Arc::new(self.variant.client.connect_with(self.variant.connector));
-        builder.dispatch.push(Box::new(LmtpMail::new(transport)))
+        builder
+            .dispatch
+            .insert(0, Box::new(LmtpMail::new(transport)))
     }
 }
 

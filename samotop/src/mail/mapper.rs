@@ -30,7 +30,7 @@ impl Mapper {
 
 impl MailSetup for Config {
     fn setup(self, builder: &mut Builder) {
-        builder.guard.push(Box::new(Mapper::new(self)))
+        builder.guard.insert(0, Box::new(Mapper::new(self)))
     }
 }
 

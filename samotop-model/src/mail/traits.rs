@@ -132,7 +132,7 @@ impl MailSetup for NoDispatch
 {
     fn setup(self, builder: &mut Builder) {
         builder.dispatch.clear();
-        builder.dispatch.push(Box::new(DefaultMailService::default()))
+        builder.dispatch.insert(0, Box::new(DefaultMailService::default()))
     }
 }
 
@@ -144,43 +144,31 @@ pub trait MailSetup {
     fn setup(self, builder: &mut Builder);
 }
 
-#[cfg(Test)]
+#[cfg(test)]
 mod tests {
     use super::*;
     struct TestSetup;
 
-    impl<ES, GS, DS> MailSetup<ES, GS, DS> for TestSetup
-    where
-        ES: EsmtpService,
-        GS: MailGuard,
-        DS: MailDispatch,
-    {
-        type Output = composite::CompositeMailService<NS, ES, GS, default::DefaultMailService>;
-        fn setup(self, extend: ES, guard: GS, _dispatch: DS) -> Self::Output {
-            (extend, guard, default::DefaultMailService)
+    impl MailSetup for TestSetup {
+        fn setup(self, builder: &mut Builder) {
+            builder
+                .dispatch
+                .insert(0, Box::new(DefaultMailService::default()))
         }
     }
 
     #[test]
     fn test_setup() {
         let setup = TestSetup;
-        let svc = default::DefaultMailService;
-        let composite = setup.setup(svc.clone(), svc.clone(), svc);
-        hungry(composite);
+        let mut builder = Builder::default();
+        setup.setup(&mut builder);
+        hungry(builder);
     }
     #[test]
     fn test_using() {
         let setup = TestSetup;
-        let svc = default::DefaultMailService;
-        let composite = svc.using(setup);
-        hungry(composite);
-    }
-
-    #[test]
-    fn test_using_name() {
-        let setup = "myname";
-        let svc = default::DefaultMailService;
-        let composite = svc.using(setup);
+        let mut builder = Builder::default();
+        let composite = builder.using(setup);
         hungry(composite);
     }
 

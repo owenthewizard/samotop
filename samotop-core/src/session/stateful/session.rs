@@ -44,10 +44,7 @@ where
                         *proj.state = State::Ready(data);
                         Poll::Pending
                     }
-                    Poll::Ready(None) => {
-                        *proj.state = State::Pending(ReadControl::PeerShutdown.apply(data));
-                        continue;
-                    }
+                    Poll::Ready(None) => Poll::Ready(None),
                     Poll::Ready(Some(Ok(control))) => {
                         *proj.state = State::Pending(control.apply(data));
                         continue;

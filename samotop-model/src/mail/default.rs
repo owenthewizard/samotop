@@ -22,9 +22,9 @@ impl Default for DefaultMailService {
 }
 impl MailSetup for DefaultMailService {
     fn setup(self, builder: &mut Builder) {
-        builder.esmtp.push(Box::new(self.clone()));
-        builder.guard.push(Box::new(self.clone()));
-        builder.dispatch.push(Box::new(self));
+        builder.esmtp.insert(0, Box::new(self.clone()));
+        builder.guard.insert(0, Box::new(self.clone()));
+        builder.dispatch.insert(0, Box::new(self));
     }
 }
 impl EsmtpService for DefaultMailService {
