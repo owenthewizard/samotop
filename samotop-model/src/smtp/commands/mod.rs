@@ -23,4 +23,3 @@ pub use self::rcpt::*;
 pub use self::rset::*;
 pub use self::starttls::*;
 pub use self::unknown::*;
-

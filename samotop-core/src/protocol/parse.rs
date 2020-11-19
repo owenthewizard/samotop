@@ -126,7 +126,10 @@ mod parse_tests {
         }
         fn script(&self, input: &[u8]) -> Result<Vec<ReadControl>> {
             if input == (self.0).1 {
-                Ok(vec![ReadControl::Command(self.0.0.clone(), Vec::from(input))])
+                Ok(vec![ReadControl::Command(
+                    self.0 .0.clone(),
+                    Vec::from(input),
+                )])
             } else {
                 Err("incomplete or mismatch".into())
             }

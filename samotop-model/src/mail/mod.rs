@@ -17,7 +17,7 @@ mod tests {
         fn setup(self, builder: &mut Builder) {
             builder
                 .dispatch
-                .insert(0,Box::new(DefaultMailService::default()));
+                .insert(0, Box::new(DefaultMailService::default()));
         }
     }
 
