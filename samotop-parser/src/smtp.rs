@@ -1,4 +1,4 @@
-use samotop_core::smtp::*;
+use samotop_model::smtp::*;
 use std::net::{Ipv4Addr, Ipv6Addr};
 use std::str::FromStr;
 
@@ -253,7 +253,10 @@ mod tests {
     use super::SmtpHost::*;
     use super::*;
     use crate::grammar::*;
-    use samotop_core::test_util::*;
+
+    fn b(bytes: impl AsRef<[u8]>) -> Vec<u8> {
+        Vec::from(bytes.as_ref())
+    }
 
     #[test]
     fn script_parses_unknown_command() {

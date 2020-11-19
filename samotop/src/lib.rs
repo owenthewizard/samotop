@@ -164,15 +164,14 @@ In Rust world I have so far found mostly SMTP clients.
 #[macro_use]
 extern crate log;
 
+pub mod mail;
+pub mod server;
 pub mod protocol {
     pub use samotop_core::protocol::*;
 }
 pub mod smtp {
     pub use samotop_core::smtp::*;
 }
-pub mod mail;
-pub mod server;
-
 mod common {
     pub use bytes::{Bytes, BytesMut};
     pub use samotop_core::common::*;
@@ -180,9 +179,6 @@ mod common {
     #[derive(Clone)]
     pub struct Provider<T>(pub T);
 }
-
-#[cfg(test)]
-pub use samotop_core::test_util;
 
 pub mod session {
     pub use samotop_core::session::*;
@@ -214,3 +210,6 @@ pub mod io {
         pub use tls_impl_native::*;
     }
 }
+
+#[cfg(test)]
+pub use samotop_core::test_util;

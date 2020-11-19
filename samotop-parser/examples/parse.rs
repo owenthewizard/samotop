@@ -1,10 +1,8 @@
 //! Demonstrating the SMTP parser built from PEG grammar.
 
-extern crate samotop_core;
 extern crate samotop_parser;
 
-use samotop_core::parser::Parser;
-use samotop_parser::SmtpParser;
+use samotop_parser::*;
 
 fn main() {
     let input = String::new()

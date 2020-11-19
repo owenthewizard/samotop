@@ -3,6 +3,7 @@ extern crate log;
 
 pub mod io;
 pub mod mail;
+pub mod parser;
 pub mod smtp;
 
 pub type Error = Box<dyn std::error::Error + Send + Sync>;

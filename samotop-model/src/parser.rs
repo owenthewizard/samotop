@@ -1,7 +1,7 @@
 use crate::common::*;
 use crate::smtp::ReadControl;
 use crate::smtp::SmtpCommand;
-use samotop_model::smtp::SmtpPath;
+use crate::smtp::SmtpPath;
 
 pub trait Parser {
     fn command(&self, input: &[u8]) -> Result<SmtpCommand>;

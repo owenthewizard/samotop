@@ -3,7 +3,6 @@ extern crate log;
 
 pub mod io;
 pub mod mail;
-pub mod parser;
 pub mod protocol;
 pub mod session;
 
@@ -17,7 +16,9 @@ pub mod common {
     pub use samotop_model::{common::*, Error, Result};
     pub use std::sync::Arc;
 }
-
+pub mod parser {
+    pub use samotop_model::parser::*;
+}
 pub mod smtp {
     pub use samotop_model::smtp::*;
 }

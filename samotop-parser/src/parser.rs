@@ -2,7 +2,7 @@
     Aim: wrap generated parser fns in struct
 */
 use crate::grammar::*;
-use samotop_core::{
+use samotop_model::{
     common::Result,
     parser::Parser,
     smtp::{ReadControl, SmtpCommand, SmtpPath},
