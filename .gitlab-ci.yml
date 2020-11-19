@@ -95,17 +95,17 @@ test-nightly:
     - cat client.log | grep -v '* Expire in'
 
 example-lmtp:
-  extends: .test-example-template
+  extends: .example-template
   variables:
     EXAMPLE: to-lmtp-tcp
 
 example-default:
-  extends: .test-example-template
+  extends: .example-template
   variables:
     EXAMPLE: default
 
 example-dir:
-  extends: .test-example-template
+  extends: .example-template
   variables:
     EXAMPLE: to-dirmail
 
