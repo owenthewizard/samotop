@@ -5,7 +5,6 @@ members = [
     "samotop-core",
     "samotop-parser",
     "samotop-with-spf",
-    "samotop-to-lmtp",
     "samotop",
     "samotop-server",
 ]

@@ -3,7 +3,6 @@
 use self::Error::*;
 use crate::smtp::response::{Response, Severity};
 use base64::DecodeError;
-use log::warn;
 use std::io;
 use std::str::Utf8Error;
 use std::string::FromUtf8Error;

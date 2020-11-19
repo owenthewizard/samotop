@@ -49,13 +49,13 @@ name = "transport_smtp"
 harness = false
 
 [features]
-default = ["file-transport", "smtp-transport", "sendmail-transport", "rustls"]
+default = ["file-transport", "smtp-transport", "sendmail-transport", "rust-tls"]
 unstable = []
 serde-impls = ["serde", "serde_derive"]
 file-transport = ["serde-impls", "serde_json"]
 smtp-transport = ["base64", "nom", "hostname"]
 sendmail-transport = []
-rustls = ["async-tls"]
+rust-tls = ["async-tls"]
 native-tls = ["async-native-tls"]
 native-tls-vendored = ["async-native-tls/vendored", "native-tls"]
 

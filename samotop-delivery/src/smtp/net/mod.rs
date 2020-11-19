@@ -19,7 +19,6 @@ use async_std::net::SocketAddr;
 use async_std::pin::Pin;
 use async_std::task::{Context, Poll};
 use futures::{ready, Future};
-use log::trace;
 use pin_project::pin_project;
 use samotop_model::io::MayBeTls;
 use std::fmt;

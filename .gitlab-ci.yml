@@ -68,7 +68,7 @@ test-nightly:
     - cargo check --workspace --benches --color always
     - ./fix.sh
 
-.test-example-template:
+.example-template:
   stage: build
   only:
     - branches
@@ -94,17 +94,17 @@ test-nightly:
       EOF
     - cat client.log | grep -v '* Expire in'
 
-test-lmtp:
+example-lmtp:
   extends: .test-example-template
   variables:
     EXAMPLE: to-lmtp-tcp
 
-test-default:
+example-default:
   extends: .test-example-template
   variables:
     EXAMPLE: default
 
-test-dir:
+example-dir:
   extends: .test-example-template
   variables:
     EXAMPLE: to-dirmail

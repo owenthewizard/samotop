@@ -1,6 +1,5 @@
 use async_std::io::{self, Read, Write};
 use async_std::prelude::*;
-use log::debug;
 use pin_project::pin_project;
 use std::{
     pin::Pin,

@@ -11,7 +11,6 @@ use crate::{
 };
 use async_std::io::Write;
 use futures::future;
-use log::info;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 

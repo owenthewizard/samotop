@@ -7,7 +7,6 @@ use crate::smtp::util::SmtpProto;
 use crate::{smtp::commands::*, SyncFuture};
 use crate::{Envelope, Transport};
 use async_std::io::{Read, Write};
-use log::{debug, info};
 use pin_project::pin_project;
 use potential::{Lease, Potential};
 use samotop_model::io::MayBeTls;

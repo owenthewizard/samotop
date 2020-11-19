@@ -24,11 +24,11 @@ gitlab = { repository = "BrightOpen/BackYard/Samotop", branch = "develop" }
 maintenance = { status = "actively-developed" }
 
 [features]
-default = ["rust-tls", "spf", "lmtp-dispatch"]
+default = ["rust-tls", "spf"]
 spf = ["samotop-with-spf"]
-lmtp-dispatch = ["samotop-to-lmtp"]
-rust-tls = ["async-tls"]
-native-tls = ["async-native-tls"]
+rust-tls = ["async-tls", "samotop-delivery/rust-tls"]
+native-tls = ["async-native-tls", "samotop-delivery/native-tls"]
+native-tls-vendored = ["async-native-tls/vendored", "native-tls", "samotop-delivery/native-tls-vendored"]
 
 [dependencies.samotop-core]
 version = "0.11.0-samotop-dev"
@@ -43,10 +43,9 @@ version = "0.11.0-samotop-dev"
 path = "../samotop-with-spf"
 optional = true
 
-[dependencies.samotop-to-lmtp]
-version = "0.11.0-samotop-dev"
-path = "../samotop-to-lmtp"
-optional = true
+[dependencies.samotop-delivery]
+version = "0.5.0"
+path = "../samotop-delivery"
 
 [dependencies]
 log = "0.4"

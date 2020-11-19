@@ -7,7 +7,6 @@ use crate::MailDataStream;
 use async_std::io::Read;
 use futures::io::{AsyncWrite as Write, AsyncWriteExt as WriteExt};
 use futures::{ready, Future};
-use log::{debug, trace};
 use potential::Lease;
 use std::fmt;
 use std::pin::Pin;

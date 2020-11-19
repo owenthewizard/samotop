@@ -40,6 +40,10 @@
     clippy::unwrap_used
 )]
 
+#[macro_use]
+extern crate log;
+
+pub mod delivery;
 pub mod dir;
 #[cfg(feature = "file-transport")]
 pub mod file;

@@ -85,17 +85,19 @@ openssl s_client -connect localhost:25 -debug -starttls smtp
 ```
  */
 
+#[macro_use]
+extern crate log;
+
 use async_std::fs::File;
 use async_std::io::ReadExt;
 use async_std::task;
 use async_tls::TlsAcceptor;
-use log::*;
 use rustls::ServerConfig;
 use samotop::io::tls::provide_rustls;
 use samotop::io::{smtp::SmtpService, tls::TlsEnabled};
-use samotop::mail::dirmail::Config as DirMailConfig;
 use samotop::mail::Builder;
 use samotop::mail::DefaultMailService;
+use samotop::mail::Dir;
 use samotop::parser::SmtpParser;
 use samotop::server::Server;
 use std::path::{Path, PathBuf};
@@ -118,7 +120,7 @@ async fn main_fut() -> Result<()> {
         tls_config.map(|cfg| provide_rustls(TlsAcceptor::from(std::sync::Arc::new(cfg))));
     let mail_service = Builder::default()
         .using(DefaultMailService::new(setup.get_my_name()))
-        .using(DirMailConfig::new(setup.get_mail_dir()))
+        .using(Dir::new(setup.get_mail_dir())?)
         //.using(samotop::mail::spf::provide_viaspf())
         ;
     let smtp_service = SmtpService::new(Arc::new(mail_service), SmtpParser);

@@ -11,7 +11,6 @@ use crate::{Envelope, MailDataStream, Transport};
 use async_std::io::Write;
 use async_std::task;
 use futures::{ready, Future};
-use log::info;
 use std::convert::AsRef;
 use std::ops::DerefMut;
 use std::pin::Pin;

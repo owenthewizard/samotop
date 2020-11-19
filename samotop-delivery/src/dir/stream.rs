@@ -2,7 +2,6 @@ use crate::MailDataStream;
 use async_std::fs::File;
 use bytes::BytesMut;
 use futures::{ready, AsyncWrite as Write, Future};
-use log::*;
 use pin_project::pin_project;
 use std::{
     pin::Pin,

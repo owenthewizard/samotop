@@ -20,7 +20,7 @@ gitlab = { repository = "BrightOpen/BackYard/Samotop", branch = "develop" }
 [dependencies.samotop]
 version = "0.11.1-samotop-dev"
 path = "../samotop"
-features = ["rust-tls", "spf", "lmtp-dispatch"]
+features = ["rust-tls", "spf"]
 default-features = false
 
 [dependencies]

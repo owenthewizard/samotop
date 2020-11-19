@@ -7,30 +7,19 @@ use regex::Regex;
 use samotop_parser::SmtpParser;
 
 #[derive(Clone, Debug, Default)]
-pub struct Config {
+pub struct Mapper {
     map: Vec<(Regex, String)>,
 }
 
-impl Config {
+impl Mapper {
     pub fn new(map: Vec<(Regex, String)>) -> Self {
         Self { map }
     }
 }
 
-#[derive(Clone, Debug)]
-pub struct Mapper {
-    config: Config,
-}
-
-impl Mapper {
-    pub fn new(config: Config) -> Self {
-        Self { config }
-    }
-}
-
-impl MailSetup for Config {
+impl MailSetup for Mapper {
     fn setup(self, builder: &mut Builder) {
-        builder.guard.insert(0, Box::new(Mapper::new(self)))
+        builder.guard.insert(0, Box::new(self))
     }
 }
 
@@ -43,7 +32,7 @@ impl MailGuard for Mapper {
         'a: 'f,
     {
         let mut rcpt = request.rcpt.address();
-        for conversion in self.config.map.iter() {
+        for conversion in self.map.iter() {
             rcpt = conversion
                 .0
                 .replace(rcpt.as_ref(), conversion.1.as_str())
@@ -98,11 +87,10 @@ mod tests {
     #[async_test]
     async fn test() -> Result<()> {
         // use the domain as a user, converting to linux like user name
-        let cfg = Config::new(vec![
+        let sut = Mapper::new(vec![
             (Regex::new(".*@(.*)")?, "$1@localhost".to_owned()),
             (Regex::new("[^@a-zA-Z0-9]")?, "-".to_owned()),
         ]);
-        let sut = Mapper::new(cfg);
         let req = AddRecipientRequest {
             transaction: Transaction::default(),
             rcpt: SmtpPath::Direct(SmtpAddress::Mailbox(

@@ -11,7 +11,6 @@ use async_std::{
 };
 use bytes::BytesMut;
 use futures::{future::TryFutureExt, ready, Future};
-use log::*;
 use pin_project::pin_project;
 use std::{
     path::PathBuf,

@@ -8,7 +8,6 @@ use async_std::io::{self, Read, ReadExt, Write};
 use bytes::{Buf, BufMut, BytesMut};
 use futures::io::AsyncWriteExt as WriteExt;
 use futures::Future;
-use log::debug;
 use std::fmt::Display;
 use std::pin::Pin;
 use std::time::Duration;
