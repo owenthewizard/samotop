@@ -10,12 +10,11 @@ use async_std::io::{Read, Write};
 use pin_project::pin_project;
 use potential::{Lease, Potential};
 use samotop_model::io::MayBeTls;
-use std::pin::Pin;
 use std::time::Duration;
+use std::{fmt, pin::Pin};
 
 /// Structure that implements the high level SMTP client
 #[pin_project]
-#[allow(missing_debug_implementations)]
 pub struct SmtpTransport<Conf, Conn: Connector> {
     connector: Conn,
     configuration: Conf,
@@ -208,4 +207,11 @@ pub(crate) struct SmtpConnection<S> {
     /// Information about the server
     /// Value is None before HELO/EHLO
     pub server_info: ServerInfo,
+}
+
+impl<Conf: ConnectionConfiguration, Conn: Connector> fmt::Debug for SmtpTransport<Conf, Conn> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        //TODO: better debug
+        f.debug_struct("SmtpTransport").finish()
+    }
 }

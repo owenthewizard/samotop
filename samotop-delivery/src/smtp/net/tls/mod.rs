@@ -20,7 +20,7 @@ pub type DefaultTls = NativeTls;
 #[cfg(all(not(feature = "rustls"), not(feature = "native-tls")))]
 pub type DefaultTls = NoTls;
 
-pub trait TlsProvider<T> {
+pub trait TlsProvider<T>: std::fmt::Debug {
     type Upgrade: TlsUpgrade<T> + Sync + Send;
     fn get(&self) -> Option<Self::Upgrade>;
 }

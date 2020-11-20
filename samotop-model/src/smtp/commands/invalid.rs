@@ -31,12 +31,15 @@ impl SmtpInvalidCommand {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::smtp::{SmtpMail, SmtpPath, SmtpReply, SmtpStateBase, WriteControl};
+    use crate::{
+        mail::Builder,
+        smtp::{SmtpMail, SmtpPath, SmtpReply, SmtpStateBase, WriteControl},
+    };
     use futures_await_test::async_test;
 
     #[async_test]
     async fn response_is_not_implemented() {
-        let mut set = SmtpStateBase::default();
+        let mut set = SmtpStateBase::new(Builder::default());
         set.transaction_mut().id = "someid".to_owned();
         set.transaction_mut().mail = Some(SmtpMail::Mail(SmtpPath::Null, vec![]));
         set.transaction_mut().rcpts.push(SmtpPath::Null);

@@ -22,12 +22,15 @@ impl SmtpSessionCommand for SmtpRset {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::smtp::{SmtpMail, SmtpPath, SmtpStateBase};
+    use crate::{
+        mail::Builder,
+        smtp::{SmtpMail, SmtpPath, SmtpStateBase},
+    };
     use futures_await_test::async_test;
 
     #[async_test]
     async fn transaction_gets_reset() {
-        let mut set = SmtpStateBase::default();
+        let mut set = SmtpStateBase::new(Builder::default());
         set.transaction_mut().id = "someid".to_owned();
         set.transaction_mut().mail = Some(SmtpMail::Mail(SmtpPath::Null, vec![]));
         set.transaction_mut().rcpts.push(SmtpPath::Null);

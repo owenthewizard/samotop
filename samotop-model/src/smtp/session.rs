@@ -1,8 +1,5 @@
 use crate::{
-    mail::{
-        AddRecipientFailure, DefaultMailService, MailService, SessionInfo, StartMailFailure,
-        Transaction,
-    },
+    mail::{AddRecipientFailure, MailService, SessionInfo, StartMailFailure, Transaction},
     smtp::{ExtensionSet, SmtpHelo, SmtpPath, SmtpReply, WriteControl},
 };
 use std::collections::VecDeque;
@@ -131,16 +128,16 @@ pub struct SmtpStateBase {
     service: Box<dyn SyncMailService>,
 }
 
-impl Default for SmtpStateBase {
-    fn default() -> Self {
-        SmtpStateBase {
-            service: Box::new(DefaultMailService::default()),
-            writes: Default::default(),
-            transaction: Default::default(),
-            session: Default::default(),
-        }
-    }
-}
+// impl Default for SmtpStateBase {
+//     fn default() -> Self {
+//         SmtpStateBase {
+//             service: Box::new(DefaultMailService::default()),
+//             writes: Default::default(),
+//             transaction: Default::default(),
+//             session: Default::default(),
+//         }
+//     }
+// }
 impl SmtpStateBase {
     pub fn new(service: impl MailService + Send + Sync + 'static) -> Self {
         SmtpStateBase {
@@ -202,12 +199,15 @@ impl SmtpState for SmtpStateBase {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::smtp::{SmtpMail, SmtpPath, SmtpStateBase};
+    use crate::{
+        mail::Builder,
+        smtp::{SmtpMail, SmtpPath, SmtpStateBase},
+    };
     use futures_await_test::async_test;
 
     #[async_test]
     async fn transaction_gets_reset() {
-        let mut sut = SmtpStateBase::default();
+        let mut sut = SmtpStateBase::new(Builder::default());
         sut.transaction_mut().id = "someid".to_owned();
         sut.transaction_mut().mail = Some(SmtpMail::Mail(SmtpPath::Null, vec![]));
         sut.transaction_mut().rcpts.push(SmtpPath::Null);

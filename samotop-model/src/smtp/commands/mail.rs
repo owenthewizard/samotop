@@ -77,14 +77,15 @@ impl SmtpMail {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::smtp::{
-        SmtpHelo, SmtpHost, SmtpMail, SmtpPath, SmtpReply, SmtpStateBase, WriteControl,
+    use crate::{
+        mail::Builder,
+        smtp::{SmtpHelo, SmtpHost, SmtpMail, SmtpPath, SmtpReply, SmtpStateBase, WriteControl},
     };
     use futures_await_test::async_test;
 
     #[async_test]
     async fn transaction_gets_reset() {
-        let mut set = SmtpStateBase::default();
+        let mut set = SmtpStateBase::new(Builder::default());
         set.session_mut().smtp_helo = Some(SmtpHelo::Helo(SmtpHost::Domain("xx.io".to_owned())));
         set.transaction_mut().id = "someid".to_owned();
         set.transaction_mut().mail = Some(SmtpMail::Mail(SmtpPath::Null, vec![]));
@@ -100,7 +101,7 @@ mod tests {
 
     #[async_test]
     async fn mail_is_set() {
-        let mut set = SmtpStateBase::default();
+        let mut set = SmtpStateBase::new(Builder::default());
         set.session_mut().smtp_helo = Some(SmtpHelo::Helo(SmtpHost::Domain("xx.io".to_owned())));
         let sut = SmtpMail::Mail(SmtpPath::Postmaster, vec![]);
         let mut res = sut.apply(set).await;
@@ -114,7 +115,7 @@ mod tests {
     #[async_test]
     async fn command_sequence_is_enforced() {
         // MAIL command requires HELO/EHLO
-        let set = SmtpStateBase::default();
+        let set = SmtpStateBase::new(Builder::default());
         let sut = SmtpMail::Mail(SmtpPath::Postmaster, vec![]);
         let mut res = sut.apply(set).await;
         assert_eq!(

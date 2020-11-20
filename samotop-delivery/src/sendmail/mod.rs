@@ -11,11 +11,11 @@ use crate::{Envelope, MailDataStream, Transport};
 use async_std::io::Write;
 use async_std::task;
 use futures::{ready, Future};
-use std::convert::AsRef;
 use std::ops::DerefMut;
 use std::pin::Pin;
 use std::process::{Child, Command, Stdio};
 use std::task::{Context, Poll};
+use std::{convert::AsRef, fmt};
 
 /// Sends an envelope using the `sendmail` command
 #[derive(Debug, Default)]
@@ -84,7 +84,7 @@ pub enum ProcStream {
     Done,
 }
 
-#[allow(missing_debug_implementations)]
+#[derive(Debug)]
 pub struct ProcStreamInner {
     child: Child,
     message_id: String,
@@ -180,4 +180,15 @@ impl Write for ProcStream {
 
 fn broken() -> std::io::Error {
     std::io::Error::from(std::io::ErrorKind::NotConnected)
+}
+
+impl fmt::Debug for ProcStream {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ProcStream::Busy => f.debug_tuple("Busy").finish(),
+            ProcStream::Done => f.debug_tuple("Done").finish(),
+            ProcStream::Closing(_) => f.debug_tuple("Closing").field(&"*").finish(),
+            ProcStream::Ready(ref r) => f.debug_tuple("Ready").field(&r).finish(),
+        }
+    }
 }

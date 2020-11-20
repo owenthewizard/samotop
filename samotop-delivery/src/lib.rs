@@ -68,13 +68,13 @@ pub mod prelude {
 use crate::prelude::*;
 use async_std::io::{copy, Read, Write};
 use futures::{io::AsyncWriteExt, Future};
-use std::pin::Pin;
+use std::{fmt, pin::Pin};
 
 pub type SyncFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Sync + Send + 'a>>;
 type SendResult<T> = Result<<T as MailDataStream>::Output, <T as MailDataStream>::Error>;
 
 /// Transport method for emails
-pub trait Transport {
+pub trait Transport: std::fmt::Debug {
     /// Result type for the transport
     type DataStream: MailDataStream;
 
@@ -109,7 +109,7 @@ pub trait Transport {
     }
 }
 
-pub trait MailDataStream: Write {
+pub trait MailDataStream: fmt::Debug + Write {
     type Output;
     type Error;
     /// Return the result of sending the mail.

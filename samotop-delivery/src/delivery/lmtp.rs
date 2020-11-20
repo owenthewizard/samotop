@@ -35,6 +35,7 @@ impl<C: Connector> LmtpDispatch<C> {
 impl<C: Connector> MailSetup for LmtpDispatch<C>
 where
     C: 'static,
+    <C as Connector>::Stream: std::fmt::Debug,
 {
     fn setup(self, builder: &mut Builder) {
         let transport = self.client.connect_with(self.connector);

@@ -7,8 +7,9 @@ use crate::{
     },
 };
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct Builder {
+    pub id: String,
     pub dispatch: Vec<Box<dyn MailDispatch + Sync + Send + 'static>>,
     pub guard: Vec<Box<dyn MailGuard + Sync + Send + 'static>>,
     pub esmtp: Vec<Box<dyn EsmtpService + Sync + Send + 'static>>,
@@ -16,6 +17,7 @@ pub struct Builder {
 
 impl Builder {
     pub fn using(mut self, setup: impl MailSetup) -> Self {
+        trace!("Builder {} using setup {:?}", self.id, setup);
         setup.setup(&mut self);
         self
     }
@@ -31,19 +33,30 @@ impl MailDispatch for Builder {
         'a: 'f,
         's: 'f,
     {
+        debug!(
+            "Dispatch {} with {} dispatchers sending mail {:?} on session {:?}",
+            self.id,
+            self.dispatch.len(),
+            transaction,
+            session
+        );
         let fut = async move {
             for disp in self.dispatch.iter() {
-                match disp.send_mail(session, transaction).await {
-                    Ok(t) => {
-                        transaction = t;
-                        if transaction.sink.is_some() {
-                            return Ok(transaction);
-                        }
-                    }
-                    Err(e) => return Err(e),
+                trace!("Dispatch {} send_mail calling {:?}", self.id, disp);
+                transaction = disp.send_mail(session, transaction).await?;
+                if transaction.sink.is_some() {
+                    return Ok(transaction);
                 }
             }
-            Err(DispatchError::Refused)
+            if transaction.sink.is_some() {
+                Ok(transaction)
+            } else {
+                info!(
+                    "Dispatch {} send_mail refused message {}",
+                    self.id, transaction.id
+                );
+                Err(DispatchError::Refused)
+            }
         };
         Box::pin(fut)
     }
@@ -57,8 +70,15 @@ impl MailGuard for Builder {
     where
         'a: 'f,
     {
+        debug!(
+            "Guard {} with {} guards adding recipient {:?}",
+            self.id,
+            self.guard.len(),
+            request
+        );
         let fut = async move {
             for guard in self.guard.iter() {
+                trace!("Guard {} add_recipient calling {:?}", self.id, guard);
                 match guard.add_recipient(request).await {
                     AddRecipientResult::Inconclusive(r) => request = r,
                     otherwise => return otherwise,
@@ -78,12 +98,32 @@ impl MailGuard for Builder {
         'a: 'f,
         's: 'f,
     {
+        debug!(
+            "Guard {} with {} guards starting mail {:?}",
+            self.id,
+            self.guard.len(),
+            request
+        );
         let fut = async move {
             for guard in self.guard.iter() {
+                trace!("Guard {} start_mail calling {:?}", self.id, guard);
                 match guard.start_mail(session, request).await {
                     StartMailResult::Accepted(r) => request = r,
                     otherwise => return otherwise,
                 }
+            }
+            if request.id.is_empty() {
+                fn nunnumber(input: char) -> bool {
+                    !input.is_ascii_digit()
+                }
+                let id = format!("{:?}", std::time::Instant::now()).replace(nunnumber, "");
+                warn!(
+                    "Guard {} mail transaction ID is empty. Will use time based ID {}",
+                    self.id, id
+                );
+                request.id = id;
+            } else {
+                trace!("Guard {} mail transaction started: {}", self.id, request.id);
             }
             StartMailResult::Accepted(request)
         };
@@ -93,7 +133,14 @@ impl MailGuard for Builder {
 
 impl EsmtpService for Builder {
     fn prepare_session(&self, session: &mut SessionInfo) {
+        debug!(
+            "Esmtp {} with {} esmtps preparing session {:?}",
+            self.id,
+            self.esmtp.len(),
+            session
+        );
         for esmtp in self.esmtp.iter() {
+            trace!("Esmtp {} prepare_session calling {:?}", self.id, esmtp);
             esmtp.prepare_session(session);
         }
     }

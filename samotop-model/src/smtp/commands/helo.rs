@@ -61,12 +61,15 @@ impl SmtpHelo {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::smtp::{SmtpMail, SmtpPath, SmtpStateBase};
+    use crate::{
+        mail::Builder,
+        smtp::{SmtpMail, SmtpPath, SmtpStateBase},
+    };
     use futures_await_test::async_test;
 
     #[async_test]
     async fn transaction_gets_reset() {
-        let mut set = SmtpStateBase::default();
+        let mut set = SmtpStateBase::new(Builder::default());
         set.transaction_mut().id = "someid".to_owned();
         set.transaction_mut().mail = Some(SmtpMail::Mail(SmtpPath::Null, vec![]));
         set.transaction_mut().rcpts.push(SmtpPath::Null);
@@ -78,7 +81,7 @@ mod tests {
 
     #[async_test]
     async fn helo_is_set() {
-        let set = SmtpStateBase::default();
+        let set = SmtpStateBase::new(Builder::default());
         let sut = SmtpHelo::Helo(SmtpHost::Domain("wex.xor.ro".to_owned()));
         let res = sut.apply(set).await;
         assert_eq!(
@@ -91,7 +94,7 @@ mod tests {
     fn is_sync_and_send() {
         for i in 0..1 {
             let sut = SmtpHelo::Helo(SmtpHost::Domain("wex.xor.ro".to_owned()));
-            let set = SmtpStateBase::default();
+            let set = SmtpStateBase::new(Builder::default());
             let res = sut.apply(set);
             if i == 0 {
                 is_sync(res);

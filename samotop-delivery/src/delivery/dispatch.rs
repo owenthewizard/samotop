@@ -4,14 +4,18 @@ use crate::{
 };
 use futures::TryFutureExt;
 use samotop_model::{common::*, mail::*};
-use std::error::Error as StdError;
+use std::{error::Error as StdError, fmt};
 
+#[derive(Debug)]
 pub struct DispatchMail<T> {
     transport: T,
 }
 
 impl<T> DispatchMail<T> {
-    pub fn new(transport: T) -> Self {
+    pub fn new(transport: T) -> Self
+    where
+        T: fmt::Debug,
+    {
         Self { transport }
     }
 }

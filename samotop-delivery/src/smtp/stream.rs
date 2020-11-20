@@ -14,7 +14,6 @@ use std::task::{Context, Poll};
 use std::time::Duration;
 
 /// FIXME: this needs to be gracefully degraded to 7bit if 8bit/utf8 is not available
-#[derive(Debug)]
 pub struct SmtpDataStream<S> {
     state: State<S>,
 }
@@ -37,6 +36,13 @@ impl<S> fmt::Debug for State<S> {
             State::Closing(_) => f.debug_tuple("Closing").field(&fake).finish(),
             State::Done(r) => f.debug_tuple("Done").field(r).finish(),
         }
+    }
+}
+impl<S> fmt::Debug for SmtpDataStream<S> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("SmtpDataStream")
+            .field("state", &self.state)
+            .finish()
     }
 }
 

@@ -1,5 +1,6 @@
 use crate::common::*;
 use crate::mail::*;
+use std::fmt::Debug;
 
 pub trait MailService: EsmtpService + MailGuard + MailDispatch {}
 impl<T> MailService for T where T: EsmtpService + MailGuard + MailDispatch {}
@@ -27,14 +28,14 @@ where
 }
 ```
 */
-pub trait EsmtpService {
+pub trait EsmtpService: Debug {
     fn prepare_session(&self, session: &mut SessionInfo);
 }
 
 /**
 A mail guard can be queried whether a recepient is accepted on which address.
 */
-pub trait MailGuard {
+pub trait MailGuard: Debug {
     fn add_recipient<'a, 'f>(
         &'a self,
         request: AddRecipientRequest,
@@ -56,7 +57,7 @@ A mail dispatch allows us to dispatch an e-mail.
 For a given mail transacton it produces a Write sink that can receive mail data.
 Once the sink is closed successfully, the mail is dispatched.
 */
-pub trait MailDispatch {
+pub trait MailDispatch: Debug {
     fn send_mail<'a, 's, 'f>(
         &'a self,
         session: &'s SessionInfo,
@@ -140,13 +141,15 @@ let mail_svc = Builder::default().using(NoDispatch);
 
 ```
 */
-pub trait MailSetup {
+pub trait MailSetup: std::fmt::Debug {
     fn setup(self, builder: &mut Builder);
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[derive(Debug)]
     struct TestSetup;
 
     impl MailSetup for TestSetup {

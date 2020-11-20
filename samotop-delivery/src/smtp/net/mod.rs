@@ -24,7 +24,7 @@ use samotop_model::io::MayBeTls;
 use std::fmt;
 use std::time::Duration;
 
-pub trait Connector: Sync + Send {
+pub trait Connector: fmt::Debug + Sync + Send {
     type Stream: MayBeTls + Read + Write + Unpin + Sync + Send + 'static;
     /// This provider of connectivity takes care of resolving
     /// given address (which could be an IP, FQDN, URL...),
