@@ -86,15 +86,17 @@ test-nightly:
     - RUST_LOG=trace cargo run --example ${EXAMPLE:?} &
     - sleep 10
     - |
-      curl -v --url 'smtp://localhost:2525' \
+      sed -e 's/$/\r/' <<EOF | curl -v --url 'smtp://localhost:2525' \
       --mail-from from@spf.org \
       --mail-rcpt to@mikesh.info \
-      --upload-file - > client.log 2>&1 <<EOF \
+      --upload-file - > client.log 2>&1 \
       || echo "${FAILED:=sending mail failed}"
       From: Moohoo <moo@hoo.com>
       To: Yeeehaw <ye@haw.com>
       Subject: Try me
 
+      .
+      ..
       xoxo
       EOF
     - cat client.log | grep -v '* Expire in'
@@ -123,7 +125,7 @@ example-cmd:
   script:
     - cargo build --example ${EXAMPLE:?}
     - |
-      sed -e 's/$/\r/' <<EOF | time cargo run --example ${EXAMPLE:?}
+      sed -e 's/$/\r/' <<EOF | cargo run --example ${EXAMPLE:?}
       lhlo boogie
       mail from:<from@spf.org>
       rcpt to:<to@mikesh.info>
