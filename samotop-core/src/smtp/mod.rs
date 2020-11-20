@@ -1,6 +1,8 @@
-pub mod dummy;
-pub mod stateful;
+mod stream;
+
+use self::stream::*;
 use crate::common::*;
+use crate::mail::*;
 pub use samotop_model::smtp::*;
 
 pub type InputStream = Box<dyn Stream<Item = Result<ReadControl>> + Unpin + Sync + Send>;
@@ -17,4 +19,17 @@ relevant `WriteControl`s to send down the line in response.
 */
 pub trait SessionService {
     fn start(&self, input: InputStream) -> OutputStream;
+}
+
+/// Enables any clonable `MailService` to be used as a `SessionService`
+///  with the default `BasicSessionHandler`
+impl<S> SessionService for S
+where
+    S: MailService + Clone + Send + Sync + 'static,
+{
+    fn start(&self, input: InputStream) -> OutputStream {
+        let state = SmtpStateBase::new(self.clone());
+        let handler: OutputStream = Box::new(SessionStream::new(input, state));
+        handler
+    }
 }

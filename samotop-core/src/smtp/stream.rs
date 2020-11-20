@@ -2,7 +2,7 @@ use crate::common::*;
 use crate::smtp::{ReadControl, SmtpSessionCommand, SmtpState, WriteControl};
 
 #[pin_project(project=SessionProj)]
-pub struct StatefulSession<I, S> {
+pub struct SessionStream<I, S> {
     #[pin]
     input: I,
     state: State<S>,
@@ -20,7 +20,7 @@ impl<T> Default for State<T> {
     }
 }
 
-impl<I, S> Stream for StatefulSession<I, S>
+impl<I, S> Stream for SessionStream<I, S>
 where
     I: Stream<Item = Result<ReadControl>>,
     S: SmtpState + 'static,
@@ -64,7 +64,7 @@ where
     }
 }
 
-impl<I, S> StatefulSession<I, S>
+impl<I, S> SessionStream<I, S>
 where
     S: SmtpState + 'static,
 {
