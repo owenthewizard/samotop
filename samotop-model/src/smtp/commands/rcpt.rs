@@ -38,6 +38,7 @@ impl SmtpSessionCommand for SmtpRcpt {
                     rcpt,
                 }) => {
                     transaction.rcpts.push(rcpt);
+                    state.say_ok();
                     *state.transaction_mut() = transaction;
                 }
                 AddRecipientResult::TerminateSession(description) => {
