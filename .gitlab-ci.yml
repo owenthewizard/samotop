@@ -29,9 +29,6 @@ build:
     - du -shx target
     - cargo build --color always
     - cargo test --all --color always
-    - case "$CI_COMMIT_REF_NAME" in master|develop) echo will also build/test release ;; *) exit 0 ;; esac
-    - cargo build --release --color always
-    - cargo test --all --release --color always
     # cleanup target folder
     - du -shx target
     - find target -name 'samotop*' -exec rm -rf {} \; || true
@@ -117,7 +114,7 @@ test-nightly:
       xoxo
       EOF
     - cat client.log | grep -v '* Expire in'
-    - find /tmp/samotop/spool/new/ -print -exec cat {} \; || true
+    - find tmp/samotop/spool/new/ -print -exec cat {} \; || true
     - test -z "${FAILED}"
 
 example-lmtp:
@@ -155,7 +152,7 @@ example-cmd:
       .
       quit
       EOF
-    - find /tmp/samotop/spool/new/ -print -exec cat {} \;
+    - find tmp/samotop/spool/new/ -print -exec cat {} \;
 
 publish-crate:
   variables:
