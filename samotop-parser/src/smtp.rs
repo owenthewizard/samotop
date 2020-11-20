@@ -42,6 +42,7 @@ peg::parser! {
             = cmd_starttls() /
             cmd_helo() /
             cmd_ehlo() /
+            cmd_lhlo() /
             cmd_mail() /
             cmd_send() /
             cmd_soml() /
@@ -100,6 +101,10 @@ peg::parser! {
         pub rule cmd_ehlo() -> SmtpCommand
             = i("ehlo") _ h:host() NL()
             { SmtpCommand::Helo(SmtpHelo::Ehlo(h)) }
+
+        pub rule cmd_lhlo() -> SmtpCommand
+            = i("lhlo") _ h:host() NL()
+            { SmtpCommand::Helo(SmtpHelo::Lhlo(h)) }
 
         pub rule cmd_vrfy() -> SmtpCommand
             = i("vrfy") s:strparam() NL()
