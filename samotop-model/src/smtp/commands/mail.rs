@@ -51,8 +51,20 @@ impl SmtpSessionCommand for SmtpMail {
                 R::Failed(failure, description) => {
                     state.say_mail_failed(failure, description);
                 }
-                R::Accepted(transaction) => {
-                    state.say_ok();
+                R::Accepted(mut transaction) => {
+                    if transaction.id.is_empty() {
+                        fn nunnumber(input: char) -> bool {
+                            !input.is_ascii_digit()
+                        }
+                        // for the lack of better unique string without extra dependencies
+                        let id = format!("{:?}", std::time::Instant::now()).replace(nunnumber, "");
+                        warn!(
+                            "Mail transaction ID is empty. Will use time based ID {}",
+                            id
+                        );
+                        transaction.id = id;
+                    }
+                    state.say_ok_info(format!("Ok! Transaction {} started.", transaction.id));
                     *state.transaction_mut() = transaction;
                 }
             };
@@ -93,7 +105,10 @@ mod tests {
         set.transaction_mut().extra_headers.insert_str(0, "feeeha");
         let sut = SmtpMail::Mail(SmtpPath::Postmaster, vec![]);
         let mut res = sut.apply(set).await;
-        assert_eq!(res.pop(), Some(WriteControl::Reply(SmtpReply::OkInfo)));
+        match res.pop() {
+            Some(WriteControl::Reply(SmtpReply::OkMessageInfo(_))) => {}
+            otherwise => panic!("Expected OK message, got {:?}", otherwise),
+        }
         assert_ne!(res.transaction().id, "someid");
         assert!(res.transaction().rcpts.is_empty());
         assert!(res.transaction().extra_headers.is_empty());
@@ -105,7 +120,10 @@ mod tests {
         set.session_mut().smtp_helo = Some(SmtpHelo::Helo(SmtpHost::Domain("xx.io".to_owned())));
         let sut = SmtpMail::Mail(SmtpPath::Postmaster, vec![]);
         let mut res = sut.apply(set).await;
-        assert_eq!(res.pop(), Some(WriteControl::Reply(SmtpReply::OkInfo)));
+        match res.pop() {
+            Some(WriteControl::Reply(SmtpReply::OkMessageInfo(_))) => {}
+            otherwise => panic!("Expected OK message, got {:?}", otherwise),
+        }
         assert_eq!(
             res.transaction().mail,
             Some(SmtpMail::Mail(SmtpPath::Postmaster, vec![]))

@@ -1,9 +1,13 @@
 mod builder;
-mod default;
+mod debug;
+mod name;
+mod null;
 mod traits;
 mod types;
 
 pub use self::builder::*;
-pub use self::default::*;
+pub use self::debug::*;
+pub use self::name::*;
+pub use self::null::*;
 pub use self::traits::*;
 pub use self::types::*;

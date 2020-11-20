@@ -26,7 +26,7 @@ use samotop::{
         smtp::SmtpService,
         tls::TlsEnabled,
     },
-    mail::{Builder, DefaultMailService, LmtpDispatch, Mapper},
+    mail::{Builder, LmtpDispatch, Mapper},
     parser::SmtpParser,
     server::Server,
 };
@@ -46,7 +46,6 @@ async fn main_fut() -> Result<()> {
     ]);
     let lmtp_connector: TcpConnector<NoTls> = TcpConnector::default();
     let mail_service = Builder::default()
-        .using(DefaultMailService::new("test-samotop".to_owned()))
         .using(LmtpDispatch::new("dovecot:24".to_owned(), lmtp_connector)?.reuse(0))
         .using(rcpt_map);
     let smtp_service = SmtpService::new(Arc::new(mail_service), SmtpParser);

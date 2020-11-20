@@ -133,7 +133,7 @@ impl MailSetup for NoDispatch
 {
     fn setup(self, builder: &mut Builder) {
         builder.dispatch.clear();
-        builder.dispatch.insert(0, Box::new(DefaultMailService::default()))
+        builder.dispatch.insert(0, Box::new(NullDispatch))
     }
 }
 
@@ -156,7 +156,7 @@ mod tests {
         fn setup(self, builder: &mut Builder) {
             builder
                 .dispatch
-                .insert(0, Box::new(DefaultMailService::default()))
+                .insert(0, Box::new(DebugMailService::default()))
         }
     }
 

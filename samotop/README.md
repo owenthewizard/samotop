@@ -93,16 +93,17 @@ You can also implement your own `TlsProvider` and plug it in.
 ### SMTP Server (plaintext)
 
 You can easily run a plaintext SMTP service without support for STARTTLS.
-Replace `DefaultMailService` with your own implementation or compose
-a mail service with `CompositeMailService` and provided features.
+Replace `Builder` with your own implementation or compose
+a mail service with `Builder::using()` and provided features.
 
 ```rust
 extern crate async_std;
 extern crate env_logger;
 extern crate samotop;
+use std::sync::Arc;
 fn main() {
     env_logger::init();
-    let mail = samotop::mail::DefaultMailService::default();
+    let mail = Arc::new(samotop::mail::Builder::default());
     let parser = samotop::parser::SmtpParser;
     let svc = samotop::io::smtp::SmtpService::new(mail, parser);
     let svc = samotop::io::tls::TlsEnabled::disabled(svc);

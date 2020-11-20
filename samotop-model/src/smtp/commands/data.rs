@@ -29,6 +29,13 @@ impl SmtpSessionCommand for SmtpData {
                 .send_mail(state.session(), transaction)
                 .await
             {
+                Ok(transaction) if transaction.sink.is_none() => {
+                    warn!(
+                        "Send_mail returned OK message without sink for transaction {}",
+                        transaction.id
+                    );
+                    state.say_mail_queue_failed_temporarily();
+                }
                 Ok(transaction) => {
                     state.say_start_data_challenge();
                     *state.transaction_mut() = transaction;

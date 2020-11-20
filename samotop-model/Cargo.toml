@@ -19,7 +19,6 @@ maintenance = { status = "actively-developed" }
 
 [dependencies]
 futures-io = "0.3"
-md5 = "0.7"
 log = "0.4"
 
 [dev-dependencies]

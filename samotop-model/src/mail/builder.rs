@@ -1,9 +1,8 @@
 use crate::{
     common::S2Fut,
     mail::{
-        AddRecipientRequest, AddRecipientResult, DispatchError, DispatchResult, EsmtpService,
-        MailDispatch, MailGuard, MailSetup, SessionInfo, StartMailRequest, StartMailResult,
-        Transaction,
+        AddRecipientRequest, AddRecipientResult, DispatchResult, EsmtpService, MailDispatch,
+        MailGuard, MailSetup, SessionInfo, StartMailRequest, StartMailResult, Transaction,
     },
 };
 
@@ -44,19 +43,8 @@ impl MailDispatch for Builder {
             for disp in self.dispatch.iter() {
                 trace!("Dispatch {} send_mail calling {:?}", self.id, disp);
                 transaction = disp.send_mail(session, transaction).await?;
-                if transaction.sink.is_some() {
-                    return Ok(transaction);
-                }
             }
-            if transaction.sink.is_some() {
-                Ok(transaction)
-            } else {
-                info!(
-                    "Dispatch {} send_mail refused message {}",
-                    self.id, transaction.id
-                );
-                Err(DispatchError::Refused)
-            }
+            Ok(transaction)
         };
         Box::pin(fut)
     }
@@ -111,19 +99,6 @@ impl MailGuard for Builder {
                     StartMailResult::Accepted(r) => request = r,
                     otherwise => return otherwise,
                 }
-            }
-            if request.id.is_empty() {
-                fn nunnumber(input: char) -> bool {
-                    !input.is_ascii_digit()
-                }
-                let id = format!("{:?}", std::time::Instant::now()).replace(nunnumber, "");
-                warn!(
-                    "Guard {} mail transaction ID is empty. Will use time based ID {}",
-                    self.id, id
-                );
-                request.id = id;
-            } else {
-                trace!("Guard {} mail transaction started: {}", self.id, request.id);
             }
             StartMailResult::Accepted(request)
         };

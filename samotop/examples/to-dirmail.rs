@@ -23,7 +23,7 @@ find /tmp/samotop/spool/
 use async_std::task;
 use samotop::{
     io::{smtp::SmtpService, tls::TlsEnabled},
-    mail::{Builder, DefaultMailService, Dir},
+    mail::{Builder, Dir},
     parser::SmtpParser,
     server::Server,
 };
@@ -37,10 +37,9 @@ fn main() -> Result<()> {
 }
 
 async fn main_fut() -> Result<()> {
-    let mail_service = Builder::default()
-        .using(DefaultMailService::new("test-samotop".to_owned()))
-        .using(Dir::new("/tmp/samotop/spool/".into())?);
-    let smtp_service = SmtpService::new(Arc::new(mail_service), SmtpParser);
+    let dir_service = Dir::new("/tmp/samotop/spool/".into())?;
+    let mail_service = Arc::new(Builder::default().using(dir_service));
+    let smtp_service = SmtpService::new(mail_service, SmtpParser);
     let tls_smtp_service = TlsEnabled::disabled(smtp_service);
 
     Server::on("localhost:2525").serve(tls_smtp_service).await

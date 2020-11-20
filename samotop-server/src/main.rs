@@ -95,9 +95,7 @@ use async_tls::TlsAcceptor;
 use rustls::ServerConfig;
 use samotop::io::tls::provide_rustls;
 use samotop::io::{smtp::SmtpService, tls::TlsEnabled};
-use samotop::mail::Builder;
-use samotop::mail::DefaultMailService;
-use samotop::mail::Dir;
+use samotop::mail::{Builder, Dir, Name};
 use samotop::parser::SmtpParser;
 use samotop::server::Server;
 use std::path::{Path, PathBuf};
@@ -119,7 +117,7 @@ async fn main_fut() -> Result<()> {
     let tls_acceptor =
         tls_config.map(|cfg| provide_rustls(TlsAcceptor::from(std::sync::Arc::new(cfg))));
     let mail_service = Builder::default()
-        .using(DefaultMailService::new(setup.get_my_name()))
+        .using(Name::new(setup.get_my_name()))
         .using(Dir::new(setup.get_mail_dir())?)
         //.using(samotop::mail::spf::provide_viaspf())
         ;
