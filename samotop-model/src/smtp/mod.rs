@@ -48,46 +48,27 @@ pub enum ReadControl {
 
 impl fmt::Debug for ReadControl {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fn write_text_or_bytes(f: &mut fmt::Formatter<'_>, inp: &[u8]) -> fmt::Result {
+        #[derive(Debug)]
+        enum TB<'a> {
+            T(&'a str),
+            B(&'a [u8]),
+        }
+        fn tb(inp: &[u8]) -> TB {
             if let Ok(text) = std::str::from_utf8(inp) {
-                write!(f, "{:?}", text)
+                TB::T(text)
             } else {
-                write!(f, "{:?}", inp)
+                TB::B(inp)
             }
         }
         match self {
             ReadControl::PeerConnected(sess) => write!(f, "PeerConnected({:?})", sess),
             ReadControl::PeerShutdown => write!(f, "PeerShutdown"),
-            ReadControl::Command(c, b) => {
-                write!(f, "Command({:?}, ", c)?;
-                write_text_or_bytes(f, b)?;
-                write!(f, ")")
-            }
-            ReadControl::Raw(b) => {
-                write!(f, "Raw(")?;
-                write_text_or_bytes(f, b)?;
-                write!(f, ")")
-            }
-            ReadControl::MailDataChunk(b) => {
-                write!(f, "MailDataChunk(")?;
-                write_text_or_bytes(f, b)?;
-                write!(f, ")")
-            }
-            ReadControl::EndOfMailData(b) => {
-                write!(f, "EndOfMailData(")?;
-                write_text_or_bytes(f, b)?;
-                write!(f, ")")
-            }
-            ReadControl::EscapeDot(b) => {
-                write!(f, "EscapeDot(")?;
-                write_text_or_bytes(f, b)?;
-                write!(f, ")")
-            }
-            ReadControl::Empty(b) => {
-                write!(f, "Empty(")?;
-                write_text_or_bytes(f, b)?;
-                write!(f, ")")
-            }
+            ReadControl::Command(c, b) => f.debug_tuple("Command").field(&c).field(&tb(b)).finish(),
+            ReadControl::Raw(b) => f.debug_tuple("Raw").field(&tb(b)).finish(),
+            ReadControl::MailDataChunk(b) => f.debug_tuple("MailDataChunk").field(&tb(b)).finish(),
+            ReadControl::EndOfMailData(b) => f.debug_tuple("EndOfMailData").field(&tb(b)).finish(),
+            ReadControl::EscapeDot(b) => f.debug_tuple("EscapeDot").field(&tb(b)).finish(),
+            ReadControl::Empty(b) => f.debug_tuple("Empty").field(&tb(b)).finish(),
         }
     }
 }

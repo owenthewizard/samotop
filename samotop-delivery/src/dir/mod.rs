@@ -7,16 +7,10 @@ pub use self::{error::*, stream::*};
 use crate::{Envelope, SyncFuture, Transport};
 use async_std::{
     fs::{create_dir_all, rename, File},
+    io::prelude::WriteExt,
     path::Path,
 };
-use bytes::BytesMut;
-use futures::{future::TryFutureExt, ready, Future};
-use pin_project::pin_project;
-use std::{
-    path::PathBuf,
-    pin::Pin,
-    task::{Context, Poll},
-};
+use std::path::PathBuf;
 
 /// Writes the content and the envelope information to a file.
 #[derive(Debug)]
@@ -43,52 +37,25 @@ impl Transport for FileTransport {
     where
         's: 'a,
     {
-        let mut file = self.path.clone();
-        file.push(format!("{}.json", envelope.message_id()));
+        let id = envelope.message_id().to_owned();
+        let dir = self.path.clone();
 
-        Box::pin(CreateMailFile::new(&self.path, envelope))
-    }
-}
+        let mut headers = String::new();
+        headers += format!("X-Samotop-From: {:?}\r\n", envelope.from()).as_str();
+        headers += format!("X-Samotop-To: {:?}\r\n", envelope.to()).as_str();
 
-#[pin_project]
-pub struct CreateMailFile {
-    // TODO: Refactor complex type
-    #[allow(clippy::type_complexity)]
-    stage2: Option<(
-        BytesMut,
-        String,
-        Pin<Box<dyn Future<Output = std::io::Result<()>> + Send + Sync + 'static>>,
-    )>,
-    file: Pin<Box<dyn Future<Output = std::io::Result<File>> + Send + Sync + 'static>>,
-}
-
-impl std::fmt::Debug for CreateMailFile {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("CreateMailFile").finish()
-    }
-}
-
-impl CreateMailFile {
-    pub fn new<D: AsRef<Path>>(dir: D, envelope: Envelope) -> Self {
-        let mut headers = BytesMut::new();
-        headers.extend(format!("X-Samotop-From: {:?}\r\n", envelope.from()).bytes());
-        headers.extend(format!("X-Samotop-To: {:?}\r\n", envelope.to()).bytes());
-
-        let target_dir = dir.as_ref().join("new");
-        let tmp_dir = dir.as_ref().join("tmp");
-        let target_file = target_dir.join(envelope.message_id());
-        let tmp_file = tmp_dir.join(envelope.message_id());
+        let target_dir = dir.join("new");
+        let tmp_dir = dir.join("tmp");
+        let target_file = target_dir.join(id.as_str());
+        let tmp_file = tmp_dir.join(id.as_str());
         let target = Box::pin(rename(tmp_file.clone(), target_file));
-        let file = Box::pin(
-            ensure_dir(tmp_dir)
-                .and_then(move |_| ensure_dir(target_dir))
-                .and_then(move |_| File::create(tmp_file)),
-        );
-
-        Self {
-            stage2: Some((headers, envelope.message_id().to_owned(), target)),
-            file,
-        }
+        Box::pin(async move {
+            ensure_dir(tmp_dir).await?;
+            ensure_dir(target_dir).await?;
+            let mut file = File::create(tmp_file).await?;
+            file.write_all(headers.as_bytes()).await?;
+            Ok(MailFile::new(id, file, target))
+        })
     }
 }
 
@@ -97,26 +64,5 @@ async fn ensure_dir<P: AsRef<Path>>(dir: P) -> std::io::Result<()> {
         create_dir_all(dir).await
     } else {
         Ok(())
-    }
-}
-
-impl Future for CreateMailFile {
-    type Output = Result<MailFile, Error>;
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        match ready!(Pin::new(&mut self.file).poll(cx)) {
-            Ok(file) => {
-                if let Some((buffer, id, target)) = self.stage2.take() {
-                    let mailfile = MailFile::new(id, file, buffer, target);
-                    Poll::Ready(Ok(mailfile))
-                } else {
-                    error!("No buffer/id. Perhaps the future has been polled after Poll::Ready");
-                    Poll::Ready(Err(Error::Client("future is empty")))
-                }
-            }
-            Err(e) => {
-                error!("Could not create mail file: {:?}", e);
-                Poll::Ready(Err(Error::Io(e)))
-            }
-        }
     }
 }

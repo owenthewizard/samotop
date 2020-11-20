@@ -1,6 +1,6 @@
 /*!
 Example of accepting an SMTP session on command IO
-It stores the mail in a dir /tmp/samotop/spool/
+It stores the mail in a dir tmp/samotop/spool/
 
 ## Testing
 
@@ -18,7 +18,7 @@ xoxo
 .
 quit
 EOF
-find /tmp/samotop/spool/new/ -print -exec cat {} \;
+find tmp/samotop/spool/new/ -print -exec cat {} \;
 ```
  */
 
@@ -41,7 +41,7 @@ fn main() -> Result<()> {
 }
 
 async fn main_fut() -> Result<()> {
-    let dir_service = Dir::new("/tmp/samotop/spool/".into())?;
+    let dir_service = Dir::new("tmp/samotop/spool/".into())?;
     let mail_service = Arc::new(Builder::default().using(dir_service));
     let smtp_service = SmtpService::new(Arc::new(mail_service), SmtpParser);
     let tls_smtp_service = TlsEnabled::disabled(smtp_service);
