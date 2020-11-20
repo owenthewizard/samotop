@@ -47,7 +47,7 @@ impl Write for MailFile {
         cx: &mut Context<'_>,
         buf: &[u8],
     ) -> Poll<std::io::Result<usize>> {
-        debug!("Mail data for {}: {} bytes", self.id, buf.len());
+        debug!("Writing data for {}: {} bytes", self.id, buf.len());
         if self.as_mut().buffer.len() > 10 * 1024 {
             ready!(self.as_mut().poll_flush(cx)?);
         }
@@ -56,30 +56,43 @@ impl Write for MailFile {
     }
     fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
         let MailFileProj { file, buffer, .. } = self.project();
-        let mut pending = &buffer[..];
         let mut file = Pin::new(file);
-        trace!("Writing mail data: {} bytes", pending.len());
-        while let Poll::Ready(len) = file.as_mut().poll_write(cx, pending)? {
-            trace!("Wrote mail data: {} bytes", len);
-            if len == 0 {
-                break;
+        trace!("Flushing mail data: {} bytes", buffer.len());
+        loop {
+            if buffer.is_empty() {
+                trace!("FLUSHED!");
+                break Poll::Ready(Ok(()));
             }
-            pending = &pending[len..];
-        }
-        // remove written bytes from the buffer
-        let written = buffer.len() - pending.len();
-        drop(buffer.split_to(written));
-        trace!("Remaining {} bytes", buffer.len());
-        if buffer.is_empty() {
-            Poll::Ready(Ok(()))
-        } else {
-            Poll::Pending
+            break match file.as_mut().poll_write(cx, buffer)? {
+                Poll::Ready(0) => {
+                    trace!(
+                        "Wrote mail data: 0 bytes, will try later again. {} remaining",
+                        buffer.len()
+                    );
+                    Poll::Pending
+                }
+                Poll::Ready(len) => {
+                    trace!("Wrote mail data: {} bytes", len);
+                    // remove written bytes from the buffer
+                    drop(buffer.split_to(len));
+                    continue;
+                }
+                Poll::Pending => {
+                    trace!("downstream IO is pending");
+                    Poll::Pending
+                }
+            };
         }
     }
     fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+        trace!("poll_close");
         ready!(self.as_mut().poll_flush(cx))?;
-        let MailFileProj { target, .. } = self.project();
+        let MailFileProj { target, file, .. } = self.project();
+        trace!("closing file");
+        ready!(Pin::new(file).poll_close(cx))?;
+        trace!("moving file");
         ready!(target.as_mut().poll(cx))?;
+        trace!("DONE!");
         Poll::Ready(Ok(()))
     }
 }
