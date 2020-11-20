@@ -28,7 +28,7 @@ where
     S: MailService + Clone + Send + Sync + 'static,
 {
     fn start(&self, input: InputStream) -> OutputStream {
-        let state = SmtpStateBase::new(self.clone());
+        let state = SmtpState::new(self.clone());
         let handler: OutputStream = Box::new(SessionStream::new(input, state));
         handler
     }

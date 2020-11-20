@@ -1,11 +1,12 @@
+use super::InputStream;
 use crate::common::*;
-use crate::smtp::{ReadControl, SmtpSessionCommand, SmtpState, WriteControl};
+use crate::smtp::{SmtpSessionCommand, SmtpState, WriteControl};
 
 #[pin_project(project=SessionProj)]
-pub struct SessionStream<I, S> {
+pub struct SessionStream {
     #[pin]
-    input: I,
-    state: State<S>,
+    input: InputStream,
+    state: State<SmtpState>,
 }
 
 enum State<T> {
@@ -20,11 +21,7 @@ impl<T> Default for State<T> {
     }
 }
 
-impl<I, S> Stream for SessionStream<I, S>
-where
-    I: Stream<Item = Result<ReadControl>>,
-    S: SmtpState + 'static,
-{
+impl Stream for SessionStream {
     type Item = Result<WriteControl>;
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         trace!("poll_next");
@@ -64,11 +61,8 @@ where
     }
 }
 
-impl<I, S> SessionStream<I, S>
-where
-    S: SmtpState + 'static,
-{
-    pub fn new(input: I, state: S) -> Self {
+impl SessionStream {
+    pub fn new(input: InputStream, state: SmtpState) -> Self {
         Self {
             state: State::Ready(state),
             input,
@@ -79,10 +73,10 @@ where
         let proj = self.project();
         let res = match proj.state {
             State::Taken => Poll::Ready(None),
-            State::Ready(ref mut data) => Poll::Ready(data.pop()),
+            State::Ready(ref mut data) => Poll::Ready(data.writes.pop_front()),
             State::Pending(ref mut fut) => {
                 let mut data = ready!(fut.as_mut().poll(cx));
-                let pop = Poll::Ready(data.pop());
+                let pop = Poll::Ready(data.writes.pop_front());
                 *proj.state = State::Ready(data);
                 pop
             }

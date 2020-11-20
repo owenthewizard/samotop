@@ -22,12 +22,9 @@ impl SmtpSessionCommand for SmtpMail {
             SmtpMail::Soml(_, _) => "SOML",
         }
     }
-    fn apply<'s, 'f, S>(self, mut state: S) -> S2Fut<'f, S>
-    where
-        S: SmtpState + 's,
-        's: 'f,
-    {
-        if state.session().smtp_helo.is_none() {
+
+    fn apply(self, mut state: SmtpState) -> S3Fut<SmtpState> {
+        if state.session.smtp_helo.is_none() {
             state.say_command_sequence_fail();
             return Box::pin(ready(state));
         }
@@ -40,11 +37,7 @@ impl SmtpSessionCommand for SmtpMail {
 
         let fut = async move {
             use StartMailResult as R;
-            match state
-                .service()
-                .start_mail(state.session(), transaction)
-                .await
-            {
+            match state.service.start_mail(&state.session, transaction).await {
                 R::Failed(StartMailFailure::TerminateSession, description) => {
                     state.say_shutdown_err(description);
                 }
@@ -65,7 +58,7 @@ impl SmtpSessionCommand for SmtpMail {
                         transaction.id = id;
                     }
                     state.say_ok_info(format!("Ok! Transaction {} started.", transaction.id));
-                    *state.transaction_mut() = transaction;
+                    state.transaction = transaction;
                 }
             };
             state
@@ -91,41 +84,41 @@ mod tests {
     use super::*;
     use crate::{
         mail::Builder,
-        smtp::{SmtpHelo, SmtpHost, SmtpMail, SmtpPath, SmtpReply, SmtpStateBase, WriteControl},
+        smtp::{SmtpHelo, SmtpHost, SmtpMail, SmtpPath, SmtpReply, WriteControl},
     };
     use futures_await_test::async_test;
 
     #[async_test]
     async fn transaction_gets_reset() {
-        let mut set = SmtpStateBase::new(Builder::default());
-        set.session_mut().smtp_helo = Some(SmtpHelo::Helo(SmtpHost::Domain("xx.io".to_owned())));
-        set.transaction_mut().id = "someid".to_owned();
-        set.transaction_mut().mail = Some(SmtpMail::Mail(SmtpPath::Null, vec![]));
-        set.transaction_mut().rcpts.push(SmtpPath::Null);
-        set.transaction_mut().extra_headers.insert_str(0, "feeeha");
+        let mut set = SmtpState::new(Builder::default());
+        set.session.smtp_helo = Some(SmtpHelo::Helo(SmtpHost::Domain("xx.io".to_owned())));
+        set.transaction.id = "someid".to_owned();
+        set.transaction.mail = Some(SmtpMail::Mail(SmtpPath::Null, vec![]));
+        set.transaction.rcpts.push(SmtpPath::Null);
+        set.transaction.extra_headers.insert_str(0, "feeeha");
         let sut = SmtpMail::Mail(SmtpPath::Postmaster, vec![]);
         let mut res = sut.apply(set).await;
-        match res.pop() {
+        match res.writes.pop_front() {
             Some(WriteControl::Reply(SmtpReply::OkMessageInfo(_))) => {}
             otherwise => panic!("Expected OK message, got {:?}", otherwise),
         }
-        assert_ne!(res.transaction().id, "someid");
-        assert!(res.transaction().rcpts.is_empty());
-        assert!(res.transaction().extra_headers.is_empty());
+        assert_ne!(res.transaction.id, "someid");
+        assert!(res.transaction.rcpts.is_empty());
+        assert!(res.transaction.extra_headers.is_empty());
     }
 
     #[async_test]
     async fn mail_is_set() {
-        let mut set = SmtpStateBase::new(Builder::default());
-        set.session_mut().smtp_helo = Some(SmtpHelo::Helo(SmtpHost::Domain("xx.io".to_owned())));
+        let mut set = SmtpState::new(Builder::default());
+        set.session.smtp_helo = Some(SmtpHelo::Helo(SmtpHost::Domain("xx.io".to_owned())));
         let sut = SmtpMail::Mail(SmtpPath::Postmaster, vec![]);
         let mut res = sut.apply(set).await;
-        match res.pop() {
+        match res.writes.pop_front() {
             Some(WriteControl::Reply(SmtpReply::OkMessageInfo(_))) => {}
             otherwise => panic!("Expected OK message, got {:?}", otherwise),
         }
         assert_eq!(
-            res.transaction().mail,
+            res.transaction.mail,
             Some(SmtpMail::Mail(SmtpPath::Postmaster, vec![]))
         );
     }
@@ -133,13 +126,13 @@ mod tests {
     #[async_test]
     async fn command_sequence_is_enforced() {
         // MAIL command requires HELO/EHLO
-        let set = SmtpStateBase::new(Builder::default());
+        let set = SmtpState::new(Builder::default());
         let sut = SmtpMail::Mail(SmtpPath::Postmaster, vec![]);
         let mut res = sut.apply(set).await;
         assert_eq!(
-            res.pop(),
+            res.writes.pop_front(),
             Some(WriteControl::Reply(SmtpReply::CommandSequenceFailure))
         );
-        assert_eq!(res.transaction().mail, None);
+        assert_eq!(res.transaction.mail, None);
     }
 }

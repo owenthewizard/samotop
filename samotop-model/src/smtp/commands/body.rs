@@ -1,4 +1,7 @@
-use crate::{common::*, smtp::SmtpSessionCommand};
+use crate::{
+    common::*,
+    smtp::{SmtpSessionCommand, SmtpState},
+};
 
 /// A chunk of the mail body
 #[derive(Default, Eq, PartialEq, Debug, Clone)]
@@ -13,21 +16,17 @@ impl SmtpSessionCommand for MailBodyChunk {
         ""
     }
 
-    fn apply<'s, 'f, S>(self, mut state: S) -> crate::common::S2Fut<'f, S>
-    where
-        S: crate::smtp::SmtpState + 's,
-        's: 'f,
-    {
-        if state.transaction().sink.is_none() {
+    fn apply(self, mut state: SmtpState) -> S3Fut<SmtpState> {
+        if state.transaction.sink.is_none() {
             // CheckMe: silence. handle_data_end should respond with error.
             return Box::pin(ready(state));
         }
         let mut sink = state
-            .transaction_mut()
+            .transaction
             .sink
             .take()
             .expect("Checked presence above");
-        let mailid = state.transaction().id.clone();
+        let mailid = state.transaction.id.clone();
         let fut = async move {
             let write_all = WriteAll {
                 from: &self.0[..],
@@ -35,7 +34,7 @@ impl SmtpSessionCommand for MailBodyChunk {
             };
             match write_all.await {
                 Ok(()) => {
-                    state.transaction_mut().sink = Some(sink);
+                    state.transaction.sink = Some(sink);
                     state
                 }
                 Err(e) => {
@@ -54,21 +53,17 @@ impl SmtpSessionCommand for MailBodyEnd {
         ""
     }
 
-    fn apply<'s, 'f, S>(self, mut state: S) -> crate::common::S2Fut<'f, S>
-    where
-        S: crate::smtp::SmtpState + 's,
-        's: 'f,
-    {
-        if state.transaction().sink.is_none() {
+    fn apply(self, mut state: SmtpState) -> S3Fut<SmtpState> {
+        if state.transaction.sink.is_none() {
             // CheckMe: silence. handle_data_end should respond with error.
             return Box::pin(ready(state));
         }
         let mut sink = state
-            .transaction_mut()
+            .transaction
             .sink
             .take()
             .expect("Checked presence above");
-        let mailid = state.transaction().id.clone();
+        let mailid = state.transaction.id.clone();
         let fut = async move {
             if match poll_fn(move |cx| sink.as_mut().poll_close(cx)).await {
                 Ok(()) => true,

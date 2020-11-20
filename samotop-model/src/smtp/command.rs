@@ -1,16 +1,13 @@
 pub use super::commands::*;
 use super::ReadControl;
-use crate::{common::*, smtp::session::SmtpState};
+use crate::{common::*, smtp::state::SmtpState};
 use std::fmt;
 use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
 
 pub trait SmtpSessionCommand {
     fn verb(&self) -> &str;
     #[must_use = "apply must be awaited"]
-    fn apply<'s, 'f, S>(self, state: S) -> S2Fut<'f, S>
-    where
-        S: SmtpState + 's,
-        's: 'f;
+    fn apply(self, state: SmtpState) -> S3Fut<SmtpState>;
 }
 
 #[derive(Eq, PartialEq, Debug, Clone)]
@@ -52,23 +49,19 @@ impl SmtpSessionCommand for SmtpCommand {
         }
     }
 
-    fn apply<'s, 'f, S>(self, data: S) -> S2Fut<'f, S>
-    where
-        S: SmtpState + 's,
-        's: 'f,
-    {
+    fn apply(self, state: SmtpState) -> S3Fut<SmtpState> {
         use SmtpCommand as C;
         match self {
-            C::Helo(helo) => helo.apply(data),
-            C::Mail(mail) => mail.apply(data),
-            C::Rcpt(path) => SmtpRcpt::from(path).apply(data),
-            C::Data => SmtpData.apply(data),
-            C::Quit => SmtpQuit.apply(data),
-            C::Rset => SmtpRset.apply(data),
-            C::Noop(_) => SmtpNoop.apply(data),
-            C::StartTls => StartTls.apply(data),
+            C::Helo(helo) => helo.apply(state),
+            C::Mail(mail) => mail.apply(state),
+            C::Rcpt(path) => SmtpRcpt::from(path).apply(state),
+            C::Data => SmtpData.apply(state),
+            C::Quit => SmtpQuit.apply(state),
+            C::Rset => SmtpRset.apply(state),
+            C::Noop(_) => SmtpNoop.apply(state),
+            C::StartTls => StartTls.apply(state),
             C::Expn(_) | C::Vrfy(_) | C::Help(_) | C::Turn | C::Other(_, _) => {
-                SmtpUnknownCommand::default().apply(data)
+                SmtpUnknownCommand::default().apply(state)
             }
         }
     }
@@ -88,11 +81,7 @@ impl SmtpSessionCommand for ReadControl {
         }
     }
 
-    fn apply<'s, 'f, S>(self, state: S) -> S2Fut<'f, S>
-    where
-        S: SmtpState + 's,
-        's: 'f,
-    {
+    fn apply(self, state: SmtpState) -> S3Fut<SmtpState> {
         match self {
             ReadControl::PeerConnected(sess) => sess.apply(state),
             ReadControl::PeerShutdown => SessionShutdown.apply(state),
