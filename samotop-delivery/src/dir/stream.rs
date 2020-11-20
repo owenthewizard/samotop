@@ -1,6 +1,5 @@
 use crate::MailDataStream;
 use async_std::fs::File;
-use bytes::BytesMut;
 use futures::{ready, AsyncWrite as Write, Future};
 use pin_project::pin_project;
 use std::{
@@ -14,7 +13,6 @@ use super::Error;
 pub struct MailFile {
     id: String,
     file: File,
-    buffer: BytesMut,
     target: Pin<Box<dyn Future<Output = std::io::Result<()>> + Send + Sync + 'static>>,
 }
 
@@ -22,15 +20,9 @@ impl MailFile {
     pub fn new(
         id: String,
         file: File,
-        buffer: BytesMut,
         target: Pin<Box<dyn Future<Output = std::io::Result<()>> + Send + Sync + 'static>>,
     ) -> Self {
-        Self {
-            id,
-            file,
-            buffer,
-            target,
-        }
+        Self { id, file, target }
     }
 }
 impl std::fmt::Debug for MailFile {
@@ -43,53 +35,40 @@ impl std::fmt::Debug for MailFile {
 }
 impl Write for MailFile {
     fn poll_write(
-        mut self: Pin<&mut Self>,
+        self: Pin<&mut Self>,
         cx: &mut Context<'_>,
         buf: &[u8],
     ) -> Poll<std::io::Result<usize>> {
-        debug!("Mail data for {}: {} bytes", self.id, buf.len());
-        if self.as_mut().buffer.len() > 10 * 1024 {
-            ready!(self.as_mut().poll_flush(cx)?);
-        }
-        self.buffer.extend_from_slice(buf);
-        Poll::Ready(Ok(buf.len()))
+        debug!(
+            "poll_write: Writing data for {}: {} bytes.",
+            self.id,
+            buf.len()
+        );
+        Pin::new(self.project().file).poll_write(cx, buf)
     }
     fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
-        let MailFileProj { file, buffer, .. } = self.project();
-        let mut pending = &buffer[..];
-        let mut file = Pin::new(file);
-        trace!("Writing mail data: {} bytes", pending.len());
-        while let Poll::Ready(len) = file.as_mut().poll_write(cx, pending)? {
-            trace!("Wrote mail data: {} bytes", len);
-            if len == 0 {
-                break;
-            }
-            pending = &pending[len..];
-        }
-        // remove written bytes from the buffer
-        let written = buffer.len() - pending.len();
-        drop(buffer.split_to(written));
-        trace!("Remaining {} bytes", buffer.len());
-        if buffer.is_empty() {
-            Poll::Ready(Ok(()))
-        } else {
-            Poll::Pending
-        }
+        trace!("poll_flush: Flushing data for {}.", self.id);
+        Pin::new(self.project().file).poll_flush(cx)
     }
     fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+        trace!("poll_close");
         ready!(self.as_mut().poll_flush(cx))?;
-        let MailFileProj { target, .. } = self.project();
+        let MailFileProj { target, file, .. } = self.project();
+        trace!("closing file");
+        ready!(Pin::new(file).poll_close(cx))?;
+        trace!("moving file");
         ready!(target.as_mut().poll(cx))?;
+        trace!("DONE!");
         Poll::Ready(Ok(()))
     }
 }
 
 impl MailDataStream for MailFile {
-    type Output = ();
+    type Output = String;
 
     type Error = Error;
 
     fn result(&self) -> Result<Self::Output, Self::Error> {
-        todo!()
+        Ok(self.id.to_owned())
     }
 }

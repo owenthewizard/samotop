@@ -5,18 +5,20 @@ Maps recipients to local users per domain.
 ## Testing
 
 ```
-curl -v --url 'smtp://localhost:2525' \
+sed -e 's/$/\r/' <<EOF | curl -v --url 'smtp://localhost:2525' \
 --mail-from from@spf.org \
 --mail-rcpt to@mikesh.info \
---upload-file - <<EOF
+--upload-file -
 From: Moohoo <moo@hoo.com>
 To: Yeeehaw <ye@haw.com>
 Subject: Try me
 
+.
+..
 xoxo
 EOF
 
-find /tmp/samotop/spool/
+find tmp/samotop/spool/
 ```
  */
 
@@ -37,7 +39,7 @@ fn main() -> Result<()> {
 }
 
 async fn main_fut() -> Result<()> {
-    let dir_service = Dir::new("/tmp/samotop/spool/".into())?;
+    let dir_service = Dir::new("tmp/samotop/spool/".into())?;
     let mail_service = Arc::new(Builder::default().using(dir_service));
     let smtp_service = SmtpService::new(mail_service, SmtpParser);
     let tls_smtp_service = TlsEnabled::disabled(smtp_service);
