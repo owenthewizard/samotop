@@ -1,7 +1,7 @@
 use crate::common::*;
 use crate::{
     io::{ConnectionInfo, IoService, MayBeTls},
-    mail::SessionInfo,
+    mail::{MailService, SessionInfo},
     parser::Parser,
     protocol::{parse::*, smtp::SmtpCodec},
     smtp::*,
@@ -22,20 +22,20 @@ use std::sync::Arc;
 ///
 #[derive(Clone)]
 pub struct SmtpService<S, P, IO> {
-    session_service: Arc<S>,
+    mail_service: Arc<S>,
     parser: Arc<P>,
     phantom: PhantomData<IO>,
 }
 
 impl<S, P, IO> SmtpService<S, P, IO>
 where
-    S: SessionService + Send + Sync + 'static,
+    S: MailService + Send + Sync + 'static,
     P: Parser + Sync + Send + 'static,
     IO: MayBeTls + Read + Write + Unpin + Sync + Send + 'static,
 {
-    pub fn new(session_service: S, parser: P) -> Self {
+    pub fn new(mail_service: S, parser: P) -> Self {
         Self {
-            session_service: Arc::new(session_service),
+            mail_service: Arc::new(mail_service),
             parser: Arc::new(parser),
             phantom: PhantomData,
         }
@@ -44,12 +44,12 @@ where
 
 impl<S, P, IO> IoService<IO> for SmtpService<S, P, IO>
 where
-    S: SessionService + Send + Sync + 'static,
+    S: MailService + Send + Sync + 'static,
     IO: MayBeTls + Read + Write + Unpin + Sync + Send + 'static,
     P: Parser + Sync + Send + 'static,
 {
     fn handle(&self, io: Result<IO>, connection: ConnectionInfo) -> S3Fut<Result<()>> {
-        let session_service = self.session_service.clone();
+        let mail_service = self.mail_service.clone();
         let parser = self.parser.clone();
 
         Box::pin(async move {
@@ -59,10 +59,12 @@ where
             if io.can_encrypt() && !io.is_encrypted() {
                 sess.extensions.enable(&extension::STARTTLS);
             }
+            let state = SmtpState::new(mail_service);
             let codec = SmtpCodec::new(io, sess);
             let sink = codec.get_sender();
-            let source = session_service.start(Box::new(codec.parse(parser)));
-            source.forward(sink.sink_err_into()).await
+            let stream = codec.parse(parser);
+            let stream = SessionStream::new(stream, state);
+            stream.forward(sink.sink_err_into()).await
         })
     }
 }

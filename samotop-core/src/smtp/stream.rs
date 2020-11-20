@@ -1,11 +1,10 @@
-use super::InputStream;
 use crate::common::*;
-use crate::smtp::{SmtpSessionCommand, SmtpState, WriteControl};
+use crate::smtp::{ReadControl, SmtpSessionCommand, SmtpState, WriteControl};
 
 #[pin_project(project=SessionProj)]
-pub struct SessionStream {
+pub struct SessionStream<S> {
     #[pin]
-    input: InputStream,
+    input: S,
     state: State<SmtpState>,
 }
 
@@ -21,7 +20,10 @@ impl<T> Default for State<T> {
     }
 }
 
-impl Stream for SessionStream {
+impl<S> Stream for SessionStream<S>
+where
+    S: Stream<Item = Result<ReadControl>> + Unpin + Sync + Send,
+{
     type Item = Result<WriteControl>;
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         trace!("poll_next");
@@ -61,8 +63,8 @@ impl Stream for SessionStream {
     }
 }
 
-impl SessionStream {
-    pub fn new(input: InputStream, state: SmtpState) -> Self {
+impl<S> SessionStream<S> {
+    pub fn new(input: S, state: SmtpState) -> Self {
         Self {
             state: State::Ready(state),
             input,

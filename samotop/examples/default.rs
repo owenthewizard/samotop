@@ -19,7 +19,7 @@ EOF
  */
 
 use async_std::task;
-use samotop::io::{smtp::SmtpService, tls::TlsEnabled};
+use samotop::{mail::NullDispatch, io::{smtp::SmtpService, tls::TlsEnabled}};
 use samotop::mail::Builder;
 use samotop::parser::SmtpParser;
 use samotop::server::Server;
@@ -33,7 +33,7 @@ fn main() -> Result<()> {
 }
 
 async fn main_fut() -> Result<()> {
-    let mail_service = Builder::default();
+    let mail_service = Builder::default().using(NullDispatch);
     let smtp_service = SmtpService::new(Arc::new(mail_service), SmtpParser);
     let tls_smtp_service = TlsEnabled::disabled(smtp_service);
     Server::on("localhost:2525").serve(tls_smtp_service).await
