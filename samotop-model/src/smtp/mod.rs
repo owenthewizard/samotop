@@ -10,6 +10,7 @@ pub use self::extensions::*;
 pub use self::reply::*;
 pub use self::state::*;
 use crate::mail::SessionInfo;
+use std::fmt;
 
 /// Represents the instructions for the client side of the stream.
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -25,7 +26,7 @@ pub enum WriteControl {
 }
 
 /// Represents the instructions for the server side of the stream.
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(PartialEq, Eq, Clone)]
 pub enum ReadControl {
     /** Peer connected */
     PeerConnected(SessionInfo),
@@ -43,4 +44,50 @@ pub enum ReadControl {
     EscapeDot(Vec<u8>),
     /// Empty line or white space
     Empty(Vec<u8>),
+}
+
+impl fmt::Debug for ReadControl {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fn write_text_or_bytes(f: &mut fmt::Formatter<'_>, inp: &[u8]) -> fmt::Result {
+            if let Ok(text) = std::str::from_utf8(inp) {
+                write!(f, "{:?}", text)
+            } else {
+                write!(f, "{:?}", inp)
+            }
+        }
+        match self {
+            ReadControl::PeerConnected(sess) => write!(f, "PeerConnected({:?})", sess),
+            ReadControl::PeerShutdown => write!(f, "PeerShutdown"),
+            ReadControl::Command(c, b) => {
+                write!(f, "Command({:?}, ", c)?;
+                write_text_or_bytes(f, b)?;
+                write!(f, ")")
+            }
+            ReadControl::Raw(b) => {
+                write!(f, "Raw(")?;
+                write_text_or_bytes(f, b)?;
+                write!(f, ")")
+            }
+            ReadControl::MailDataChunk(b) => {
+                write!(f, "MailDataChunk(")?;
+                write_text_or_bytes(f, b)?;
+                write!(f, ")")
+            }
+            ReadControl::EndOfMailData(b) => {
+                write!(f, "EndOfMailData(")?;
+                write_text_or_bytes(f, b)?;
+                write!(f, ")")
+            }
+            ReadControl::EscapeDot(b) => {
+                write!(f, "EscapeDot(")?;
+                write_text_or_bytes(f, b)?;
+                write!(f, ")")
+            }
+            ReadControl::Empty(b) => {
+                write!(f, "Empty(")?;
+                write_text_or_bytes(f, b)?;
+                write!(f, ")")
+            }
+        }
+    }
 }
