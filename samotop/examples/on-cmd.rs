@@ -5,7 +5,7 @@ It stores the mail in a dir /tmp/samotop/spool/
 ## Testing
 
 ```
-sed -e 's/$/\r/' <<EOF | cargo run --example on-cmd
+sed -e 's/$/\r/' <<EOF | time cargo run --example on-cmd
 lhlo boogie
 mail from:<from@spf.org>
 rcpt to:<to@mikesh.info>
@@ -18,6 +18,7 @@ xoxo
 .
 quit
 EOF
+find /tmp/samotop/spool/new/ -print -exec cat {} \;
 ```
  */
 

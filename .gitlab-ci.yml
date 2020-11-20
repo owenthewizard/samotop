@@ -123,7 +123,7 @@ example-cmd:
   script:
     - cargo build --example ${EXAMPLE:?}
     - |
-      sed -e 's/$/\r/' <<EOF | cargo run --example ${EXAMPLE:?}
+      sed -e 's/$/\r/' <<EOF | time cargo run --example ${EXAMPLE:?}
       lhlo boogie
       mail from:<from@spf.org>
       rcpt to:<to@mikesh.info>
@@ -136,6 +136,7 @@ example-cmd:
       .
       quit
       EOF
+    - find /tmp/samotop/spool/new/ -print -exec cat {} \;
 
 publish-crate:
   variables:
