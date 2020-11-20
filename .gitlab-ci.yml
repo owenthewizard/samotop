@@ -13,7 +13,7 @@ build:
     - branches
   cache:
     paths: &cache-paths
-      #- target/
+      - target/
       - $CARGO_HOME
   artifacts:
     paths:
@@ -23,7 +23,8 @@ build:
   before_script:
     - rustc --version --verbose
     - cargo --version --verbose
-  script:
+    - cargo install cargo-sweep
+  script:    
     - mkdir -p target
     - du -shx target
     - cargo build --color always
@@ -31,8 +32,15 @@ build:
     - case "$CI_COMMIT_REF_NAME" in master|develop) echo will also build/test release ;; *) exit 0 ;; esac
     - cargo build --release --color always
     - cargo test --all --release --color always
+    # cleanup target folder
     - du -shx target
-
+    - find target -name 'samotop*' -exec rm -rf {} \; || true
+    - find target -name 'libsamotop*' -exec rm -rf {} \; || true
+    - rm -rf target/debug/examples || true
+    - rm -rf target/debug/incremental || true
+    - cargo sweep -t 3
+    - cargo sweep -i
+    - du -shx target
 test-stable:
   stage: build
   only:
@@ -65,12 +73,21 @@ test-nightly:
     - cargo --version --verbose
     - rustup component add clippy rustfmt
     - cargo install cargo-readme
+    - cargo install cargo-sweep
   script:
     - cargo test --workspace --all-features --color always
     - cargo clippy --workspace --all-features --color always -- -Dclippy::all
     - cargo check --workspace --benches --color always
     - ./fix.sh
-
+    # cleanup target folder
+    - du -shx target
+    - find target -name 'samotop*' -exec rm -rf {} \; || true
+    - find target -name 'libsamotop*' -exec rm -rf {} \; || true
+    - rm -rf target/debug/examples || true
+    - rm -rf target/debug/incremental || true
+    - cargo sweep -t 3
+    - cargo sweep -i
+    - du -shx target
 .example-template:
   stage: build
   only:
@@ -114,7 +131,6 @@ example-default:
     EXAMPLE: default
 
 example-dir:
-  when: manual
   extends: .example-template
   variables:
     EXAMPLE: to-dirmail
