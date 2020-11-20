@@ -16,6 +16,7 @@ Subject: Try me
 
 xoxo
 .
+quit
 EOF
 ```
  */

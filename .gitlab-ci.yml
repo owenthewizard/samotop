@@ -116,6 +116,27 @@ example-dir:
   variables:
     EXAMPLE: to-dirmail
 
+example-cmd:
+  extends: .example-template
+  variables:
+    EXAMPLE: on-cmd
+  script:
+    - cargo build --example ${EXAMPLE:?}
+    - |
+      sed -e 's/$/\r/' <<EOF | cargo run --example ${EXAMPLE:?}
+      lhlo boogie
+      mail from:<from@spf.org>
+      rcpt to:<to@mikesh.info>
+      data
+      From: Moohoo <moo@hoo.com>
+      To: Yeeehaw <ye@haw.com>
+      Subject: Try me
+
+      xoxo
+      .
+      quit
+      EOF
+
 publish-crate:
   variables:
     COMPVER: $CI_COMMIT_TAG
