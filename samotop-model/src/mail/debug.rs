@@ -12,7 +12,7 @@ pub struct DebugMailService {
 }
 impl DebugMailService {
     pub fn new(id: String) -> Self {
-        Self { id: id }
+        Self { id }
     }
 }
 impl Default for DebugMailService {

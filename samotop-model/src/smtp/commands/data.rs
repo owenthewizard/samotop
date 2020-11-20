@@ -21,11 +21,7 @@ impl SmtpSessionCommand for SmtpData {
 
         let transaction = std::mem::take(&mut state.transaction);
         let fut = async move {
-            match state
-                .service
-                .send_mail(&state.session, transaction)
-                .await
-            {
+            match state.service.send_mail(&state.session, transaction).await {
                 Ok(transaction) if transaction.sink.is_none() => {
                     warn!(
                         "Send_mail returned OK message without sink for transaction {}",
