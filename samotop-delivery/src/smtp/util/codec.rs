@@ -17,7 +17,23 @@ use std::{
     derive(serde_derive::Serialize, serde_derive::Deserialize)
 )]
 pub struct SmtpDataCodec {
-    escape_count: u8,
+    state: State,
+}
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[cfg_attr(
+    feature = "serde-impls",
+    derive(serde_derive::Serialize, serde_derive::Deserialize)
+)]
+enum State {
+    AfterCRLF,
+    AfterCR,
+    Midway,
+}
+impl Default for State {
+    fn default() -> Self {
+        State::AfterCRLF
+    }
 }
 
 impl SmtpDataCodec {
@@ -30,35 +46,47 @@ impl SmtpDataCodec {
 impl SmtpDataCodec {
     /// Close the data stream - this writes the appropriate final dot
     pub async fn close<W: Write + Unpin>(&mut self, buf: W) -> io::Result<()> {
+        trace!("close");
         let mut buf = BugIO { inner: buf };
-        match self.escape_count {
-            0 => buf.write_all(b"\r\n.\r\n").await?,
-            1 => buf.write_all(b"\n.\r\n").await?,
-            2 => buf.write_all(b".\r\n").await?,
-            _ => unreachable!(),
+        if State::AfterCRLF == self.state {
+            buf.write_all(b".\r\n").await?;
+        } else {
+            buf.write_all(b"\r\n.\r\n").await?;
         }
-        self.escape_count = 0;
+        self.state = State::default();
         Ok(())
     }
     /// Encode data - it does not handle final dot
-    pub async fn encode<W: Write + Unpin>(&mut self, frame: &[u8], buf: W) -> io::Result<()> {
+    pub async fn encode<W: Write + Unpin>(&mut self, mut frame: &[u8], buf: W) -> io::Result<()> {
+        debug!("encode {:?}", std::str::from_utf8(frame));
         let mut buf = BugIO { inner: buf };
-        let mut start = 0;
-        for (idx, byte) in frame.iter().enumerate() {
-            match self.escape_count {
-                0 => self.escape_count = if *byte == b'\r' { 1 } else { 0 },
-                1 => self.escape_count = if *byte == b'\n' { 2 } else { 0 },
-                2 => self.escape_count = if *byte == b'.' { 3 } else { 0 },
-                _ => unreachable!(),
+
+        while !frame.is_empty() {
+            // write an escape a dot after CR LF if the first char is a dot
+            if State::AfterCRLF == self.state {
+                if let Some(b'.') = frame.first() {
+                    buf.write_all(b".".as_ref()).await?;
+                }
             }
-            if self.escape_count == 3 {
-                self.escape_count = 0;
-                buf.write_all(&frame[start..idx]).await?;
-                buf.write_all(b".").await?;
-                start = idx;
+            // write the rest and manage state
+            if let Some(pos) = memchr::memchr2(b'\n', b'\r', frame) {
+                self.state = match frame[pos] {
+                    // watch out, \n may follow
+                    b'\r' => State::AfterCR,
+                    // \n must immediately follow \r, otherwise it is not significant
+                    b'\n' if pos == 0 && self.state == State::AfterCR => State::AfterCRLF,
+                    // lone \n without \r
+                    b'\n' => State::Midway,
+                    _ => unreachable!(),
+                };
+                buf.write_all(&frame[..pos + 1]).await?;
+                frame = &frame[pos + 1..];
+            } else {
+                self.state = State::Midway;
+                buf.write_all(frame).await?;
+                frame = &b""[..];
             }
         }
-        buf.write_all(&frame[start..]).await?;
         Ok(())
     }
 }
@@ -100,5 +128,91 @@ impl<S: Write> Write for BugIO<S> {
         let res = self.project().inner.poll_close(cx);
         debug!("poll_close");
         res
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[async_attributes::test]
+    async fn test_dots_at_once() -> io::Result<()> {
+        let mut buf: Vec<u8> = vec![];
+        let mut sut = SmtpDataCodec::new();
+        sut.encode(b"a\r\n.b\r\n..\r\n.\r\n", &mut buf).await?;
+        assert_eq!(buf, b"a\r\n..b\r\n...\r\n..\r\n");
+        Ok(())
+    }
+    #[async_attributes::test]
+    async fn test_dots_per_partes() -> io::Result<()> {
+        let mut buf: Vec<u8> = vec![];
+        let mut sut = SmtpDataCodec::new();
+        sut.encode(b"a\r\n", &mut buf).await?;
+        sut.encode(b".", &mut buf).await?;
+        sut.encode(b".\r\n", &mut buf).await?;
+        sut.encode(b".", &mut buf).await?;
+        sut.encode(b"\r\n", &mut buf).await?;
+        assert_eq!(buf, b"a\r\n...\r\n..\r\n");
+        Ok(())
+    }
+    #[async_attributes::test]
+    async fn test_dots_colision() -> io::Result<()> {
+        let mut buf: Vec<u8> = vec![];
+        let mut sut = SmtpDataCodec::new();
+        sut.encode(b"kwack\r\n", &mut buf).await?;
+        sut.encode(b"\r\n", &mut buf).await?;
+        sut.encode(b".\r\n", &mut buf).await?;
+        assert_eq!(buf, b"kwack\r\n\r\n..\r\n");
+        Ok(())
+    }
+    #[async_attributes::test]
+    async fn test_dots_kwack2() -> io::Result<()> {
+        let mut buf: Vec<u8> = vec![];
+        let mut sut = SmtpDataCodec::new();
+        sut.encode(b".kwack\r\n", &mut buf).await?;
+        assert_eq!(buf, b"..kwack\r\n");
+        Ok(())
+    }
+    #[async_attributes::test]
+    async fn test_dots_boo() -> io::Result<()> {
+        let mut buf: Vec<u8> = vec![];
+        let mut sut = SmtpDataCodec::new();
+        sut.encode(b"boo\r\n", &mut buf).await?;
+        sut.encode(b".kwack\r\n", &mut buf).await?;
+        assert_eq!(buf, b"boo\r\n..kwack\r\n");
+        Ok(())
+    }
+    #[async_attributes::test]
+    async fn test_dots_buggy_linefeed() -> io::Result<()> {
+        let mut buf: Vec<u8> = vec![];
+        let mut sut = SmtpDataCodec::new();
+        sut.encode(b"boo\n", &mut buf).await?;
+        sut.encode(b".gy", &mut buf).await?;
+        assert_eq!(buf, b"boo\n.gy");
+        Ok(())
+    }
+    #[async_attributes::test]
+    async fn test_dots_buggy_cr() -> io::Result<()> {
+        let mut buf: Vec<u8> = vec![];
+        let mut sut = SmtpDataCodec::new();
+        sut.encode(b"boo\r", &mut buf).await?;
+        sut.encode(b".gy", &mut buf).await?;
+        assert_eq!(buf, b"boo\r.gy");
+        Ok(())
+    }
+    #[async_attributes::test]
+    async fn test_dots_buggy_newline() -> io::Result<()> {
+        let mut buf: Vec<u8> = vec![];
+        let mut sut = SmtpDataCodec::new();
+        sut.encode(b"\r.\n.", &mut buf).await?;
+        assert_eq!(buf, b"\r.\n.");
+        Ok(())
+    }
+    #[async_attributes::test]
+    async fn test_dots_buggy_at_once() -> io::Result<()> {
+        let mut buf: Vec<u8> = vec![];
+        let mut sut = SmtpDataCodec::new();
+        sut.encode(b"boo\r.gy\n..\n\n\n..", &mut buf).await?;
+        assert_eq!(buf, b"boo\r.gy\n..\n\n\n..");
+        Ok(())
     }
 }
