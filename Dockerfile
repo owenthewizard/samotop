@@ -1,7 +1,7 @@
 FROM rust:latest as dependencies
 
 # install toml
-RUN cargo install toml
+RUN cargo install toml-cli
 
 # install wildq
 RUN VERSION=$(curl -s "https://api.github.com/repos/ahmet2mir/wildq/releases/latest" | grep '"tag_name":' | sed -E 's/.*"v([^"]+)".*/\1/') \
