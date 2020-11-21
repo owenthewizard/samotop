@@ -3,33 +3,44 @@ You can run your own privacy focussed, resource efficient mail server. [Samotop 
 
 # Status
 
+## Common (MDA/MTA/MSA)
+
+- [x] The server will receive mail and write it to a given maildir folder. Another program can pick the folder and process it further.
+- [x] STARTTLS can be configured if you provide a cert and identity file.
+
 ## Mail delivery agent (MDA)
 
-- [x] The server will receive mail and write it to a given maildir folder. Another program can pick the folder andprocess it further.
-- [x] STARTTLS can be configured if you provide a cert and identity file.
-- [ ] Antispam features:
-  - [x] SPF - refuse mail with failing SPF check
-- [ ] Privacy features
+- [ ] Encryption at rest
+- [ ] Accounts
+- [ ] LMTP
+- [ ] Sockets
 
 ## Mail transfer agent (MTA)
 
-- [ ] Mail relay
+- [ ] Mail relaying
+- [ ] Antispam features:
+  - [x] SPF - refuse mail with failing SPF check
+  - [ ] Greylisting
+
+## Mail submission agent (MSA)
+
+- [ ] Authentication
 
 # Installation
 
-a) Using cargo:
+- Using cargo:
    ```bash
    cargo install samotop-server
    ```
-b) Using docker:
+- Using docker:
    ```bash
    docker pull brightopen/samotop
    ```
 
 # Usage
 
-a) locally, run `samotop-server --help` for command-line reference.
-b) in docker, run `docker run --rm -ti samotop`
+- locally, run `samotop-server --help` for command-line reference.
+- in docker, run `docker run --rm -ti samotop`
 
 Both should produce a usage information not too different from this:
 
@@ -74,19 +85,19 @@ openssl s_client -connect localhost:25 -debug -starttls smtp
 ```
  */
 
+#[macro_use]
+extern crate log;
+
 use async_std::fs::File;
 use async_std::io::ReadExt;
 use async_std::task;
 use async_tls::TlsAcceptor;
-use log::*;
 use rustls::ServerConfig;
-use samotop::server::Server;
-use samotop::service::mail::default::DefaultMailService;
-use samotop::service::mail::dirmail::Config as DirMailConfig;
-use samotop::service::mail::MailServiceBuilder;
-use samotop::service::parser::SmtpParser;
-use samotop::service::tcp::tls::provide_rustls;
-use samotop::service::tcp::{smtp::SmtpService, tls::TlsEnabled};
+use samotop::io::tls::provide_rustls;
+use samotop::io::{smtp::SmtpService, tls::TlsEnabled};
+use samotop::mail::{Builder, Dir, Name};
+use samotop::parser::SmtpParser;
+use samotop::server::TcpServer;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use structopt::StructOpt;
@@ -99,21 +110,22 @@ fn main() -> Result<()> {
 }
 
 async fn main_fut() -> Result<()> {
-    let setup = Setup::new();
+    let setup = Setup::from_args();
 
     let ports = setup.get_service_ports();
     let tls_config = setup.get_tls_config().await?;
     let tls_acceptor =
         tls_config.map(|cfg| provide_rustls(TlsAcceptor::from(std::sync::Arc::new(cfg))));
-    let mail_service = DefaultMailService
-        .using(setup.get_my_name())
-        .using(DirMailConfig::new(setup.get_mail_dir()))
-        .using(samotop::service::mail::spf::provide_viaspf());
+    let mail_service = Builder::default()
+        .using(Name::new(setup.get_my_name()))
+        .using(Dir::new(setup.get_mail_dir())?)
+        //.using(samotop::mail::spf::provide_viaspf())
+        ;
     let smtp_service = SmtpService::new(Arc::new(mail_service), SmtpParser);
     let tls_smtp_service = TlsEnabled::new(smtp_service, tls_acceptor);
 
     info!("I am {}", setup.get_my_name());
-    Server::on_all(ports).serve(tls_smtp_service).await
+    TcpServer::on_all(ports).serve(tls_smtp_service).await
 }
 
 pub struct Setup {
@@ -121,7 +133,7 @@ pub struct Setup {
 }
 
 impl Setup {
-    pub fn new() -> Setup {
+    pub fn from_args() -> Setup {
         Setup {
             opt: Opt::from_args(),
         }
@@ -184,7 +196,7 @@ impl Setup {
         if self.opt.ports.is_empty() {
             vec!["localhost:25".to_owned()]
         } else {
-            self.opt.ports.iter().map(|s| s.clone()).collect()
+            self.opt.ports.to_vec()
         }
     }
 

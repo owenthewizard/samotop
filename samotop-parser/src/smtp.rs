@@ -1,6 +1,4 @@
-use peg;
-use samotop_core::model::io::ReadControl;
-use samotop_core::model::smtp::*;
+use samotop_model::smtp::*;
 use std::net::{Ipv4Addr, Ipv6Addr};
 use std::str::FromStr;
 
@@ -44,6 +42,7 @@ peg::parser! {
             = cmd_starttls() /
             cmd_helo() /
             cmd_ehlo() /
+            cmd_lhlo() /
             cmd_mail() /
             cmd_send() /
             cmd_soml() /
@@ -103,6 +102,10 @@ peg::parser! {
             = i("ehlo") _ h:host() NL()
             { SmtpCommand::Helo(SmtpHelo::Ehlo(h)) }
 
+        pub rule cmd_lhlo() -> SmtpCommand
+            = i("lhlo") _ h:host() NL()
+            { SmtpCommand::Helo(SmtpHelo::Lhlo(h)) }
+
         pub rule cmd_vrfy() -> SmtpCommand
             = i("vrfy") s:strparam() NL()
             { SmtpCommand::Vrfy(s) }
@@ -161,7 +164,7 @@ peg::parser! {
 
         rule host_domain() -> SmtpHost
             = s:$( label() ("." label())* )
-            {? utf8s(s).map(|s|SmtpHost::Domain(s)) }
+            {? utf8s(s).map(SmtpHost::Domain) }
         rule domain() = quiet!{label() ("." label())*} / expected!("domain name")
         rule label() = [b'a'..=b'z' | b'A'..=b'Z' | b'0'..=b'9'] [b'-' | b'a'..=b'z' | b'A'..=b'Z' | b'0'..=b'9']*
 
@@ -242,7 +245,7 @@ peg::parser! {
             = b:$(".")
             {debug_assert!(b.len()==1); b[0]}
 
-        rule NL() = quiet!{"\r\n"} / expected!("{NL}")
+        rule NL() = quiet!{"\r\n" / "\n"} / expected!("{NL}")
         rule _() = quiet!{" "} / expected!("{SP}")
         rule __() = quiet!{_ / "\t"} / expected!("{WS}")
     }
@@ -250,12 +253,15 @@ peg::parser! {
 
 #[cfg(test)]
 mod tests {
-    use super::grammar::*;
     use super::ReadControl::*;
     use super::SmtpCommand::*;
     use super::SmtpHost::*;
     use super::*;
-    use samotop_core::test_util::*;
+    use crate::grammar::*;
+
+    fn b(bytes: impl AsRef<[u8]>) -> Vec<u8> {
+        Vec::from(bytes.as_ref())
+    }
 
     #[test]
     fn script_parses_unknown_command() {
@@ -344,7 +350,7 @@ mod tests {
         assert_eq!(
             result,
             vec![
-                Raw(b("QUIT\n")),
+                Command(Quit, b("QUIT\n")),
                 Command(Quit, b("QUIT\r\n")),
                 Command(Quit, b("quit\r\n")),
             ]

@@ -1,20 +1,22 @@
 extern crate samotop;
 
+use std::sync::Arc;
+
 #[test]
-fn use_dead_service() {
-    let _ = samotop::server::Server::new().serve(samotop::service::tcp::dummy::DummyTcpService);
+fn use_dummy_service() {
+    let _ = samotop::server::TcpServer::default().serve(samotop::io::dummy::DummyTcpService);
 }
 
 #[test]
-fn use_samotop_service() {
-    let _ = samotop::server::Server::new();
+fn use_samotop_server() {
+    let _ = samotop::server::TcpServer::default();
 }
 
 #[test]
 fn builder_builds_task() {
-    let mail = samotop::service::mail::default::DefaultMailService;
-    let parser = samotop::service::parser::SmtpParser;
-    let svc = samotop::service::tcp::smtp::SmtpService::new(mail, parser);
-    let svc = samotop::service::tcp::tls::TlsEnabled::disabled(svc);
-    let _srv = samotop::server::Server::on("localhost:25").serve(svc);
+    let mail = Arc::new(samotop::mail::Builder::default());
+    let parser = samotop::parser::SmtpParser;
+    let svc = samotop::io::smtp::SmtpService::new(mail, parser);
+    let svc = samotop::io::tls::TlsEnabled::disabled(svc);
+    let _srv = samotop::server::TcpServer::on("localhost:25").serve(svc);
 }

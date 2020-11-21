@@ -1,0 +1,23 @@
+use super::{EsmtpService, MailSetup};
+
+#[derive(Debug)]
+pub struct Name {
+    name: String,
+}
+impl Name {
+    pub fn new(name: impl ToString) -> Self {
+        Self {
+            name: name.to_string(),
+        }
+    }
+}
+impl EsmtpService for Name {
+    fn prepare_session(&self, session: &mut super::SessionInfo) {
+        session.service_name = self.name.clone();
+    }
+}
+impl MailSetup for Name {
+    fn setup(self, builder: &mut super::Builder) {
+        builder.esmtp.insert(0, Box::new(self))
+    }
+}

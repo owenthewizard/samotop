@@ -53,7 +53,6 @@
       mail system vis-a-vis the requested transfer or other mail system
       action.
 */
-use crate::smtp::SmtpExtension;
 use crate::smtp::SmtpReply::*;
 use std::fmt;
 
@@ -99,11 +98,7 @@ pub enum SmtpReply {
     OkHeloInfo {
         local: String,
         remote: String,
-    },
-    OkEhloInfo {
-        local: String,
-        remote: String,
-        extensions: Vec<SmtpExtension>,
+        extensions: Vec<String>,
     },
     // 251 will forward to <forward-path> (See Section 3.4)
     UserNotLocalInfo(String),
@@ -166,7 +161,6 @@ impl SmtpReply {
             OkInfo => 250,
             OkMessageInfo(_) => 250,
             OkHeloInfo { .. } => 250,
-            OkEhloInfo { .. } => 250,
             // will forward to <forward-path> (See Section 3.4)
             UserNotLocalInfo(_) => 251,
             //, but will accept message and attempt delivery (See Section 3.5.3)
@@ -209,8 +203,8 @@ impl SmtpReply {
             CommandSequenceFailure => "Bad sequence of commands".to_owned(),
             UnexpectedParameterFailure => "Command parameter not implemented".to_owned(),
 
-            StatusInfo(ref text) => format!("{}", text),
-            HelpInfo(ref text) => format!("{}", text),
+            StatusInfo(ref text) => text.to_string(),
+            HelpInfo(ref text) => text.to_string(),
 
             ServiceReadyInfo(ref domain) => format!("Service ready: {}", domain),
             ClosingConnectionInfo(ref domain) => {
@@ -223,13 +217,8 @@ impl SmtpReply {
             MailNotAcceptedByHostFailure => "Host does not accept mail".to_owned(),
 
             OkInfo => "Ok".to_owned(),
-            OkMessageInfo(ref text) => format!("{}", text),
+            OkMessageInfo(ref text) => text.to_string(),
             OkHeloInfo {
-                ref local,
-                ref remote,
-                ..
-            } => format!("{} greets {}", local, remote),
-            OkEhloInfo {
                 ref local,
                 ref remote,
                 ..
@@ -269,9 +258,7 @@ impl SmtpReply {
     }
     pub fn items(&self) -> Vec<String> {
         match *self {
-            OkEhloInfo { ref extensions, .. } => {
-                extensions.iter().map(|e| format!("{}", e)).collect()
-            }
+            OkHeloInfo { ref extensions, .. } => extensions.iter().map(|e| e.to_string()).collect(),
             _ => vec![],
         }
     }

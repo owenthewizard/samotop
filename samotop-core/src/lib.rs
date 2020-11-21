@@ -1,27 +1,29 @@
 #[macro_use]
 extern crate log;
 
-pub mod model;
+pub mod io;
+pub mod mail;
 pub mod protocol;
-pub mod service;
+pub mod smtp;
 
 pub mod common {
-    pub use crate::model::{Error, Result};
-
     pub use futures::{
-        future, ready, stream, AsyncRead as Read, AsyncReadExt as ReadExt, AsyncWrite as Write,
-        AsyncWriteExt as WriteExt, Future, FutureExt, Sink, Stream, StreamExt, TryFutureExt,
+        future, future::BoxFuture, ready, stream, AsyncRead as Read, AsyncReadExt as ReadExt,
+        AsyncWrite as Write, AsyncWriteExt as WriteExt, Future, FutureExt, Stream, StreamExt,
+        TryFutureExt,
     };
     pub use pin_project::pin_project;
-    pub use std::pin::Pin;
+    pub use samotop_model::{common::*, Error, Result};
     pub use std::sync::Arc;
-    pub use std::task::{Context, Poll};
+}
+pub mod parser {
+    pub use samotop_model::parser::*;
 }
 
 pub mod test_util {
 
     pub use crate::common::*;
-    use crate::protocol::tls::MayBeTls;
+    use crate::io::MayBeTls;
     use std::collections::VecDeque;
 
     pub fn cx() -> Context<'static> {
@@ -55,6 +57,7 @@ pub mod test_util {
     }
 
     #[pin_project]
+    #[derive(Default, Debug, Clone)]
     pub struct TestIO {
         pub input: Vec<u8>,
         pub output: Vec<u8>,
@@ -71,14 +74,6 @@ pub mod test_util {
         pub fn unread(&self) -> &[u8] {
             &self.input[self.read..]
         }
-        pub fn new() -> Self {
-            TestIO {
-                output: vec![],
-                input: vec![],
-                read: 0,
-                read_chunks: vec![].into(),
-            }
-        }
         // Pretend reading chunks of input of given sizes. 0 => Pending
         pub fn add_read_chunk(mut self, chunk: impl AsRef<[u8]>) -> Self {
             self.input.extend_from_slice(chunk.as_ref());
@@ -88,7 +83,7 @@ pub mod test_util {
     }
     impl<T: AsRef<[u8]>> From<T> for TestIO {
         fn from(data: T) -> Self {
-            Self::new().add_read_chunk(data)
+            Self::default().add_read_chunk(data)
         }
     }
     impl Read for TestIO {
@@ -136,13 +131,13 @@ pub mod test_util {
         }
     }
     impl MayBeTls for TestIO {
-        fn start_tls(self: Pin<&mut Self>) -> std::io::Result<()> {
-            Err(std::io::Error::new(
-                std::io::ErrorKind::BrokenPipe,
-                "TLS not supported",
-            ))
+        fn encrypt(self: Pin<&mut Self>) {
+            panic!("not allowed")
         }
-        fn supports_tls(&self) -> bool {
+        fn can_encrypt(&self) -> bool {
+            false
+        }
+        fn is_encrypted(&self) -> bool {
             false
         }
     }

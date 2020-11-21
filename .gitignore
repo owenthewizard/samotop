@@ -3,3 +3,6 @@
 *.bk
 target/
 .cargo/
+/*.log
+Cargo.lock
+tmp/

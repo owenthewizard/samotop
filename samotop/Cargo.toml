@@ -1,7 +1,8 @@
 [package]
 name = "samotop"
-version = "0.10.1"
+version = "0.11.1"
 authors = ["jocutajar <tellnoone@robajz.info>"]
+license = "MIT OR Apache-2.0"
 description = "SMTP server and library built on async-std"
 documentation = "https://docs.rs/samotop/"
 homepage = "https://gitlab.com/BrightOpen/BackYard/Samotop/"
@@ -17,7 +18,6 @@ categories = [
     "network-programming",
     "parser-implementations",
 ]
-license = "MIT"
 
 [badges]
 gitlab = { repository = "BrightOpen/BackYard/Samotop", branch = "develop" }
@@ -25,30 +25,42 @@ maintenance = { status = "actively-developed" }
 
 [features]
 default = ["rust-tls", "spf"]
-spf = ["viaspf", "trust-dns-resolver"]
-rust-tls = ["async-tls"]
-#native-tls = ["async-native-tls"]
+spf = ["samotop-with-spf"]
+rust-tls = ["async-tls", "samotop-delivery/rust-tls"]
+native-tls = ["async-native-tls", "samotop-delivery/native-tls"]
+native-tls-vendored = [
+    "async-native-tls/vendored",
+    "native-tls",
+    "samotop-delivery/native-tls-vendored",
+]
 
 [dependencies.samotop-core]
-version = "0.10.0"
+version = "0.11.0"
 path = "../samotop-core"
 
 [dependencies.samotop-parser]
-version = "0.10.0"
+version = "0.11.0"
 path = "../samotop-parser"
+
+[dependencies.samotop-with-spf]
+version = "0.11.0"
+path = "../samotop-with-spf"
+optional = true
+
+[dependencies.samotop-delivery]
+version = "0.5.0"
+path = "../samotop-delivery"
 
 [dependencies]
 log = "0.4"
-bytes = "0.5"
-pin-project = "0.4"
+bytes = "0.6"
+pin-project = "1.0"
 futures = "0.3"
-async-std = "1.6"
-async-tls = { version = "0.9", optional = true }
-#rustls = { version = "0.18", optional = true }
+async-std = "1.7"
+async-tls = { version = "0.10", optional = true }
 async-native-tls = { version = "0.3", optional = true }
-viaspf = { version = "0.0.2", optional = true }
-trust-dns-resolver = { version = "0.19", optional = true, default-features = false, features = ["tokio-runtime"] }
+regex = "1.4"
 
 [dev-dependencies]
 futures-await-test = "0.3"
-env_logger = "0.7"
+env_logger = "0.8"

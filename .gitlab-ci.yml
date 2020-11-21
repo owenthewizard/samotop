@@ -5,39 +5,173 @@ stages:
   - release
 
 variables:
-  CARGO_HOME: ".cargo"
+  CARGO_HOME: "$CI_PROJECT_DIR/.cargo"
 
 build:
   stage: build
+  only:
+    - branches
   cache:
     paths: &cache-paths
       - target/
       - $CARGO_HOME
   artifacts:
     paths:
-      - target/samotop
+      - target/debug/samotop-server
+      - target/release/samotop-server
       - Cargo.lock
   before_script:
-    - rustc --version
-    - cargo --version
+    - rustc --version --verbose
+    - cargo --version --verbose
+    - cargo install cargo-sweep
+  script:    
+    - mkdir -p target
+    - du -shx target
+    - cargo build --color always
+    - cargo test --all --color always
+    # cleanup target folder
+    - du -shx target
+    - find target -name 'samotop*' -exec rm -rf {} \; || true
+    - find target -name 'libsamotop*' -exec rm -rf {} \; || true
+    - rm -rf target/debug/examples || true
+    - rm -rf target/debug/incremental || true
+    - cargo sweep -t 3
+    - cargo sweep -i
+    - du -shx target
+
+build-release:
+  stage: build
+  only:
+    - /^release\/*/
+    - /^hotfix\/*/
+    - master
+  artifacts:
+    paths:
+      - target/release/samotop-server
+      - Cargo.lock
+  before_script:
+    - rustc --version --verbose
+    - cargo --version --verbose
+  script:    
+    - cargo build --release --color always
+    - cargo test --release --all --color always
+
+test-stable:
+  stage: build
+  only:
+    - branches
+  cache:
+    paths: *cache-paths
+    policy: pull
+  before_script:
+    - rustup component add clippy rustfmt
+    - cargo install cargo-readme
   script:
-    # if it is a stable version, do a release build, otherwise debug build
-    - case "$CI_COMMIT_REF_NAME" in master) cargo build --release ;; *) cargo build ;; esac
-    # test in release mode for stable builds otherwise in debug
-    # develop is build in debug, but tested in release mode to cover both sides
-    - case "$CI_COMMIT_REF_NAME" in develop|master) cargo test --all --release ;; *) cargo test --all ;; esac
-    # copy either release or debug server as an artifact
-    - case "$CI_COMMIT_REF_NAME" in master) cp -fa target/release/samotop-server target/samotop ;; *) cp -fa target/debug/samotop-server target/samotop ;; esac
+    - cargo test --workspace --all-features --color always
+    - cargo clippy --workspace --all-features --color always -- -Dclippy::all
+    - cargo check --workspace --benches --color always
+    - ./fix.sh
 
 test-nightly:
   stage: build
   allow_failure: true
+  variables:
+    RUST_BACKTRACE: 1
+  only:
+    - branches
   cache:
     key: nightly
     paths: *cache-paths
-  script:
+  before_script:
     - rustup default nightly
-    - cargo test --all --verbose
+    - rustc --version --verbose
+    - cargo --version --verbose
+    - rustup component add clippy rustfmt
+    - cargo install cargo-readme
+    - cargo install cargo-sweep
+  script:
+    - cargo test --workspace --all-features --color always
+    - cargo clippy --workspace --all-features --color always -- -Dclippy::all
+    - cargo check --workspace --benches --color always
+    - ./fix.sh
+    # cleanup target folder
+    - du -shx target
+    - find target -name 'samotop*' -exec rm -rf {} \; || true
+    - find target -name 'libsamotop*' -exec rm -rf {} \; || true
+    - rm -rf target/debug/examples || true
+    - rm -rf target/debug/incremental || true
+    - cargo sweep -t 3
+    - cargo sweep -i
+    - du -shx target
+.example-template:
+  stage: build
+  only:
+    - branches
+  cache:
+    paths: *cache-paths
+    policy: pull
+  services:
+    - name: dovecot/dovecot:2.3.11
+      alias: dovecot
+  script:
+    - cargo build --example ${EXAMPLE:?}
+    - RUST_LOG=trace cargo run --example ${EXAMPLE:?} &
+    - sleep 10
+    - |
+      sed -e 's/$/\r/' <<EOF | curl -v --url 'smtp://localhost:2525' \
+      --mail-from from@spf.org \
+      --mail-rcpt to@mikesh.info \
+      --upload-file - > client.log 2>&1 \
+      || echo "${FAILED:=sending mail failed}"
+      From: Moohoo <moo@hoo.com>
+      To: Yeeehaw <ye@haw.com>
+      Subject: Try me
+
+
+      .
+      ..
+      xoxo
+      EOF
+    - cat client.log | grep -v '* Expire in'
+    - find tmp/samotop/spool/new/ -print -exec cat {} \; || true
+    - test -z "${FAILED}"
+
+example-lmtp:
+  extends: .example-template
+  variables:
+    EXAMPLE: to-lmtp-tcp
+
+example-default:
+  extends: .example-template
+  variables:
+    EXAMPLE: default
+
+example-dir:
+  extends: .example-template
+  variables:
+    EXAMPLE: to-dirmail
+
+example-cmd:
+  extends: .example-template
+  variables:
+    EXAMPLE: on-cmd
+  script:
+    - cargo build --example ${EXAMPLE:?}
+    - |
+      sed -e 's/$/\r/' <<EOF | cargo run --example ${EXAMPLE:?}
+      lhlo boogie
+      mail from:<from@spf.org>
+      rcpt to:<to@mikesh.info>
+      data
+      From: Moohoo <moo@hoo.com>
+      To: Yeeehaw <ye@haw.com>
+      Subject: Try me
+
+      xoxo
+      .
+      quit
+      EOF
+    - find tmp/samotop/spool/new/ -print -exec cat {} \;
 
 publish-crate:
   variables:
@@ -47,12 +181,17 @@ publish-crate:
     - tags
   cache:
     paths: *cache-paths
+    policy: pull
+  artifacts:
+    paths:
+      - Cargo.lock
   script:
     - COMPONENT="$(dirname "$COMPVER")"
     - VERSION="${COMPVER##$COMPONENT/}"
     - echo "Releasing component ${COMPONENT:?cannot be empty} v ${VERSION:?cannot be empty}"
+    - cargo test --manifest-path "$COMPONENT/Cargo.toml" --release --color always
     - test "$VERSION" == "$(cargo pkgid --manifest-path "$COMPONENT/Cargo.toml" | cut -d '#' -f2- | tr -d '\n')"
-    - cargo publish --manifest-path "$COMPONENT/Cargo.toml" --token "$CRATES_KEY"
+    - cargo publish --manifest-path "$COMPONENT/Cargo.toml" --token "$CRATES_KEY" --color always
 
 publish-docker:
   stage: release
@@ -68,7 +207,7 @@ publish-docker:
   script:
     - cp -ra samotop-server/docker target/
     # Copy either debug or release binary
-    - cp target/samotop target/docker/samotop
+    - cp target/release/samotop-server target/docker/samotop
     - cd target/docker/
     - docker build -t samotop .
     - cd ../../

@@ -1,7 +1,8 @@
 [package]
 name = "samotop-core"
-version = "0.10.0"
+version = "0.11.0"
 authors = ["jocutajar <tellnoone@robajz.info>"]
+license = "MIT OR Apache-2.0"
 description = "Base crate for Samotop extensions"
 documentation = "https://docs.rs/samotop/"
 homepage = "https://gitlab.com/BrightOpen/BackYard/Samotop/"
@@ -16,20 +17,18 @@ categories = [
     "network-programming",
     "parser-implementations",
 ]
-license = "MIT"
 
 [badges]
 gitlab = { repository = "BrightOpen/BackYard/Samotop", branch = "develop" }
 maintenance = { status = "actively-developed" }
 
 [dependencies.samotop-model]
-version = "0.10.0" 
+version = "0.11.0"
 path = "../samotop-model"
 
 [dependencies]
 log = "0.4"
-futures = { version = "0.3", default-features = false, features = ["std"] }
-pin-project = "0.4"
-uuid = { version = "0.8", features = ["v4"] }
-bytes = "0.5"
+futures = { version = "0.3.7", default-features = false, features = ["std"] }
+pin-project = "1.0"
+bytes = "0.6"
 memchr = "2.3"

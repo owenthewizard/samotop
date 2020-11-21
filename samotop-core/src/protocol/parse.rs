@@ -1,6 +1,6 @@
 use crate::common::*;
-use crate::model::io::ReadControl;
-use crate::service::parser::Parser;
+use crate::parser::Parser;
+use crate::smtp::ReadControl;
 
 pub trait IntoParse
 where
@@ -108,20 +108,34 @@ where
 
 #[cfg(test)]
 mod parse_tests {
-    use crate::model::io::ReadControl::*;
-    use crate::model::smtp::SmtpCommand::{self, *};
-    use crate::service::parser::Parser;
+    use crate::parser::Parser;
+    use crate::smtp::ReadControl::*;
+    use crate::smtp::SmtpCommand::{self, *};
     use crate::test_util::*;
 
     use super::*;
 
     struct FakeParser<T>(T);
-    impl Parser for FakeParser<SmtpCommand> {
-        fn command(&self, _input: &[u8]) -> Result<SmtpCommand> {
-            Ok(self.0.clone())
+    impl Parser for FakeParser<(SmtpCommand, &'static [u8])> {
+        fn command(&self, input: &[u8]) -> Result<SmtpCommand> {
+            if input == (self.0).1 {
+                Ok((self.0).0.clone())
+            } else {
+                Err("incomplete or mismatch".into())
+            }
         }
         fn script(&self, input: &[u8]) -> Result<Vec<ReadControl>> {
-            Ok(vec![ReadControl::Command(self.0.clone(), Vec::from(input))])
+            if input == (self.0).1 {
+                Ok(vec![ReadControl::Command(
+                    self.0 .0.clone(),
+                    Vec::from(input),
+                )])
+            } else {
+                Err("incomplete or mismatch".into())
+            }
+        }
+        fn forward_path(&self, _input: &[u8]) -> Result<samotop_model::smtp::SmtpPath> {
+            unimplemented!()
         }
     }
     impl Parser for FakeParser<ReadControl> {
@@ -135,6 +149,9 @@ mod parse_tests {
         fn script(&self, _input: &[u8]) -> Result<Vec<ReadControl>> {
             Ok(vec![self.0.clone()])
         }
+        fn forward_path(&self, _input: &[u8]) -> Result<samotop_model::smtp::SmtpPath> {
+            unimplemented!()
+        }
     }
     impl Parser for FakeParser<Vec<ReadControl>> {
         fn command(&self, _input: &[u8]) -> Result<SmtpCommand> {
@@ -143,6 +160,9 @@ mod parse_tests {
         fn script(&self, _input: &[u8]) -> Result<Vec<ReadControl>> {
             Ok(self.0.clone())
         }
+        fn forward_path(&self, _input: &[u8]) -> Result<samotop_model::smtp::SmtpPath> {
+            unimplemented!()
+        }
     }
     impl Parser for FakeParser<()> {
         fn command(&self, _input: &[u8]) -> Result<SmtpCommand> {
@@ -150,6 +170,9 @@ mod parse_tests {
         }
         fn script(&self, _input: &[u8]) -> Result<Vec<ReadControl>> {
             Err("fail".into())
+        }
+        fn forward_path(&self, _input: &[u8]) -> Result<samotop_model::smtp::SmtpPath> {
+            unimplemented!()
         }
     }
 
@@ -170,10 +193,9 @@ mod parse_tests {
             Poll::Ready(Some(Ok(Raw(b("it"))))),
             Poll::Ready(Some(Ok(Raw(b("\r\n"))))),
         ]);
-        let mut sut = setup.parse(FakeParser(Quit));
+        let mut sut = setup.parse(FakeParser((Quit, "quit\r\n".as_bytes())));
         let res = Pin::new(&mut sut).poll_next(&mut cx());
-        //todo: test concatenation
-        //assert_eq!(res?, Poll::Ready(Some(Command(Quit, b("quit\r\n")))));
+        assert_eq!(res?, Poll::Ready(Some(Command(Quit, b("quit\r\n")))));
         Ok(())
     }
 

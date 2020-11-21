@@ -1,38 +1,49 @@
 [![Build Status](https://gitlab.com/BrightOpen/BackYard/Samotop/badges/develop/pipeline.svg)](https://gitlab.com/BrightOpen/BackYard/Samotop/commits/master)
 
-# samotop-server 1.0.1
+# samotop-server 1.0.2
 
 You can run your own privacy focussed, resource efficient mail server. [Samotop docker image](https://hub.docker.com/r/brightopen/samotop) is available for your convenience.
 
 ## Status
 
+### Common (MDA/MTA/MSA)
+
+- [x] The server will receive mail and write it to a given maildir folder. Another program can pick the folder and process it further.
+- [x] STARTTLS can be configured if you provide a cert and identity file.
+
 ### Mail delivery agent (MDA)
 
-- [x] The server will receive mail and write it to a given maildir folder. Another program can pick the folder andprocess it further.
-- [x] STARTTLS can be configured if you provide a cert and identity file.
-- [ ] Antispam features:
-  - [x] SPF - refuse mail with failing SPF check
-- [ ] Privacy features
+- [ ] Encryption at rest
+- [ ] Accounts
+- [ ] LMTP
+- [ ] Sockets
 
 ### Mail transfer agent (MTA)
 
-- [ ] Mail relay
+- [ ] Mail relaying
+- [ ] Antispam features:
+  - [x] SPF - refuse mail with failing SPF check
+  - [ ] Greylisting
+
+### Mail submission agent (MSA)
+
+- [ ] Authentication
 
 ## Installation
 
-a) Using cargo:
+- Using cargo:
    ```bash
    cargo install samotop-server
    ```
-b) Using docker:
+- Using docker:
    ```bash
    docker pull brightopen/samotop
    ```
 
 ## Usage
 
-a) locally, run `samotop-server --help` for command-line reference.
-b) in docker, run `docker run --rm -ti samotop`
+- locally, run `samotop-server --help` for command-line reference.
+- in docker, run `docker run --rm -ti samotop`
 
 Both should produce a usage information not too different from this:
 
@@ -77,4 +88,7 @@ openssl s_client -connect localhost:25 -debug -starttls smtp
 ```
 
 ## License
-MIT
+MIT OR Apache-2.0
+
+### Contribution
+Unless you explicitly state otherwise, any contribution submitted for inclusion in samotop projects by you, as defined in the Apache-2.0 license, shall be licensed as above, without any additional terms or conditions.

@@ -19,8 +19,8 @@ We've got a decent SMTP command parser written as a PEG grammar.
 The model is tightly nit from the RFCs. An async-std based server
 will hear your SMTP commands, drive the SMTP state machine and
 correct you if you step aside. Once a mail session is ready,
-the mail data are currently dumped to the console. After that,
-you can do it again. See the [api dosc](https://docs.rs/samotop/).
+the mail can be dumped to the console, saved in a folder or passed to a downstream SMTP/LMTP server.
+After that, you can do it again. See the [api docs](https://docs.rs/samotop/).
 The [samotop crate is published on crates.io](https://crates.io/crates/samotop).
 
 ## Done
@@ -29,13 +29,19 @@ The [samotop crate is published on crates.io](https://crates.io/crates/samotop).
 - [x] SMTP state machine - helo, mail, rcpt*, data, rset, quit - must be in correct order according to RFCs
 - [x] DATA are handled and terminated correctly (escape dot, final dot).
 - [x] Async/await with async-std backing
-- [x] Privacy: TLS/STARTTLS supported using rustls
+- [x] Privacy: TLS/STARTTLS supported using [rustls](https://crates.io/crates/rustls) and [native_tls](https://crates.io/crates/native_tls)
 - [x] MTA: Simple mail relay, logging smtp session to standard output but able to receive mail from common relays
 - [x] MDA: System-wide mailbox - mailbox for all unclaimed domains / addresses - store mail in a folder so it can be processed further
+- [x] MDA: Domain mailbox - mailbox for unclaimed addresses (through LMTP to another LDA)
+- [x] MDA: User mailbox - mailbox for specific address or alias (through LMTP to another LDA)
+- [x] MDA: Store mail in Maildir (through LMTP to another LDA)
+- [x] MDA: Smart mailbox - multiple mailbox addresses by convention
+- [x] Integration: LMTP socket - can deliver to LDA over unix or network sockets using LMTP
 - [x] Antispam: SPF (through viaspf, todo:async)
 
 ## To do
 
+- [ ] MTA: Queue and queue manager, relay mail to another MTA
 - [ ] Antispam: Strict SMTP (require CRLF, reject if client sends mail before banner or EHLO response)
 - [ ] Antispam: whitelist and blacklist
 - [ ] Antispam: greylisting
@@ -43,14 +49,10 @@ The [samotop crate is published on crates.io](https://crates.io/crates/samotop).
 - [ ] Antispam: is it encrypted?
 - [ ] Antispam: reverse lookup
 - [ ] Antispam: DANE (DNSSEC) with UI - user verifies signatures
-- [ ] Processing: Relay mail to another MTA
-- [ ] Processing: Store mail in Maildir (MDA)
-- [ ] MDA: Domain mailbox - mailbox for unclaimed addresses
-- [ ] MDA: User mailbox - mailbox for specific address or alias
-- [ ] MDA: Smart mailbox - multiple mailbox addresses by convention
 - [ ] Privacy: Refuse unencrypted session
 - [ ] Privacy: Encryption at rests, encrypt e-mails, only the recipient will be able to decrypt
 - [ ] Privacy: Leave no trace, no logs, obfuscated file dates...
+- [ ] Integration: LMTP child process - can deliver to LDA using LMTP protocol over io with a child process
 
 # Installation
 
@@ -78,8 +80,8 @@ There are a few interesting provisions one could take away from Samotop:
 ## SMTP Server (with STARTTLS)
 
 Running an SMTP server with STARTTLS support is a bit more involved
-regarding setting up the TLS configuration. The library includes
-a `TlsProvider` implementation for async-tls and rustls.
+regarding setting up the TLS configuration. The library includes a `TlsProvider`
+implementation for async-tls (rustls) and async-native-tls(native-tls).
 The samotop-server is a working reference for this TLS setup
 where you needto provide only the cert and key.
 You can also implement your own `TlsProvider` and plug it in.
@@ -87,22 +89,21 @@ You can also implement your own `TlsProvider` and plug it in.
 ## SMTP Server (plaintext)
 
 You can easily run a plaintext SMTP service without support for STARTTLS.
-Replace `DefaultMailService` with your own implementation or compose
-a mail service with `CompositeMailService` and provided features.
+Replace `Builder` with your own implementation or compose
+a mail service with `Builder::using()` and provided features.
 
 ```no_run
 extern crate async_std;
 extern crate env_logger;
 extern crate samotop;
-use samotop::server::Server;
-use samotop::service::tcp::dummy::DummyTcpService;
+use std::sync::Arc;
 fn main() {
     env_logger::init();
-    let mail = samotop::service::mail::default::DefaultMailService;
-    let parser = samotop::service::parser::SmtpParser;
-    let svc = samotop::service::tcp::smtp::SmtpService::new(mail, parser);
-    let svc = samotop::service::tcp::tls::TlsEnabled::disabled(svc);
-    let srv = samotop::server::Server::on("localhost:25").serve(svc);
+    let mail = Arc::new(samotop::mail::Builder::default());
+    let parser = samotop::parser::SmtpParser;
+    let svc = samotop::io::smtp::SmtpService::new(mail, parser);
+    let svc = samotop::io::tls::TlsEnabled::disabled(svc);
+    let srv = samotop::server::TcpServer::on("localhost:25").serve(svc);
     async_std::task::block_on(srv).unwrap()
 }
 ```
@@ -117,11 +118,11 @@ Start here to build an SMTP service from scratch step by step.
 extern crate async_std;
 extern crate env_logger;
 extern crate samotop;
-use samotop::server::Server;
-use samotop::service::tcp::dummy::DummyTcpService;
+use samotop::server::TcpServer;
+use samotop::io::dummy::DummyTcpService;
 fn main() {
     env_logger::init();
-    let mut srv = Server::on("localhost:0").serve(DummyTcpService);
+    let mut srv = TcpServer::on("localhost:0").serve(DummyTcpService);
     async_std::task::block_on(srv).unwrap()
 }
 ```
@@ -164,19 +165,47 @@ In Rust world I have so far found mostly SMTP clients.
 #[macro_use]
 extern crate log;
 
-pub mod protocol{
+pub mod mail;
+pub mod server;
+pub mod protocol {
     pub use samotop_core::protocol::*;
 }
-pub mod server;
-pub mod service;
-
-pub mod model {
-    pub use samotop_core::model::*;
+pub mod smtp {
+    pub use samotop_core::smtp::*;
 }
 mod common {
-    pub use crate::service::Provider;
     pub use bytes::{Bytes, BytesMut};
     pub use samotop_core::common::*;
+
+    #[derive(Clone)]
+    pub struct Provider<T>(pub T);
+}
+
+pub mod parser {
+    pub use samotop_core::parser::*;
+    pub use samotop_parser::*;
+}
+
+pub mod io {
+    pub use samotop_core::io::*;
+
+    pub use samotop_delivery::smtp::net as client;
+    pub mod tls {
+
+        pub use samotop_core::io::tls::*;
+
+        #[cfg(feature = "rust-tls")]
+        mod tls_impl_rust;
+
+        #[cfg(feature = "rust-tls")]
+        pub use tls_impl_rust::*;
+
+        #[cfg(feature = "native-tls")]
+        mod tls_impl_native;
+
+        #[cfg(feature = "native-tls")]
+        pub use tls_impl_native::*;
+    }
 }
 
 #[cfg(test)]
