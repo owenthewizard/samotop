@@ -48,9 +48,9 @@ impl MailDispatch for SpfService {
         'a: 'f,
         's: 'f,
     {
-        let peer_addr = match session.connection.peer_addr.map(|addr| addr.ip()) {
-            None => std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED),
-            Some(ip) => ip,
+        let peer_addr = match session.connection.peer_addr.as_str().parse() {
+            Err(_) => std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED),
+            Ok(ip) => ip,
         };
         let peer_name = match session.smtp_helo.as_ref().map(|m| m.host().domain()) {
             None => String::new(),
@@ -96,7 +96,7 @@ mod tests {
 
     #[test]
     fn default_mail_fut_is_sync() {
-        let sess = SessionInfo::new(ConnectionInfo::new(None, None), "test".to_owned());
+        let sess = SessionInfo::new(ConnectionInfo::default(), "test".to_owned());
         let tran = Transaction {
             id: "sessionid".to_owned(),
             ..Default::default()

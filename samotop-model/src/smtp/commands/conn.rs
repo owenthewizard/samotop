@@ -14,8 +14,8 @@ impl SmtpSessionCommand for SessionInfo {
         state.session = self;
 
         if state.session.service_name.is_empty() {
-            if let Some(addr) = state.session.connection.local_addr {
-                state.session.service_name = addr.ip().to_string();
+            if !state.session.connection.local_addr.is_empty() {
+                state.session.service_name = state.session.connection.local_addr.clone();
                 warn!(
                     "Service name is empty. Using local address instead {:?}",
                     state.session.service_name

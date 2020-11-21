@@ -50,7 +50,7 @@ async fn main_fut() -> Result<()> {
         read: Box::pin(async_std::io::stdin()),
         write: Box::pin(async_std::io::stdout()),
     };
-    let conn = ConnectionInfo::new(None, None);
+    let conn = ConnectionInfo::default();
 
     tls_smtp_service.handle(Ok(stream), conn).await
 }
