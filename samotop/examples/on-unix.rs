@@ -27,7 +27,6 @@ use samotop::{
     io::{smtp::SmtpService, tls::TlsEnabled},
     mail::{Builder, Dir},
     parser::SmtpParser,
-    server::UnixServer,
 };
 use std::sync::Arc;
 
@@ -38,11 +37,17 @@ fn main() -> Result<()> {
     task::block_on(main_fut())
 }
 
+#[cfg(not(unix))]
+async fn main_fut() -> Result<()> {
+    println!("This will only work on a unix-like system")
+}
+
+#[cfg(unix)]
 async fn main_fut() -> Result<()> {
     let dir_service = Dir::new("tmp/samotop/spool/".into())?;
     let mail_service = Arc::new(Builder::default().using(dir_service));
     let smtp_service = SmtpService::new(mail_service, SmtpParser);
     let tls_smtp_service = TlsEnabled::disabled(smtp_service);
-
+    use samotop::server::UnixServer;
     UnixServer::on("local.socket").serve(tls_smtp_service).await
 }

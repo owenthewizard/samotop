@@ -1,6 +1,6 @@
 mod tcp;
-#[cfg(feature = "unix-server")]
+#[cfg(unix)]
 mod unix;
 pub use self::tcp::*;
-#[cfg(feature = "unix-server")]
+#[cfg(unix)]
 pub use self::unix::*;
