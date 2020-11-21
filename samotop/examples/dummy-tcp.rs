@@ -19,11 +19,11 @@ extern crate env_logger;
 extern crate samotop;
 
 use samotop::io::dummy::DummyTcpService;
-use samotop::server::Server;
+use samotop::server::TcpServer;
 
 fn main() {
     println!("Run this with RUST_LOG=info to see the port listened on");
     env_logger::init();
-    let srv = Server::on("localhost:0").serve(DummyTcpService);
+    let srv = TcpServer::on("localhost:0").serve(DummyTcpService);
     async_std::task::block_on(srv).unwrap()
 }

@@ -97,7 +97,7 @@ use samotop::io::tls::provide_rustls;
 use samotop::io::{smtp::SmtpService, tls::TlsEnabled};
 use samotop::mail::{Builder, Dir, Name};
 use samotop::parser::SmtpParser;
-use samotop::server::Server;
+use samotop::server::TcpServer;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use structopt::StructOpt;
@@ -125,7 +125,7 @@ async fn main_fut() -> Result<()> {
     let tls_smtp_service = TlsEnabled::new(smtp_service, tls_acceptor);
 
     info!("I am {}", setup.get_my_name());
-    Server::on_all(ports).serve(tls_smtp_service).await
+    TcpServer::on_all(ports).serve(tls_smtp_service).await
 }
 
 pub struct Setup {

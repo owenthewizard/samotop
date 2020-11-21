@@ -107,7 +107,7 @@ fn main() {
     let parser = samotop::parser::SmtpParser;
     let svc = samotop::io::smtp::SmtpService::new(mail, parser);
     let svc = samotop::io::tls::TlsEnabled::disabled(svc);
-    let srv = samotop::server::Server::on("localhost:25").serve(svc);
+    let srv = samotop::server::TcpServer::on("localhost:25").serve(svc);
     async_std::task::block_on(srv).unwrap()
 }
 ```
@@ -122,11 +122,11 @@ Start here to build an SMTP service from scratch step by step.
 extern crate async_std;
 extern crate env_logger;
 extern crate samotop;
-use samotop::server::Server;
+use samotop::server::TcpServer;
 use samotop::io::dummy::DummyTcpService;
 fn main() {
     env_logger::init();
-    let mut srv = Server::on("localhost:0").serve(DummyTcpService);
+    let mut srv = TcpServer::on("localhost:0").serve(DummyTcpService);
     async_std::task::block_on(srv).unwrap()
 }
 ```

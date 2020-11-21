@@ -27,7 +27,7 @@ use samotop::{
     io::{smtp::SmtpService, tls::TlsEnabled},
     mail::{Builder, Dir},
     parser::SmtpParser,
-    server::TcpServer,
+    server::UnixServer,
 };
 use std::sync::Arc;
 
@@ -44,7 +44,5 @@ async fn main_fut() -> Result<()> {
     let smtp_service = SmtpService::new(mail_service, SmtpParser);
     let tls_smtp_service = TlsEnabled::disabled(smtp_service);
 
-    TcpServer::on("localhost:2525")
-        .serve(tls_smtp_service)
-        .await
+    UnixServer::on("local.socket").serve(tls_smtp_service).await
 }
