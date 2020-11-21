@@ -8,6 +8,9 @@ RUN VERSION=$(curl -s "https://api.github.com/repos/ahmet2mir/wildq/releases/lat
     && curl -sL https://github.com/ahmet2mir/wildq/releases/download/v${VERSION}/wildq_${VERSION}-1_amd64.deb -o wildq_${VERSION}-1_amd64.deb \
     && dpkg -i wildq_${VERSION}-1_amd64.deb
 
+RUN apt-get update && apt-get install -y \
+   jq \
+   
 WORKDIR /app
 RUN USER=root cargo new --bin dependencies
 WORKDIR /app/dependencies
