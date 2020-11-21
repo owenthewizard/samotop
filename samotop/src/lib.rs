@@ -70,11 +70,12 @@ See the docs on [docs.rs](https://docs.rs/samotop).
 Note that the API is still unstable. Please use the latest release.
 
 There are a few interesting provisions one could take away from Samotop:
-* The server (through `samotop::server::Server`) - it takes IP:port's to listen `on()` and you can then `serve()` your own implementation of a `TcpService`.
-* The SMTP service (`SmtpService`) - it takes an async IO and provides an SMTP service defined by `SessionService`.
+* The TCP server (`TcpServer`) - it takes IP:port's to listen `on()` and you can then `serve()` your own implementation of a `IoService`.
+* The Unix socket server (`UnixServer`) - it takes socket file path to listen `on()` and you can then `serve()` the same as with the `TcpServer`.
+* The SMTP service (`SmtpService`) - it takes an async IO and provides an SMTP service defined by `MailService`.
 * The low level `SmtpCodec` - it translates between IO and a `Stram` of `ReadControl` and a `Sink` of `WriteControl`. It handles SMTP mail data as well.
 * The SMTP session parser (`SmtpParser`) - it takes `&[u8]` and returns parsed commands or session.
-* The SMTP session and domain model (in `samotop::model`) - these describe the domain and behavior.
+* The SMTP session and domain model (in `samotop-model`) - these describe the domain and behavior.
 * Extensible design - you can plug in or compose your own solution.
 
 ## SMTP Server (with STARTTLS)
@@ -83,7 +84,7 @@ Running an SMTP server with STARTTLS support is a bit more involved
 regarding setting up the TLS configuration. The library includes a `TlsProvider`
 implementation for async-tls (rustls) and async-native-tls(native-tls).
 The samotop-server is a working reference for this TLS setup
-where you needto provide only the cert and key.
+where you need to provide only the cert and key.
 You can also implement your own `TlsProvider` and plug it in.
 
 ## SMTP Server (plaintext)
@@ -91,6 +92,8 @@ You can also implement your own `TlsProvider` and plug it in.
 You can easily run a plaintext SMTP service without support for STARTTLS.
 Replace `Builder` with your own implementation or compose
 a mail service with `Builder::using()` and provided features.
+
+Look at samotop-server for a working example with TLS and other features.
 
 ```no_run
 extern crate async_std;
@@ -108,8 +111,8 @@ fn main() {
 }
 ```
 
-## Dummy server
-Any TCP service can be served. See the docs for `TcpService`.
+## TCP server
+Any TCP service can be served. See the docs for `IoService`.
 Run it with `RUST_LOG=trace` to display trace log.
 Use this to understand how networking IO is handled.
 Start here to build an SMTP service from scratch step by step.
@@ -119,10 +122,26 @@ extern crate async_std;
 extern crate env_logger;
 extern crate samotop;
 use samotop::server::TcpServer;
-use samotop::io::dummy::DummyTcpService;
+use samotop::io::dummy::DummyService;
 fn main() {
     env_logger::init();
-    let mut srv = TcpServer::on("localhost:0").serve(DummyTcpService);
+    let mut srv = TcpServer::on("localhost:0").serve(DummyService);
+    async_std::task::block_on(srv).unwrap()
+}
+```
+
+## Unix socket server
+You can serve the same on Unix sockets
+
+```no_run
+extern crate async_std;
+extern crate env_logger;
+extern crate samotop;
+use samotop::server::UnixServer;
+use samotop::io::dummy::DummyService;
+fn main() {
+    env_logger::init();
+    let mut srv = UnixServer::on("local.socket").serve(DummyService);
     async_std::task::block_on(srv).unwrap()
 }
 ```

@@ -1,4 +1,7 @@
-//! samotop-delivery is an implementation of the smtp protocol client in Rust.
+//! samotop-delivery is a set of transports to deliver mail to,
+//! notably to SMTP/LMTP, but also maildir... It is used in Samotop
+//! as a delivery solution for incoming mail.
+//!
 //! ## Example
 //!
 //! ```rust
@@ -11,19 +14,19 @@
 //!
 //! async fn smtp_transport_simple() -> Result<()> {
 //!     let envelope = Envelope::new(
-//!             Some("user@localhost".parse().unwrap()),
-//!             vec!["root@localhost".parse().unwrap()],
+//!             Some("user@localhost".parse()?),
+//!             vec!["root@localhost".parse()?],
 //!             "id".to_string(),
-//!         ).unwrap();
+//!         )?;
 //!     let message = "From: user@localhost\r\n\
 //!                     Content-Type: text/plain\r\n\
 //!                     \r\n\
 //!                     Hello example"
 //!                     .as_bytes();
-//!     let client = SmtpClient::new("127.0.0.1:2525").unwrap();
+//!     let client = SmtpClient::new("127.0.0.1:2525")?;
 //!     
 //!     // Create a client, connect and send
-//!     client.connect_and_send(envelope, message).await.unwrap();    
+//!     client.connect_and_send(envelope, message).await?;    
 //!
 //!     Ok(())
 //! }

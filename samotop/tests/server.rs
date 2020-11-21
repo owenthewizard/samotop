@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 #[test]
 fn use_dummy_service() {
-    let _ = samotop::server::TcpServer::default().serve(samotop::io::dummy::DummyTcpService);
+    let _ = samotop::server::TcpServer::default().serve(samotop::io::dummy::DummyService);
 }
 
 #[test]

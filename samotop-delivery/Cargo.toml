@@ -2,20 +2,21 @@
 
 name = "samotop-delivery"
 version = "0.5.0"
-description = "SMTP client"
+description = "Set of transports to deliver mail to, notably to SMTP/LMTP, but also maildir..."
 readme = "README.md"
-homepage = "https://github.com/async-email/async-smtp"
-repository = "https://github.com/async-email/async-smtp"
+homepage = "https://gitlab.com/BrightOpen/BackYard/Samotop/-/tree/develop/samotop-delivery"
+repository = "https://gitlab.com/BrightOpen/BackYard/Samotop/"
 license = "MIT OR Apache-2.0"
-authors = ["dignifiedquire <me@dignifiedquire.com>"]
+authors = [
+    "jocutajar <tellnoone@robajz.info>",
+    "dignifiedquire <me@dignifiedquire.com>",
+]
 categories = ["email"]
 keywords = ["email", "smtp", "mailer"]
 edition = "2018"
 
 [badges]
 maintenance = { status = "actively-developed" }
-is-it-maintained-issue-resolution = { repository = "async-email/async-smtp" }
-is-it-maintained-open-issues = { repository = "async-email/async-smtp" }
 
 [dependencies]
 log = "^0.4"

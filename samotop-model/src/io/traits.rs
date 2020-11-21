@@ -13,7 +13,7 @@ connections can be received. It could also push back on accepting
 more connections if it notices too many connections or another resource
 shortage by blocking on the `handle()` call.
 
-The `SmtpService` and `DummyTcpService` implement this trait.
+The `SmtpService` and `DummyService` implement this trait.
 */
 pub trait IoService<IO> {
     fn handle(&self, io: Result<IO>, connection: ConnectionInfo) -> S3Fut<Result<()>>;

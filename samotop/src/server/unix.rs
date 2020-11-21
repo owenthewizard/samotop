@@ -7,7 +7,7 @@ use async_std::{
 };
 use futures::{future::BoxFuture, stream::FuturesUnordered};
 
-/// `Server` takes care of accepting TCP connections and passing them to `TcpService` to `handle()`.
+/// `UnixServer` takes care of accepting Unix socket connections and passing them to an `IoService` to `handle()`.
 #[derive(Default)]
 pub struct UnixServer<'a> {
     ports: Vec<BoxFuture<'a, Result<Vec<PathBuf>>>>,

@@ -8,7 +8,7 @@ use futures::{
 };
 use std::net::SocketAddr;
 
-/// `Server` takes care of accepting TCP connections and passing them to `TcpService` to `handle()`.
+/// `TcpServer` takes care of accepting TCP connections and passing them to an `IoService` to `handle()`.
 #[derive(Default)]
 pub struct TcpServer<'a> {
     ports: Vec<BoxFuture<'a, Result<Vec<SocketAddr>>>>,

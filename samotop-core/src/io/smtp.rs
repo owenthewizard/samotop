@@ -10,13 +10,20 @@ use futures::SinkExt;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
-/// `SmtpService` provides an SMTP service on a TCP conection
-/// using the given `SessionService` which:
-/// * handles `ReadControl`s, such as SMTP commands and connection events,
-/// * drives the session state, and
-/// * produces `WriteControl`s.
+/// `SmtpService` provides a stateful SMTP service on a TCP, Unix or other asyn IO conection.
 ///
-/// Behind the scenes it uses the `SmtpParser` to extract SMTP commands from the input strings.
+/// It uses the given `MailService` which takes care of mail events:
+/// * session setup - upon a new connection
+/// * opening new mail transaction - MAIL FROM:<x@y.z>
+/// * adding recipients - RCPT FROM:<a@b.c>
+/// * streaming data - DATA...
+///
+/// It uses the given `Parser` to extract SMTP commands from the input strings.
+/// This is essential because the commands drive the session. All commands
+/// are `apply()`d to the `SmtpState`.
+///
+/// Internally it uses the `SmtpCodec` responsible for extracting `ReadControl`
+/// and serializing `WriteControl` items.
 ///
 /// It is effectively a composition and setup of components required to serve SMTP.
 ///
