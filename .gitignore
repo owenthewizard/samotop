@@ -4,5 +4,5 @@
 target/
 .cargo/
 /*.log
-Cargo.lock
+# Cargo.lock
 tmp/
