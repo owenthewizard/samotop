@@ -38,6 +38,24 @@ build:
     - cargo sweep -t 3
     - cargo sweep -i
     - du -shx target
+
+build-release:
+  stage: build
+  only:
+    - /^release\/*/
+    - /^hotfix\/*/
+    - master
+  artifacts:
+    paths:
+      - target/release/samotop-server
+      - Cargo.lock
+  before_script:
+    - rustc --version --verbose
+    - cargo --version --verbose
+  script:    
+    - cargo build --release --color always
+    - cargo test --release --all --color always
+
 test-stable:
   stage: build
   only:
