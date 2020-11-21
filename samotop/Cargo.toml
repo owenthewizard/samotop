@@ -1,6 +1,6 @@
 [package]
 name = "samotop"
-version = "0.11.1-samotop-dev"
+version = "0.11.1"
 authors = ["jocutajar <tellnoone@robajz.info>"]
 license = "MIT OR Apache-2.0"
 description = "SMTP server and library built on async-std"
@@ -35,15 +35,15 @@ native-tls-vendored = [
 ]
 
 [dependencies.samotop-core]
-version = "0.11.0-samotop-dev"
+version = "0.11.0"
 path = "../samotop-core"
 
 [dependencies.samotop-parser]
-version = "0.11.0-samotop-dev"
+version = "0.11.0"
 path = "../samotop-parser"
 
 [dependencies.samotop-with-spf]
-version = "0.11.0-samotop-dev"
+version = "0.11.0"
 path = "../samotop-with-spf"
 optional = true
 

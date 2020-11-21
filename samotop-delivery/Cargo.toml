@@ -33,7 +33,7 @@ pin-project = "1.0"
 pin-utils = "0.1.0"
 thiserror = "1.0.9"
 futures = { version = "0.3.5", default-features = false, features = ["std"] }
-samotop-model = { version = "0.11.0-samotop-dev", path = "../samotop-model" }
+samotop-model = { version = "0.11.0", path = "../samotop-model" }
 potential = "2.2"
 bytes = "0.6"
 memchr = "2.3"
