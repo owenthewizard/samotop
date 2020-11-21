@@ -1,6 +1,6 @@
 [package]
 name = "samotop-server"
-version = "1.0.2"
+version = "1.0.2-samotop-dev"
 authors = ["jocutajar <tellnoone@robajz.info>"]
 license = "MIT OR Apache-2.0"
 description = "SMTP server with focus on privacy"

@@ -48,7 +48,7 @@ path = "../samotop-with-spf"
 optional = true
 
 [dependencies.samotop-delivery]
-version = "0.5.0"
+version = "0.5.1-samotop-dev"
 path = "../samotop-delivery"
 
 [dependencies]
