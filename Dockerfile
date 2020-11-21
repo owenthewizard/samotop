@@ -9,7 +9,7 @@ RUN VERSION=$(curl -s "https://api.github.com/repos/ahmet2mir/wildq/releases/lat
     && dpkg -i wildq_${VERSION}-1_amd64.deb
 
 WORKDIR /app
-RUN cargo new --bin dependencies
+RUN USER=root cargo new --bin dependencies
 WORKDIR /app/dependencies
 COPY samotop-server/Cargo.toml .
 
