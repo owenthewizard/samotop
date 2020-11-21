@@ -238,7 +238,7 @@ publish-docker:
     # push stable version as latest
     - case "$CI_COMMIT_REF_NAME" in master) docker push "$TAG_MINOR" && docker push "$TAG_MAJOR" && docker push "$TAG_LATEST" ;; *) echo Will only push latest from master branch, not from \'"$CI_COMMIT_REF_NAME"\' ;; esac
 
-kaniko:
+.kaniko:
   extends: .kaniko-build-template
   variables:
     COMPONENT: samotop
