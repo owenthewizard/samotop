@@ -44,17 +44,22 @@ RUN find . -name Cargo.toml -mindepth 1 \
     | jq -s 'add | to_entries | .[] |  select((.value|type=="string") or (.value.path?|not))' \
     | jq -s 'from_entries' \
     | wildq -M -i json -o toml '{"dev-dependencies": .}' | tee -a Cargo.toml
-RUN cargo check && cargo build
+RUN cargo check && cargo build && cargo test --all-features
 
 ####################################
 # The actual build of the app
 ####################################
 
 COPY . .
-RUN cargo build --color always --all-features
-RUN cargo check --color always --all-features
-RUN cargo clippy --color always --all-features -- -Dclippy::all
-RUN cargo test --color always --all-features
+RUN cargo check --color always --all-features \
+    && echo "CLIPPY -------------------------------------------" \
+    && cargo clippy --color always --all-features -- -Dclippy::all \
+    && echo "BUILD -------------------------------------------" \
+    && cargo build --color always --all-features \
+    && echo "TEST -------------------------------------------" \
+    && cargo test --color always --all-features \
+    && echo "----- DEV DONE!"
+
 
 FROM dev as prod
 RUN cargo build --color always --release
