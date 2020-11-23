@@ -21,4 +21,4 @@ ENV LANG=C.UTF-8
 RUN find . -name Cargo.toml | \
     xargs -I{} toml get {} dependencies | \
     jq -s 'add | to_entries | .[] | select(.value|type=="string" or (.value.path?|not))' | \
-    wildq -i json -o toml
+    wildq -i json -o toml '.'
