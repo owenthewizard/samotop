@@ -16,6 +16,8 @@ RUN USER=root cargo new --bin dependencies
 WORKDIR /app/dependencies
 COPY samotop-server/Cargo.toml .
 
+ENV LC_ALL=C.UTF-8
+ENV LANG=C.UTF-8
 RUN find . -name Cargo.toml | \
     xargs -I{} toml get {} dependencies | \
     jq -s 'add | to_entries | .[] | select(.value|type=="string" or (.value.path?|not))' | \
