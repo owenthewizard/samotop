@@ -238,13 +238,14 @@ publish-docker:
     # push stable version as latest
     - case "$CI_COMMIT_REF_NAME" in master) docker push "$TAG_MINOR" && docker push "$TAG_MAJOR" && docker push "$TAG_LATEST" ;; *) echo Will only push latest from master branch, not from \'"$CI_COMMIT_REF_NAME"\' ;; esac
 
-kaniko:
+build-builder:
   extends: .kaniko-build-template
   variables:
-    COMPONENT: samotop
+    COMPONENT: builder
     VERSION: latest
     CONTEXT: .
     DOCKERFILE: Dockerfile
+    BUILD_ARGS: --target builder
 
 # Jobs based on this template produce a docker image without the need for docker-in-docker (dind).
 # The job exports the given components pinned image so that deployments use the image built specifically in this pipeline.

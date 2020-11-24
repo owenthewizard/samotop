@@ -1,20 +1,22 @@
-FROM rust:latest as dev
+FROM rust:latest as builder
 
 ##########################################
 # Download and install dev tools
 ##########################################
 
-# install toml
-RUN cargo install toml-cli
-# install clippy
-RUN rustup component add clippy
+# install rust tools
+RUN rustup component add clippy rustfmt
+# install cargo tools
+RUN cargo install toml-cli cargo-readme cargo-sweep
+# install apt packages
+RUN apt-get update && apt-get install -y \
+   jq
 # install wildq
 RUN VERSION=$(curl -s "https://api.github.com/repos/ahmet2mir/wildq/releases/latest" | grep '"tag_name":' | sed -E 's/.*"v([^"]+)".*/\1/') \
     && curl -sL https://github.com/ahmet2mir/wildq/releases/download/v${VERSION}/wildq_${VERSION}-1_amd64.deb -o wildq_${VERSION}-1_amd64.deb \
     && dpkg -i wildq_${VERSION}-1_amd64.deb
-# install jq
-RUN apt-get update && apt-get install -y \
-   jq
+
+FROM builder as dev
 
 ##########################################
 # Download, build and cache dependencies
