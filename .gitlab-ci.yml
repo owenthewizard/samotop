@@ -57,7 +57,7 @@ stable-test:
     - cargo test --all-features --color always
     - cargo clippy --all-features --color always -- -Dclippy::all
     - cargo check --all-features --bins --tests --benches --examples --color always
-    - cargo --all-features audit --deny warnings --color always
+    - cargo audit --all-features --deny warnings --color always
     - ./fix.sh
 
 nightly-test:
