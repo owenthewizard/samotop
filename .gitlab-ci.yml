@@ -55,8 +55,8 @@ stable-test:
   script:
     - cargo test --all-features --color always
     - cargo clippy --all-features --color always -- -Dclippy::all
-    - cargo check --bins --tests --benches --examples --color always
-    - cargo audit --deny warnings --color always
+    - cargo check --all-features --bins --tests --benches --examples --color always
+    - cargo --all-features audit --deny warnings --color always
     - ./fix.sh
 
 nightly-test:
@@ -79,7 +79,7 @@ nightly-test:
   script:
     - cargo test --all-features --color always
     - cargo clippy --all-features --color always -- -Dclippy::all
-    - cargo check --bins --tests --benches --examples --color always
+    - cargo check --all-features --bins --tests --benches --examples --color always
     - ./fix.sh
     # cleanup target folder
     - ./clean.sh
