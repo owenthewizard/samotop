@@ -47,7 +47,7 @@ release-build:
     - cargo test --release --color always
 
 stable-test:
-  stage: test
+  stage: build
   only:
     - branches
   cache:
@@ -61,7 +61,7 @@ stable-test:
     - ./fix.sh
 
 nightly-test:
-  stage: test
+  stage: build
   allow_failure: true
   variables:
     RUST_BACKTRACE: 1
@@ -86,7 +86,7 @@ nightly-test:
     - ./clean.sh
 
 .example-template:
-  stage: test
+  stage: build
   only:
     - branches
   cache:
