@@ -238,6 +238,25 @@ publish-docker:
     # push stable version as latest
     - case "$CI_COMMIT_REF_NAME" in master) docker push "$TAG_MINOR" && docker push "$TAG_MAJOR" && docker push "$TAG_LATEST" ;; *) echo Will only push latest from master branch, not from \'"$CI_COMMIT_REF_NAME"\' ;; esac
 
+builder-test:
+  image: registry.gitlab.com/brightopen/backyard/samotop/builder:latest
+  stage: build
+  script:
+    - echo "$CARGO_HOME"
+    - echo "$RUSTUP_HOME"
+    - rustc --version --verbose
+    - cargo --version --verbose
+    - rustfmt --version
+    - cargo clippy --version
+    - cargo readme --version
+    - cargo audit --version
+    - cargo outdated --version
+    - cargo sweep --version
+    - cargo tree --version
+    - toml --version
+    - jq --version
+    - wildq --version
+
 builder-build:
   extends: .kaniko-build-template
   variables:
