@@ -16,6 +16,9 @@ RUN VERSION=$(curl -s "https://api.github.com/repos/ahmet2mir/wildq/releases/lat
     && curl -sL https://github.com/ahmet2mir/wildq/releases/download/v${VERSION}/wildq_${VERSION}-1_amd64.deb -o wildq_${VERSION}-1_amd64.deb \
     && dpkg -i wildq_${VERSION}-1_amd64.deb
 
+ENV LC_ALL=C.UTF-8
+ENV LANG=C.UTF-8
+
 FROM builder as dev
 
 ##########################################
@@ -32,8 +35,6 @@ COPY samotop-with-spf/Cargo.toml samotop-with-spf/Cargo.toml
 COPY samotop/Cargo.toml samotop/Cargo.toml
 COPY samotop-server/Cargo.toml samotop-server/Cargo.toml
 
-ENV LC_ALL=C.UTF-8
-ENV LANG=C.UTF-8
 RUN mv Cargo.toml Cargo.template.toml
 RUN cat Cargo.template.toml | wildq -M -i toml -o toml 'del(.dependencies)' > Cargo.toml
 RUN find . -name Cargo.toml -mindepth 1 \

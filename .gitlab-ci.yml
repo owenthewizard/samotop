@@ -1,16 +1,14 @@
-image: "rust:latest"
+image: registry.gitlab.com/brightopen/backyard/samotop/builder:latest
 
 stages:
   - build
+  - test
   - release
 
 variables:
   CARGO_HOME: "$CI_PROJECT_DIR/.cargo"
-  # Locales required by wildq
-  LC_ALL: "C.UTF-8"
-  LANG: "C.UTF-8"
 
-build:
+debug-build:
   stage: build
   only:
     - branches
@@ -21,26 +19,14 @@ build:
   artifacts:
     paths:
       - target/debug/samotop-server
-      - target/release/samotop-server
       - Cargo.lock
-  before_script:
-    - rustc --version --verbose
-    - cargo --version --verbose
-    - cargo install cargo-sweep
   script:    
     - mkdir -p target
     - du -shx target
-    - cargo build --color always
-    - cargo test --all --color always
+    - cargo build --all-features --color always
+    - cargo test --all-features --color always
     # cleanup target folder
-    - du -shx target
-    - find target -name 'samotop*' -exec rm -rf {} \; || true
-    - find target -name 'libsamotop*' -exec rm -rf {} \; || true
-    - rm -rf target/debug/examples || true
-    - rm -rf target/debug/incremental || true
-    - cargo sweep -t 3
-    - cargo sweep -i
-    - du -shx target
+    - ./clean.sh
 
 build-release:
   stage: build
@@ -52,31 +38,26 @@ build-release:
     paths:
       - target/release/samotop-server
       - Cargo.lock
-  before_script:
-    - rustc --version --verbose
-    - cargo --version --verbose
   script:    
     - cargo build --release --color always
-    - cargo test --release --all --color always
+    - cargo test --release --color always
 
-test-stable:
-  stage: build
+stable-test:
+  stage: test
   only:
     - branches
   cache:
     paths: *cache-paths
     policy: pull
-  before_script:
-    - rustup component add clippy rustfmt
-    - cargo install cargo-readme
   script:
-    - cargo test --workspace --all-features --color always
-    - cargo clippy --workspace --all-features --color always -- -Dclippy::all
-    - cargo check --workspace --benches --color always
+    - cargo clippy --all-features --color always -- -Dclippy::all
+    - cargo check --bins --tests --benches --examples --color always
+    # cargo test is already part of the build jobs
+    #- cargo test ---all-features --color always
     - ./fix.sh
 
 test-nightly:
-  stage: build
+  stage: test
   allow_failure: true
   variables:
     RUST_BACKTRACE: 1
@@ -93,21 +74,14 @@ test-nightly:
     - cargo install cargo-readme
     - cargo install cargo-sweep
   script:
-    - cargo test --workspace --all-features --color always
-    - cargo clippy --workspace --all-features --color always -- -Dclippy::all
-    - cargo check --workspace --benches --color always
+    - cargo test --all-features --color always
+    - cargo clippy --all-features --color always -- -Dclippy::all
+    - cargo check --bins --tests --benches --examples --color always
     - ./fix.sh
     # cleanup target folder
-    - du -shx target
-    - find target -name 'samotop*' -exec rm -rf {} \; || true
-    - find target -name 'libsamotop*' -exec rm -rf {} \; || true
-    - rm -rf target/debug/examples || true
-    - rm -rf target/debug/incremental || true
-    - cargo sweep -t 3
-    - cargo sweep -i
-    - du -shx target
+    - .clean.sh
 .example-template:
-  stage: build
+  stage: test
   only:
     - branches
   cache:
@@ -205,7 +179,6 @@ publish-docker:
     changes:
       - samotop-server/**/*
     refs:
-      - develop
       - master
   script:
     - cp -ra samotop-server/docker target/
