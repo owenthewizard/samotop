@@ -1,13 +1,15 @@
-image: "rust:latest"
-
-stages:
-  - build
-  - release
+include:
+  - ".gitlab-ci.builder.yml"
 
 variables:
   CARGO_HOME: "$CI_PROJECT_DIR/.cargo"
 
-build:
+stages:
+  - build
+  - test
+  - release
+
+debug-build:
   stage: build
   only:
     - branches
@@ -18,61 +20,59 @@ build:
   artifacts:
     paths:
       - target/debug/samotop-server
-      - target/release/samotop-server
       - Cargo.lock
-  before_script:
-    - rustc --version --verbose
-    - cargo --version --verbose
-    - cargo install cargo-sweep
   script:    
     - mkdir -p target
     - du -shx target
-    - cargo build --color always
-    - cargo test --all --color always
+    - du -shx "$CARGO_HOME"
+    - cargo build --all-features --color always
     # cleanup target folder
-    - du -shx target
-    - find target -name 'samotop*' -exec rm -rf {} \; || true
-    - find target -name 'libsamotop*' -exec rm -rf {} \; || true
-    - rm -rf target/debug/examples || true
-    - rm -rf target/debug/incremental || true
-    - cargo sweep -t 3
-    - cargo sweep -i
-    - du -shx target
+    - ./clean.sh
 
-build-release:
+release-build:
   stage: build
   only:
     - /^release\/*/
     - /^hotfix\/*/
     - master
+  cache:
+    paths: *cache-paths
+    policy: pull
   artifacts:
     paths:
       - target/release/samotop-server
       - Cargo.lock
-  before_script:
-    - rustc --version --verbose
-    - cargo --version --verbose
   script:    
     - cargo build --release --color always
-    - cargo test --release --all --color always
+    - cargo test --release --color always
 
-test-stable:
+stable-test:
   stage: build
   only:
     - branches
   cache:
     paths: *cache-paths
     policy: pull
-  before_script:
-    - rustup component add clippy rustfmt
-    - cargo install cargo-readme
   script:
-    - cargo test --workspace --all-features --color always
-    - cargo clippy --workspace --all-features --color always -- -Dclippy::all
-    - cargo check --workspace --benches --color always
+    - cargo test --all-features --color always
+
+clippy-test:
+  extends: stable-test
+  script:
+    - cargo clippy --all-features --color always -- -Dclippy::all
+
+check-test:
+  extends: stable-test
+  script:
+    - cargo check --all-features --bins --tests --benches --examples --color always
     - ./fix.sh
 
-test-nightly:
+audit-test:
+  extends: stable-test
+  script:
+    - cargo audit --deny warnings --color always
+
+nightly-test:
   stage: build
   allow_failure: true
   variables:
@@ -90,19 +90,13 @@ test-nightly:
     - cargo install cargo-readme
     - cargo install cargo-sweep
   script:
-    - cargo test --workspace --all-features --color always
-    - cargo clippy --workspace --all-features --color always -- -Dclippy::all
-    - cargo check --workspace --benches --color always
+    - cargo test --all-features --color always
+    - cargo clippy --all-features --color always -- -Dclippy::all
+    - cargo check --all-features --bins --tests --benches --examples --color always
     - ./fix.sh
     # cleanup target folder
-    - du -shx target
-    - find target -name 'samotop*' -exec rm -rf {} \; || true
-    - find target -name 'libsamotop*' -exec rm -rf {} \; || true
-    - rm -rf target/debug/examples || true
-    - rm -rf target/debug/incremental || true
-    - cargo sweep -t 3
-    - cargo sweep -i
-    - du -shx target
+    - ./clean.sh
+
 .example-template:
   stage: build
   only:
@@ -110,11 +104,8 @@ test-nightly:
   cache:
     paths: *cache-paths
     policy: pull
-  services:
-    - name: dovecot/dovecot:2.3.11
-      alias: dovecot
   script:
-    - cargo build --example ${EXAMPLE:?}
+    - cargo build --example ${EXAMPLE:?} --color always
     - RUST_LOG=trace cargo run --example ${EXAMPLE:?} &
     - sleep 10
     - |
@@ -140,6 +131,9 @@ example-lmtp:
   extends: .example-template
   variables:
     EXAMPLE: to-lmtp-tcp
+  services:
+    - name: dovecot/dovecot:2.3.11
+      alias: dovecot
 
 example-default:
   extends: .example-template
@@ -202,7 +196,6 @@ publish-docker:
     changes:
       - samotop-server/**/*
     refs:
-      - develop
       - master
   script:
     - cp -ra samotop-server/docker target/
@@ -237,45 +230,3 @@ publish-docker:
     - case "$CI_COMMIT_REF_NAME" in master|develop) docker push "$TAG_CURRENT" ;; *) echo Will only push current from master or develop branch, not from \'"$CI_COMMIT_REF_NAME"\' ;; esac
     # push stable version as latest
     - case "$CI_COMMIT_REF_NAME" in master) docker push "$TAG_MINOR" && docker push "$TAG_MAJOR" && docker push "$TAG_LATEST" ;; *) echo Will only push latest from master branch, not from \'"$CI_COMMIT_REF_NAME"\' ;; esac
-
-.kaniko:
-  extends: .kaniko-build-template
-  variables:
-    COMPONENT: samotop
-    VERSION: latest
-    CONTEXT: .
-    DOCKERFILE: Dockerfile
-
-# Jobs based on this template produce a docker image without the need for docker-in-docker (dind).
-# The job exports the given components pinned image so that deployments use the image built specifically in this pipeline.
-# If the image is not built in the pipeline, the default SEMVER image reference is used so it will deploy
-# the image of the same version built by another pipeline.
-.kaniko-build-template:
-  image:
-    name: gcr.io/kaniko-project/executor:debug
-    entrypoint: [""]
-  stage: .pre
-  script:
-    - mkdir -p /kaniko/.docker
-    - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
-    - echo building "${COMPONENT:?required env variable}"
-    - echo version "${VERSION:?required env variable}"
-    - echo context "${CONTEXT:?required env variable}"
-    - echo dockerfile "${DOCKERFILE:?required env variable}"
-    - echo build args "$BUILD_ARGS"
-    - IMAGE="$CI_REGISTRY_IMAGE/$COMPONENT:$VERSION"
-    - echo image "$IMAGE"
-    # TODO: figure out how to prevent overwriting stable image tags (those without any label)
-    # Other registries have this feature, not Gitlab - https://gitlab.com/gitlab-org/gitlab/-/issues/18984
-    - /kaniko/executor --context "$CONTEXT" --dockerfile "$DOCKERFILE" --destination "$IMAGE" --cache=true --cache-ttl=48h --digest-file kaniko.digest $BUILD_ARGS
-    - DIGEST="$(cat kaniko.digest)"
-    - COMPONENT_CAP="$(echo "$COMPONENT" | tr [:lower:] [:upper:])"
-    - echo "${COMPONENT_CAP}_VERSION=$VERSION" >> ci.env
-    - echo "${COMPONENT_CAP}_DIGEST=$DIGEST" >> ci.env
-    - echo "${COMPONENT_CAP}_IMAGE_SEMVER=$IMAGE" >> ci.env
-    - echo "${COMPONENT_CAP}_IMAGE=$CI_REGISTRY_IMAGE/$COMPONENT@$DIGEST" >> ci.env
-    - cat ci.env
-  artifacts:
-    expire_in: 7 days
-    reports:
-      dotenv: ci.env

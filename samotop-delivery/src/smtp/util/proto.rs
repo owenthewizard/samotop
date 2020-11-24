@@ -233,8 +233,8 @@ impl<'s, S: Read + Write> SmtpProto<'s, S> {
                             continue;
                         }
                     }
-                    Err(nom::Err::Failure(e)) => Err(Error::Parsing(e.1)),
-                    Err(nom::Err::Error(e)) => Err(Error::Parsing(e.1)),
+                    Err(nom::Err::Failure(e)) => Err(Error::Parsing(e.code)),
+                    Err(nom::Err::Error(e)) => Err(Error::Parsing(e.code)),
                 };
             }
         })
