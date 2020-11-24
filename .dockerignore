@@ -1,3 +1,6 @@
+Cargo.lock
+Dockerfile
+.gitlab-ci*.yml
 /target/
 /.cargo/
 /.git/

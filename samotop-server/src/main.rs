@@ -119,8 +119,7 @@ async fn main_fut() -> Result<()> {
     let mail_service = Builder::default()
         .using(Name::new(setup.get_my_name()))
         .using(Dir::new(setup.get_mail_dir())?)
-        //.using(samotop::mail::spf::provide_viaspf())
-        ;
+        .using(samotop::mail::spf::provide_viaspf());
     let smtp_service = SmtpService::new(Arc::new(mail_service), SmtpParser);
     let tls_smtp_service = TlsEnabled::new(smtp_service, tls_acceptor);
 
