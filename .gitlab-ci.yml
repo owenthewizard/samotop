@@ -1,12 +1,13 @@
-image: registry.gitlab.com/brightopen/backyard/samotop/builder:latest
+include:
+  - ".gitlab-ci.builder.yml"
+
+variables:
+  CARGO_HOME: "$CI_PROJECT_DIR/.cargo"
 
 stages:
   - build
   - test
   - release
-
-variables:
-  CARGO_HOME: "$CI_PROJECT_DIR/.cargo"
 
 debug-build:
   stage: build
@@ -217,73 +218,3 @@ publish-docker:
     - case "$CI_COMMIT_REF_NAME" in master|develop) docker push "$TAG_CURRENT" ;; *) echo Will only push current from master or develop branch, not from \'"$CI_COMMIT_REF_NAME"\' ;; esac
     # push stable version as latest
     - case "$CI_COMMIT_REF_NAME" in master) docker push "$TAG_MINOR" && docker push "$TAG_MAJOR" && docker push "$TAG_LATEST" ;; *) echo Will only push latest from master branch, not from \'"$CI_COMMIT_REF_NAME"\' ;; esac
-
-builder-test:
-  image: registry.gitlab.com/brightopen/backyard/samotop/builder:latest
-  stage: build
-  script:
-    - echo "$CARGO_HOME"
-    - echo "$RUSTUP_HOME"
-    - rustc --version --verbose
-    - cargo --version --verbose
-    - rustfmt --version
-    - cargo clippy --version
-    - cargo readme --version
-    - cargo audit --version
-    - cargo outdated --version
-    - cargo sweep --version
-    - cargo tree --version
-    - toml --version
-    - jq --version
-    - wildq --version
-    - which toml
-
-builder-build:
-  extends: .kaniko-build-template
-  variables:
-    COMPONENT: builder
-    VERSION: latest
-    CONTEXT: .
-    DOCKERFILE: Dockerfile
-    BUILD_ARGS: --target builder
-  only:
-    changes:
-      - Dockerfile
-      - .gitlab-ci.yml
-  environment:
-    name: builder
-    url: https://gitlab.com/BrightOpen/BackYard/Samotop/container_registry/1517868
-
-# Jobs based on this template produce a docker image without the need for docker-in-docker (dind).
-# The job exports the given components pinned image so that deployments use the image built specifically in this pipeline.
-# If the image is not built in the pipeline, the default SEMVER image reference is used so it will deploy
-# the image of the same version built by another pipeline.
-.kaniko-build-template:
-  image:
-    name: gcr.io/kaniko-project/executor:debug
-    entrypoint: [""]
-  stage: .pre
-  script:
-    - mkdir -p /kaniko/.docker
-    - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
-    - echo building "${COMPONENT:?required env variable}"
-    - echo version "${VERSION:?required env variable}"
-    - echo context "${CONTEXT:?required env variable}"
-    - echo dockerfile "${DOCKERFILE:?required env variable}"
-    - echo build args "$BUILD_ARGS"
-    - IMAGE="$CI_REGISTRY_IMAGE/$COMPONENT:$VERSION"
-    - echo image "$IMAGE"
-    # TODO: figure out how to prevent overwriting stable image tags (those without any label)
-    # Other registries have this feature, not Gitlab - https://gitlab.com/gitlab-org/gitlab/-/issues/18984
-    - /kaniko/executor --context "$CONTEXT" --dockerfile "$DOCKERFILE" --destination "$IMAGE" --cache=true --cache-ttl=48h --digest-file kaniko.digest $BUILD_ARGS
-    - DIGEST="$(cat kaniko.digest)"
-    - COMPONENT_CAP="$(echo "$COMPONENT" | tr [:lower:] [:upper:])"
-    - echo "${COMPONENT_CAP}_VERSION=$VERSION" >> ci.env
-    - echo "${COMPONENT_CAP}_DIGEST=$DIGEST" >> ci.env
-    - echo "${COMPONENT_CAP}_IMAGE_SEMVER=$IMAGE" >> ci.env
-    - echo "${COMPONENT_CAP}_IMAGE=$CI_REGISTRY_IMAGE/$COMPONENT@$DIGEST" >> ci.env
-    - cat ci.env
-  artifacts:
-    expire_in: 7 days
-    reports:
-      dotenv: ci.env

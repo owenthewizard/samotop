@@ -1,6 +1,6 @@
 Cargo.lock
 Dockerfile
-.gitlab-ci.yml
+.gitlab-ci*.yml
 /target/
 /.cargo/
 /.git/
