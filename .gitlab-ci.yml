@@ -85,6 +85,7 @@ test-nightly:
     - ./fix.sh
     # cleanup target folder
     - .clean.sh
+
 .example-template:
   stage: test
   only:
@@ -96,7 +97,7 @@ test-nightly:
     - name: dovecot/dovecot:2.3.11
       alias: dovecot
   script:
-    - cargo build --example ${EXAMPLE:?}
+    - cargo build --example ${EXAMPLE:?} --color always
     - RUST_LOG=trace cargo run --example ${EXAMPLE:?} &
     - sleep 10
     - |
