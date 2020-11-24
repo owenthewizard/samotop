@@ -25,4 +25,6 @@ path = "../samotop-model"
 pin-project = "1.0"
 log = "0.4"
 viaspf = "0.2"
-trust-dns-resolver = { version = "0.19", default-features = false, features = ["tokio-runtime"] }
+trust-dns-resolver = { version = "0.19", default-features = false }
+async-std-resolver = "0.19"
+async-std = "1.7"

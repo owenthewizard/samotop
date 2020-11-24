@@ -1,53 +1,47 @@
+use async_std::task::block_on;
+use async_std_resolver::{config, proto::rr::rdata::MX, resolver, AsyncStdResolver, ResolveError};
 use std::{
     net::{IpAddr, Ipv4Addr, Ipv6Addr},
     str,
 };
-use trust_dns_resolver::{
-    error::{ResolveError, ResolveErrorKind},
-    Resolver,
-};
+use trust_dns_resolver::error::ResolveErrorKind;
 use viaspf::{Lookup, LookupError, LookupResult, Name};
 
-pub struct TrustDnsResolver(Resolver);
+pub struct TrustDnsResolver(AsyncStdResolver);
 
 impl TrustDnsResolver {
-    pub fn new(resolver: Resolver) -> Self {
+    pub fn new(resolver: AsyncStdResolver) -> Self {
         Self(resolver)
     }
 }
 
-impl Default for TrustDnsResolver {
-    fn default() -> Self {
-        TrustDnsResolver::new(Resolver::default().unwrap())
-    }
+pub async fn new_resolver() -> Result<TrustDnsResolver, ResolveError> {
+    Ok(TrustDnsResolver::new(
+        resolver(
+            config::ResolverConfig::default(),
+            config::ResolverOpts::default(),
+        )
+        .await?,
+    ))
 }
 
 impl Lookup for TrustDnsResolver {
     fn lookup_a(&self, name: &Name) -> LookupResult<Vec<Ipv4Addr>> {
-        Ok(self
-            .0
-            .ipv4_lookup(name.as_str())
-            .map_err(to_lookup_error)?
-            .into_iter()
-            .collect())
+        let fut = self.0.ipv4_lookup(name.as_str());
+        let res = block_on(fut);
+        Ok(res.map_err(to_lookup_error)?.into_iter().collect())
     }
 
     fn lookup_aaaa(&self, name: &Name) -> LookupResult<Vec<Ipv6Addr>> {
-        Ok(self
-            .0
-            .ipv6_lookup(name.as_str())
-            .map_err(to_lookup_error)?
-            .into_iter()
-            .collect())
+        let fut = self.0.ipv6_lookup(name.as_str());
+        let res = block_on(fut);
+        Ok(res.map_err(to_lookup_error)?.into_iter().collect())
     }
 
     fn lookup_mx(&self, name: &Name) -> LookupResult<Vec<Name>> {
-        let mut mxs = self
-            .0
-            .mx_lookup(name.as_str())
-            .map_err(to_lookup_error)?
-            .into_iter()
-            .collect::<Vec<_>>();
+        let fut = self.0.mx_lookup(name.as_str());
+        let res = block_on(fut);
+        let mut mxs: Vec<MX> = res.map_err(to_lookup_error)?.into_iter().collect();
         mxs.sort_by_key(|mx| mx.preference());
         Ok(mxs
             .into_iter()
@@ -58,9 +52,9 @@ impl Lookup for TrustDnsResolver {
     }
 
     fn lookup_txt(&self, name: &Name) -> LookupResult<Vec<String>> {
-        Ok(self
-            .0
-            .txt_lookup(name.as_str())
+        let fut = self.0.txt_lookup(name.as_str());
+        let res = block_on(fut);
+        Ok(res
             .map_err(to_lookup_error)?
             .into_iter()
             .map(|txt| {
@@ -72,9 +66,9 @@ impl Lookup for TrustDnsResolver {
     }
 
     fn lookup_ptr(&self, ip: IpAddr) -> LookupResult<Vec<Name>> {
-        Ok(self
-            .0
-            .reverse_lookup(ip)
+        let fut = self.0.reverse_lookup(ip);
+        let res = block_on(fut);
+        Ok(res
             .map_err(to_lookup_error)?
             .into_iter()
             .map(|name| Name::new(&name.to_ascii()).map_err(|e| LookupError::Dns(Some(e.into()))))

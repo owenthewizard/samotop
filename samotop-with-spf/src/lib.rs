@@ -64,8 +64,15 @@ impl MailDispatch for SpfService {
         let fut = async move {
             // TODO: improve privacy - a) encrypt DNS, b) do DNS servers need to know who is receiving mail from whom?
             // TODO: convert to async
+            let resolver = match new_resolver().await {
+                Err(e) => {
+                    error!("Could not crerate resolver! {:?}", e);
+                    return Err(DispatchError::FailedTemporarily);
+                }
+                Ok(resolver) => resolver,
+            };
             let evaluation = evaluate_spf(
-                &TrustDnsResolver::default(),
+                &resolver,
                 &self.config,
                 peer_addr,
                 sender.as_str(),
@@ -73,11 +80,11 @@ impl MailDispatch for SpfService {
             );
             match evaluation.result {
                 SpfResult::Fail(explanation) => {
-                    debug!("mail rejected due to SPF fail: {}", explanation);
+                    info!("mail rejected due to SPF fail: {}", explanation);
                     Err(DispatchError::Refused)
                 }
                 result => {
-                    trace!("mail OK with SPF result: {}", result);
+                    debug!("mail OK with SPF result: {}", result);
                     // TODO: Add SPF result to mail headers
                     Ok(transaction)
                 }
