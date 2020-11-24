@@ -91,9 +91,6 @@ test-nightly:
   cache:
     paths: *cache-paths
     policy: pull
-  services:
-    - name: dovecot/dovecot:2.3.11
-      alias: dovecot
   script:
     - cargo build --example ${EXAMPLE:?} --color always
     - RUST_LOG=trace cargo run --example ${EXAMPLE:?} &
@@ -121,6 +118,9 @@ example-lmtp:
   extends: .example-template
   variables:
     EXAMPLE: to-lmtp-tcp
+  services:
+    - name: dovecot/dovecot:2.3.11
+      alias: dovecot
 
 example-default:
   extends: .example-template
