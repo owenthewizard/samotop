@@ -7,7 +7,7 @@ FROM rust:latest as builder
 # install rust tools
 RUN rustup component add clippy rustfmt
 # install cargo tools
-RUN cargo install toml-cli cargo-readme cargo-sweep
+RUN cargo install toml-cli cargo-readme cargo-sweep cargo-audit cargo-outdated
 # install apt packages
 RUN apt-get update && apt-get install -y \
    jq
