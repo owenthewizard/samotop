@@ -84,7 +84,7 @@ test-nightly:
     - cargo check --bins --tests --benches --examples --color always
     - ./fix.sh
     # cleanup target folder
-    - .clean.sh
+    - ./clean.sh
 
 .example-template:
   stage: test
