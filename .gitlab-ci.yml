@@ -6,6 +6,9 @@ stages:
 
 variables:
   CARGO_HOME: "$CI_PROJECT_DIR/.cargo"
+  # Locales required by wildq
+  LC_ALL: "C.UTF-8"
+  LANG: "C.UTF-8"
 
 build:
   stage: build
@@ -256,6 +259,7 @@ builder-test:
     - toml --version
     - jq --version
     - wildq --version
+    - which toml
 
 builder-build:
   extends: .kaniko-build-template
