@@ -59,7 +59,7 @@ stable-test:
     - cargo audit --deny any --color always
     - ./fix.sh
 
-test-nightly:
+nightly-test:
   stage: test
   allow_failure: true
   variables:
