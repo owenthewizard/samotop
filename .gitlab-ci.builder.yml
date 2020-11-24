@@ -4,7 +4,6 @@ variables:
 image: "registry.gitlab.com/brightopen/backyard/samotop/builder:$BUILDER_VERSION"
 
 builder-test:
-  image: registry.gitlab.com/brightopen/backyard/samotop/builder:latest
   stage: build
   script:
     - echo "$CARGO_HOME"
