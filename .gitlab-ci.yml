@@ -238,7 +238,7 @@ publish-docker:
     # push stable version as latest
     - case "$CI_COMMIT_REF_NAME" in master) docker push "$TAG_MINOR" && docker push "$TAG_MAJOR" && docker push "$TAG_LATEST" ;; *) echo Will only push latest from master branch, not from \'"$CI_COMMIT_REF_NAME"\' ;; esac
 
-build-builder:
+builder-build:
   extends: .kaniko-build-template
   variables:
     COMPONENT: builder
@@ -246,6 +246,13 @@ build-builder:
     CONTEXT: .
     DOCKERFILE: Dockerfile
     BUILD_ARGS: --target builder
+  only:
+    changes:
+      - Dockerfile
+      - .gitlab-ci.yml
+  environment:
+    name: builder
+    url: https://gitlab.com/BrightOpen/BackYard/Samotop/container_registry/1517868
 
 # Jobs based on this template produce a docker image without the need for docker-in-docker (dind).
 # The job exports the given components pinned image so that deployments use the image built specifically in this pipeline.
