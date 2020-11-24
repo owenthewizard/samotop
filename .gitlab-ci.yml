@@ -55,10 +55,22 @@ stable-test:
     policy: pull
   script:
     - cargo test --all-features --color always
+
+clippy-test:
+  extends: stable-test
+  script:
     - cargo clippy --all-features --color always -- -Dclippy::all
+
+check-test:
+  extends: stable-test
+  script:
     - cargo check --all-features --bins --tests --benches --examples --color always
-    - cargo audit --all-features --deny warnings --color always
     - ./fix.sh
+
+audit-test:
+  extends: stable-test
+  script:
+    - cargo audit --deny warnings --color always
 
 nightly-test:
   stage: build
