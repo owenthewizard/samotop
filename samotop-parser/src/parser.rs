@@ -3,9 +3,9 @@
 */
 use crate::grammar::*;
 use samotop_model::{
-    common::Result,
-    parser::Parser,
-    smtp::{ReadControl, SmtpCommand, SmtpPath},
+    parser::{ParseError, ParseResult, Parser},
+    smtp::{SmtpCommand, SmtpPath},
+    Error,
 };
 
 static PARSER: SmtpParser = SmtpParser;
@@ -20,13 +20,22 @@ impl Default for SmtpParser {
 }
 
 impl Parser for SmtpParser {
-    fn command(&self, input: &[u8]) -> Result<SmtpCommand> {
-        Ok(command(input)?)
+    fn command<'i>(&self, input: &'i [u8]) -> ParseResult<'i, SmtpCommand> {
+        Self::map(command(input), input)
     }
-    fn script(&self, input: &[u8]) -> Result<Vec<ReadControl>> {
-        Ok(session(input)?)
+}
+
+impl SmtpParser {
+    pub fn forward_path<'i>(&self, input: &'i [u8]) -> ParseResult<'i, SmtpPath> {
+        Self::map(path_forward(input), input)
     }
-    fn forward_path(&self, input: &[u8]) -> Result<SmtpPath> {
-        Ok(path_forward(input)?)
+    fn map<'i, T, E>(myres: std::result::Result<T, E>, input: &'i [u8]) -> ParseResult<'i, T>
+    where
+        E: Into<Error>,
+    {
+        match myres {
+            Ok(item) => Ok((input, item)),
+            Err(e) => Err(ParseError::Mismatch(e.into())),
+        }
     }
 }

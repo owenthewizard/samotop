@@ -26,14 +26,14 @@ pub enum WriteControl {
 }
 
 /// Represents the instructions for the server side of the stream.
-#[derive(PartialEq, Eq, Clone)]
+#[derive()]
 pub enum ReadControl {
     /** Peer connected */
     PeerConnected(SessionInfo),
     /** Peer disconnected */
     PeerShutdown,
     /** SMTP command line */
-    Command(SmtpCommand, Vec<u8>),
+    Command(Box<dyn SmtpSessionCommand>, Vec<u8>),
     /** raw input that could not be understood */
     Raw(Vec<u8>),
     /** Available mail data without signalling dots */
@@ -63,7 +63,11 @@ impl fmt::Debug for ReadControl {
         match self {
             ReadControl::PeerConnected(sess) => write!(f, "PeerConnected({:?})", sess),
             ReadControl::PeerShutdown => write!(f, "PeerShutdown"),
-            ReadControl::Command(c, b) => f.debug_tuple("Command").field(&c).field(&tb(b)).finish(),
+            ReadControl::Command(c, b) => f
+                .debug_tuple("Command")
+                .field(&c.verb())
+                .field(&tb(b))
+                .finish(),
             ReadControl::Raw(b) => f.debug_tuple("Raw").field(&tb(b)).finish(),
             ReadControl::MailDataChunk(b) => f.debug_tuple("MailDataChunk").field(&tb(b)).finish(),
             ReadControl::EndOfMailData(b) => f.debug_tuple("EndOfMailData").field(&tb(b)).finish(),

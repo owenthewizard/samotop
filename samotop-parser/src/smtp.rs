@@ -22,7 +22,7 @@ peg::parser! {
             = inp_none() / inp_command() / inp_invalid() /// inp_incomplete()
         pub rule inp_command() -> ReadControl
             = start:position!() c:command() end:position!()
-            { ReadControl::Command( c, Vec::from(&__input[start..end])) }
+            { ReadControl::Command( Box::new(c), Vec::from(&__input[start..end])) }
         pub rule inp_none() -> ReadControl
             =  s:$(NL() / __* NL())
             { ReadControl::Empty(Vec::from(s)) }

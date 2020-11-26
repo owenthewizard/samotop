@@ -18,7 +18,7 @@ impl SmtpSessionCommand for SmtpRcpt {
         "RCPT"
     }
 
-    fn apply(self, mut state: SmtpState) -> S3Fut<SmtpState> {
+    fn apply<'a>(&'a self, mut state: SmtpState) -> S2Fut<'a, SmtpState> {
         if state.transaction.mail.is_none() {
             state.say_command_sequence_fail();
             return Box::pin(ready(state));
@@ -26,7 +26,7 @@ impl SmtpSessionCommand for SmtpRcpt {
         let transaction = std::mem::take(&mut state.transaction);
         let request = AddRecipientRequest {
             transaction,
-            rcpt: self.0,
+            rcpt: self.0.clone(),
         };
         let fut = async move {
             match state.service.add_recipient(request).await {

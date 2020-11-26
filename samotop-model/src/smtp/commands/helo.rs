@@ -17,11 +17,11 @@ impl SmtpSessionCommand for SmtpHelo {
         }
     }
 
-    fn apply(self, mut state: SmtpState) -> S3Fut<SmtpState> {
+    fn apply<'a>(&'a self, mut state: SmtpState) -> S2Fut<'a, SmtpState> {
         let local = state.session.service_name.to_owned();
         let remote = self.host().to_string();
         let is_extended = self.is_extended();
-        state.reset_helo(self);
+        state.reset_helo(self.clone());
         if is_extended {
             let extensions = state.session.extensions.iter().map(String::from).collect();
             state.say_ehlo(local, extensions, remote)

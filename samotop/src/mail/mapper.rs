@@ -2,7 +2,6 @@
 //! converting recipient addresses according to a regex map.
 use crate::common::*;
 use crate::mail::*;
-use crate::parser::Parser;
 use regex::Regex;
 use samotop_parser::SmtpParser;
 
@@ -40,8 +39,9 @@ impl MailGuard for Mapper {
         }
         let rcpt = format!("<{}>", rcpt);
         match SmtpParser.forward_path(rcpt.as_bytes()) {
-            Ok(new_path) => {
+            Ok((i, new_path)) => {
                 trace!("Converted {} into {}", request.rcpt, rcpt);
+                assert!(i.is_empty());
                 request.rcpt = new_path;
                 Box::pin(ready(AddRecipientResult::Inconclusive(request)))
             }

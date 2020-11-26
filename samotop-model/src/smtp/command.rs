@@ -4,10 +4,10 @@ use crate::{common::*, smtp::state::SmtpState};
 use std::fmt;
 use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
 
-pub trait SmtpSessionCommand {
+pub trait SmtpSessionCommand: Sync + Send + fmt::Debug {
     fn verb(&self) -> &str;
     #[must_use = "apply must be awaited"]
-    fn apply(self, state: SmtpState) -> S3Fut<SmtpState>;
+    fn apply<'a>(&'a self, state: SmtpState) -> S2Fut<'a, SmtpState>;
 }
 
 #[derive(Eq, PartialEq, Debug, Clone)]
@@ -49,19 +49,21 @@ impl SmtpSessionCommand for SmtpCommand {
         }
     }
 
-    fn apply(self, state: SmtpState) -> S3Fut<SmtpState> {
+    fn apply<'a>(&'a self, state: SmtpState) -> S2Fut<'a, SmtpState> {
         use SmtpCommand as C;
         match self {
             C::Helo(helo) => helo.apply(state),
             C::Mail(mail) => mail.apply(state),
-            C::Rcpt(path) => SmtpRcpt::from(path).apply(state),
+            C::Rcpt(path) => {
+                Box::pin(async move { SmtpRcpt::from(path.clone()).apply(state).await })
+            }
             C::Data => SmtpData.apply(state),
             C::Quit => SmtpQuit.apply(state),
             C::Rset => SmtpRset.apply(state),
             C::Noop(_) => SmtpNoop.apply(state),
             C::StartTls => StartTls.apply(state),
             C::Expn(_) | C::Vrfy(_) | C::Help(_) | C::Turn | C::Other(_, _) => {
-                SmtpUnknownCommand::default().apply(state)
+                Box::pin(async move { SmtpUnknownCommand::default().apply(state).await })
             }
         }
     }
@@ -81,13 +83,17 @@ impl SmtpSessionCommand for ReadControl {
         }
     }
 
-    fn apply(self, state: SmtpState) -> S3Fut<SmtpState> {
+    fn apply<'a>(&'a self, state: SmtpState) -> S2Fut<'a, SmtpState> {
         match self {
             ReadControl::PeerConnected(sess) => sess.apply(state),
             ReadControl::PeerShutdown => SessionShutdown.apply(state),
-            ReadControl::Raw(_) => SmtpInvalidCommand::default().apply(state),
+            ReadControl::Raw(_) => {
+                Box::pin(async move { SmtpInvalidCommand::default().apply(state).await })
+            }
             ReadControl::Command(cmd, _) => cmd.apply(state),
-            ReadControl::MailDataChunk(bytes) => MailBodyChunk(bytes).apply(state),
+            ReadControl::MailDataChunk(bytes) => {
+                Box::pin(async move { MailBodyChunk(bytes).apply(state).await })
+            }
             ReadControl::EndOfMailData(_) => MailBodyEnd.apply(state),
             ReadControl::Empty(_) => Box::pin(ready(state)),
             ReadControl::EscapeDot(_) => Box::pin(ready(state)),

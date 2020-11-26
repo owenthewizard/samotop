@@ -2,21 +2,22 @@ use crate::{
     common::*,
     smtp::{SmtpSessionCommand, SmtpState},
 };
+use std::fmt;
 
 /// A chunk of the mail body
 #[derive(Default, Eq, PartialEq, Debug, Clone)]
-pub struct MailBodyChunk(pub Vec<u8>);
+pub struct MailBodyChunk<B>(pub B);
 
 /// The mail body is finished. Mail should be queued.
 #[derive(Default, Eq, PartialEq, Debug, Clone)]
 pub struct MailBodyEnd;
 
-impl SmtpSessionCommand for MailBodyChunk {
+impl<B: AsRef<[u8]> + Sync + Send + fmt::Debug> SmtpSessionCommand for MailBodyChunk<B> {
     fn verb(&self) -> &str {
         ""
     }
 
-    fn apply(self, mut state: SmtpState) -> S3Fut<SmtpState> {
+    fn apply<'a>(&'a self, mut state: SmtpState) -> S2Fut<'a, SmtpState> {
         if state.transaction.sink.is_none() {
             // CheckMe: silence. handle_data_end should respond with error.
             return Box::pin(ready(state));
@@ -29,7 +30,7 @@ impl SmtpSessionCommand for MailBodyChunk {
         let mailid = state.transaction.id.clone();
         let fut = async move {
             let write_all = WriteAll {
-                from: &self.0[..],
+                from: self.0.as_ref(),
                 to: &mut sink,
             };
             match write_all.await {
@@ -53,7 +54,7 @@ impl SmtpSessionCommand for MailBodyEnd {
         ""
     }
 
-    fn apply(self, mut state: SmtpState) -> S3Fut<SmtpState> {
+    fn apply<'a>(&'a self, mut state: SmtpState) -> S2Fut<'a, SmtpState> {
         if state.transaction.sink.is_none() {
             // CheckMe: silence. handle_data_end should respond with error.
             return Box::pin(ready(state));

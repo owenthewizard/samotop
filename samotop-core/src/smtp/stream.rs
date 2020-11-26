@@ -45,7 +45,8 @@ where
                         Poll::Ready(None) => Poll::Ready(None),
                         Poll::Ready(Some(Ok(control))) => {
                             trace!("poll_next polled input {:?}", control);
-                            *proj.state = State::Pending(control.apply(data));
+                            *proj.state =
+                                State::Pending(Box::pin(async move { control.apply(data).await }));
                             continue;
                         }
                         Poll::Ready(Some(Err(e))) => {
@@ -63,7 +64,10 @@ where
     }
 }
 
-impl<S> SessionStream<S> {
+impl<S> SessionStream<S>
+where
+    S: Stream<Item = Result<ReadControl>> + Unpin + Sync + Send,
+{
     pub fn new(input: S, state: SmtpState) -> Self {
         Self {
             state: State::Ready(state),

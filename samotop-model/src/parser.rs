@@ -1,25 +1,34 @@
 use crate::common::*;
-use crate::smtp::ReadControl;
 use crate::smtp::SmtpCommand;
-use crate::smtp::SmtpPath;
+use std::fmt;
+
+pub type ParseResult<'a, T> = std::result::Result<(&'a [u8], T), ParseError>;
 
 pub trait Parser {
-    fn command(&self, input: &[u8]) -> Result<SmtpCommand>;
-    fn script(&self, input: &[u8]) -> Result<Vec<ReadControl>>;
-    fn forward_path(&self, input: &[u8]) -> Result<SmtpPath>;
+    fn command<'i>(&self, input: &'i [u8]) -> ParseResult<'i, SmtpCommand>;
 }
 
 impl<T> Parser for Arc<T>
 where
     T: Parser,
 {
-    fn command(&self, input: &[u8]) -> Result<SmtpCommand> {
+    fn command<'i>(&self, input: &'i [u8]) -> ParseResult<'i, SmtpCommand> {
         T::command(self, input)
     }
-    fn script(&self, input: &[u8]) -> Result<Vec<ReadControl>> {
-        T::script(self, input)
-    }
-    fn forward_path(&self, input: &[u8]) -> Result<SmtpPath> {
-        T::forward_path(self, input)
+}
+
+#[derive(Debug)]
+pub enum ParseError {
+    Incomplete,
+    Failed(Error),
+    Mismatch(Error),
+}
+impl fmt::Display for ParseError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ParseError::Incomplete => write!(f, "The input is not complete"),
+            ParseError::Failed(e) => write!(f, "The input is invalid, parsing failed: {}", e),
+            ParseError::Mismatch(e) => write!(f, "Parser did not match the input: {}", e),
+        }
     }
 }

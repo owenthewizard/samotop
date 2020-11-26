@@ -23,7 +23,7 @@ impl SmtpSessionCommand for SmtpMail {
         }
     }
 
-    fn apply(self, mut state: SmtpState) -> S3Fut<SmtpState> {
+    fn apply<'a>(&'a self, mut state: SmtpState) -> S2Fut<'a, SmtpState> {
         if state.session.smtp_helo.is_none() {
             state.say_command_sequence_fail();
             return Box::pin(ready(state));
@@ -31,7 +31,7 @@ impl SmtpSessionCommand for SmtpMail {
         state.reset();
 
         let transaction = Transaction {
-            mail: Some(self),
+            mail: Some(self.clone()),
             ..Transaction::default()
         };
 
