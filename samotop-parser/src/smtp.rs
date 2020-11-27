@@ -91,8 +91,8 @@ peg::parser! {
             { SmtpCommand::Mail(SmtpMail::Saml(p, s)) }
 
         pub rule cmd_rcpt() -> SmtpCommand
-            = i("rcpt to:") p:path_forward() NL()
-            { SmtpCommand::Rcpt(p) }
+            = i("rcpt to:") p:path_forward() s:strparam()* NL()
+            { SmtpCommand::Rcpt(SmtpRcpt(p, s)) }
 
         pub rule cmd_helo() -> SmtpCommand
             = i("helo") _ h:host() NL()
@@ -257,10 +257,6 @@ mod tests {
     use super::*;
     use crate::grammar::*;
     use samotop_model::Result;
-
-    fn b(bytes: impl AsRef<[u8]>) -> Vec<u8> {
-        Vec::from(bytes.as_ref())
-    }
 
     #[test]
     fn script_parses_unknown_command() {

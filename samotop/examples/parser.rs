@@ -15,7 +15,7 @@ fn main() {
     let mut input = input.as_bytes();
 
     while !input.is_empty() {
-        let (i, item) = SmtpParser.parse_command(input).unwrap();
+        let (i, item) = SmtpParser::default().parse_command(input).unwrap();
         input = i;
         println!("Parsed: {:#?}", item);
     }

@@ -5,13 +5,7 @@ use crate::{
 };
 
 #[derive(Eq, PartialEq, Debug, Clone)]
-pub struct SmtpRcpt(SmtpPath);
-
-impl From<SmtpPath> for SmtpRcpt {
-    fn from(from: SmtpPath) -> Self {
-        Self(from)
-    }
-}
+pub struct SmtpRcpt(pub SmtpPath, pub Vec<String>);
 
 impl SmtpSessionCommand for SmtpRcpt {
     fn verb(&self) -> &str {
@@ -77,7 +71,7 @@ mod tests {
         set.transaction.mail = Some(SmtpMail::Mail(SmtpPath::Null, vec![]));
         set.transaction.rcpts.push(SmtpPath::Null);
         set.transaction.extra_headers.insert_str(0, "feeeha");
-        let sut = SmtpRcpt(SmtpPath::Postmaster);
+        let sut = SmtpRcpt(SmtpPath::Postmaster, vec![]);
         let res = sut.apply(set).await;
         assert_eq!(res.transaction.rcpts.len(), 2);
     }

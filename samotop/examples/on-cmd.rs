@@ -42,7 +42,11 @@ fn main() -> Result<()> {
 
 async fn main_fut() -> Result<()> {
     let dir_service = Dir::new("tmp/samotop/spool/".into())?;
-    let mail_service = Arc::new(Builder::default().using(dir_service).using(SmtpParser));
+    let mail_service = Arc::new(
+        Builder::default()
+            .using(dir_service)
+            .using(SmtpParser::default()),
+    );
     let smtp_service = SmtpService::new(Arc::new(mail_service));
     let tls_smtp_service = TlsEnabled::disabled(smtp_service);
 

@@ -10,18 +10,10 @@ use samotop_model::{
     Error,
 };
 
-static PARSER: SmtpParser = SmtpParser;
+#[derive(Clone, Copy, Debug, Default)]
+pub struct SmtpParserPeg;
 
-#[derive(Clone, Debug)]
-pub struct SmtpParser;
-
-impl Default for SmtpParser {
-    fn default() -> SmtpParser {
-        PARSER.clone()
-    }
-}
-
-impl Parser for SmtpParser {
+impl Parser for SmtpParserPeg {
     fn parse_command<'i>(&self, input: &'i [u8]) -> ParseResult<'i, SmtpCommand> {
         let eol = memchr(b'\n', input)
             .map(|lf| lf + 1)
@@ -37,13 +29,13 @@ impl Parser for SmtpParser {
     }
 }
 
-impl MailSetup for SmtpParser {
+impl MailSetup for SmtpParserPeg {
     fn setup(self, builder: &mut samotop_model::mail::Builder) {
         builder.parser.insert(0, Box::new(self))
     }
 }
 
-impl SmtpParser {
+impl SmtpParserPeg {
     pub fn forward_path<'i>(&self, input: &'i [u8]) -> ParseResult<'i, SmtpPath> {
         Self::map(path_forward(input), b"")
     }

@@ -23,3 +23,4 @@ path = "../samotop-model"
 
 [dependencies]
 rustyknife = "0.2"
+nom = "6.0.1"

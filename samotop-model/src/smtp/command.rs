@@ -1,6 +1,6 @@
 pub use super::commands::*;
-use super::{ReadControl, SmtpReply, WriteControl};
-use crate::{common::*, parser::ParseError, smtp::state::SmtpState};
+use super::{SmtpReply, WriteControl};
+use crate::{common::*, smtp::state::SmtpState};
 use std::fmt;
 use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
 
@@ -15,7 +15,7 @@ pub enum SmtpCommand {
     StartTls,
     Helo(SmtpHelo),
     Mail(SmtpMail),
-    Rcpt(SmtpPath),
+    Rcpt(SmtpRcpt),
     Expn(String),
     Vrfy(String),
     Help(Vec<String>),

@@ -5,7 +5,6 @@ use crate::{
     protocol::smtp::SmtpCodec,
     smtp::*,
 };
-use futures::SinkExt;
 use std::marker::PhantomData;
 use std::sync::Arc;
 

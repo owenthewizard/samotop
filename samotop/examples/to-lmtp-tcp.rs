@@ -48,7 +48,7 @@ async fn main_fut() -> Result<()> {
     let mail_service = Builder::default()
         .using(LmtpDispatch::new("dovecot:24".to_owned(), lmtp_connector)?.reuse(0))
         .using(rcpt_map)
-        .using(SmtpParser);
+        .using(SmtpParser::default());
     let smtp_service = SmtpService::new(Arc::new(mail_service));
     let tls_smtp_service = TlsEnabled::disabled(smtp_service);
 

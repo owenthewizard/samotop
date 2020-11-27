@@ -106,7 +106,7 @@ extern crate samotop;
 use std::sync::Arc;
 fn main() {
     env_logger::init();
-    let parser = samotop::parser::SmtpParser;
+    let parser = samotop::parser::SmtpParser::default();
     let mail = Arc::new(samotop::mail::Builder::default().using(parser));
     let svc = samotop::io::smtp::SmtpService::new(mail);
     let svc = samotop::io::tls::TlsEnabled::disabled(svc);
