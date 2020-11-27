@@ -9,7 +9,7 @@ impl SmtpSessionCommand for SessionInfo {
         ""
     }
 
-    fn apply<'a>(&'a self, mut state: SmtpState) -> S2Fut<'a, SmtpState> {
+    fn apply(&self, mut state: SmtpState) -> S2Fut<SmtpState> {
         state.session = self.clone();
         state.service.prepare_session(&mut state.session);
 
@@ -46,7 +46,7 @@ impl SmtpSessionCommand for SessionShutdown {
         ""
     }
 
-    fn apply<'a>(&'a self, mut state: SmtpState) -> S2Fut<'a, SmtpState> {
+    fn apply(&self, mut state: SmtpState) -> S2Fut<SmtpState> {
         state.reset();
         state.session = SessionInfo::default();
         Box::pin(ready(state))

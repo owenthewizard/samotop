@@ -12,7 +12,7 @@ impl SmtpSessionCommand for SmtpRcpt {
         "RCPT"
     }
 
-    fn apply<'a>(&'a self, mut state: SmtpState) -> S2Fut<'a, SmtpState> {
+    fn apply(&self, mut state: SmtpState) -> S2Fut<SmtpState> {
         if state.transaction.mail.is_none() {
             state.say_command_sequence_fail();
             return Box::pin(ready(state));

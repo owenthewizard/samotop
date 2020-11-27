@@ -7,7 +7,7 @@ use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
 pub trait SmtpSessionCommand: Sync + Send + fmt::Debug {
     fn verb(&self) -> &str;
     #[must_use = "apply must be awaited"]
-    fn apply<'a>(&'a self, state: SmtpState) -> S2Fut<'a, SmtpState>;
+    fn apply(&self, state: SmtpState) -> S2Fut<SmtpState>;
 }
 
 #[derive(Eq, PartialEq, Debug, Clone)]
@@ -49,7 +49,7 @@ impl SmtpSessionCommand for SmtpCommand {
         }
     }
 
-    fn apply<'a>(&'a self, state: SmtpState) -> S2Fut<'a, SmtpState> {
+    fn apply(&self, state: SmtpState) -> S2Fut<SmtpState> {
         use SmtpCommand as C;
         match self {
             C::Helo(helo) => helo.apply(state),
@@ -78,7 +78,7 @@ where
         ""
     }
 
-    fn apply<'a>(&'a self, mut state: SmtpState) -> S2Fut<'a, SmtpState> {
+    fn apply(&self, mut state: SmtpState) -> S2Fut<SmtpState> {
         match self {
             Ok(command) => Box::pin(async move { command.apply(state).await }),
             Err(e) => {

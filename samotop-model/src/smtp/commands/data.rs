@@ -9,7 +9,7 @@ impl SmtpSessionCommand for SmtpData {
         "DATA"
     }
 
-    fn apply<'a>(&'a self, mut state: SmtpState) -> S2Fut<'a, SmtpState> {
+    fn apply(&self, mut state: SmtpState) -> S2Fut<SmtpState> {
         if state.transaction.id.is_empty()
             || state.session.smtp_helo.is_none()
             || state.transaction.mail.is_none()

@@ -17,7 +17,7 @@ impl SmtpSessionCommand for SmtpHelo {
         }
     }
 
-    fn apply<'a>(&'a self, mut state: SmtpState) -> S2Fut<'a, SmtpState> {
+    fn apply(&self, mut state: SmtpState) -> S2Fut<SmtpState> {
         let local = state.session.service_name.to_owned();
         let remote = self.host().to_string();
         let is_extended = self.is_extended();

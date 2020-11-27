@@ -17,7 +17,7 @@ impl<B: AsRef<[u8]> + Sync + Send + fmt::Debug> SmtpSessionCommand for MailBodyC
         ""
     }
 
-    fn apply<'a>(&'a self, mut state: SmtpState) -> S2Fut<'a, SmtpState> {
+    fn apply(&self, mut state: SmtpState) -> S2Fut<SmtpState> {
         if state.transaction.sink.is_none() {
             // CheckMe: silence. handle_data_end should respond with error.
             return Box::pin(ready(state));
@@ -54,7 +54,7 @@ impl SmtpSessionCommand for MailBodyEnd {
         ""
     }
 
-    fn apply<'a>(&'a self, mut state: SmtpState) -> S2Fut<'a, SmtpState> {
+    fn apply(&self, mut state: SmtpState) -> S2Fut<SmtpState> {
         if state.transaction.sink.is_none() {
             // CheckMe: silence. handle_data_end should respond with error.
             return Box::pin(ready(state));
