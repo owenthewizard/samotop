@@ -4,7 +4,7 @@ use std::fmt;
 
 pub type ParseResult<'a, T> = std::result::Result<(&'a [u8], T), ParseError>;
 
-pub trait Parser {
+pub trait Parser: fmt::Debug {
     fn command<'i>(&self, input: &'i [u8]) -> ParseResult<'i, SmtpCommand>;
 }
 

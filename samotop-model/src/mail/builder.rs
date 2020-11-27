@@ -4,11 +4,15 @@ use crate::{
         AddRecipientRequest, AddRecipientResult, DispatchResult, EsmtpService, MailDispatch,
         MailGuard, MailSetup, SessionInfo, StartMailRequest, StartMailResult, Transaction,
     },
+    parser::ParseResult,
+    parser::{ParseError, Parser},
+    smtp::SmtpCommand,
 };
 
 #[derive(Default, Debug)]
 pub struct Builder {
     pub id: String,
+    pub parser: Vec<Box<dyn Parser + Sync + Send + 'static>>,
     pub dispatch: Vec<Box<dyn MailDispatch + Sync + Send + 'static>>,
     pub guard: Vec<Box<dyn MailGuard + Sync + Send + 'static>>,
     pub esmtp: Vec<Box<dyn EsmtpService + Sync + Send + 'static>>,
@@ -118,5 +122,29 @@ impl EsmtpService for Builder {
             trace!("Esmtp {} prepare_session calling {:?}", self.id, esmtp);
             esmtp.prepare_session(session);
         }
+    }
+}
+
+impl Parser for Builder {
+    fn command<'i>(&self, input: &'i [u8]) -> ParseResult<'i, SmtpCommand> {
+        debug!(
+            "Parser {} with {} parsers munching on {} bytes",
+            self.id,
+            self.parser.len(),
+            input.len()
+        );
+        for (idx, parser) in self.parser.iter().enumerate() {
+            trace!("Parser {}/{} parse command calling {:?}", self.id, idx, parser);
+            match parser.command(input) {
+                Err(ParseError::Mismatch(e)) => {
+                    debug!(
+                        "Parser {}/{} - {:?} did not recognize the input: {:?}",
+                        self.id, idx, parser, e
+                    );
+                }
+                otherwise => return otherwise,
+            }
+        }
+        Err(ParseError::Mismatch("No parser can parse this".into()))
     }
 }

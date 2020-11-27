@@ -84,20 +84,21 @@ impl SmtpSessionCommand for ReadControl {
     }
 
     fn apply<'a>(&'a self, state: SmtpState) -> S2Fut<'a, SmtpState> {
-        match self {
-            ReadControl::PeerConnected(sess) => sess.apply(state),
-            ReadControl::PeerShutdown => SessionShutdown.apply(state),
-            ReadControl::Raw(_) => {
-                Box::pin(async move { SmtpInvalidCommand::default().apply(state).await })
+        Box::pin(async move {
+            match self {
+                ReadControl::PeerConnected(sess) => sess.apply(state).await,
+                ReadControl::PeerShutdown => SessionShutdown.apply(state).await,
+                ReadControl::Command(cmd, _) => cmd.apply(state).await,
+                ReadControl::MailDataChunk(bytes) => MailBodyChunk(bytes).apply(state).await,
+                ReadControl::EndOfMailData(_) => MailBodyEnd.apply(state).await,
+                ReadControl::Empty(_) => state,
+                ReadControl::EscapeDot(_) => state,
+                ReadControl::Raw(_) => {
+                    //state.service.command(input);
+                    SmtpInvalidCommand::default().apply(state).await
+                }
             }
-            ReadControl::Command(cmd, _) => cmd.apply(state),
-            ReadControl::MailDataChunk(bytes) => {
-                Box::pin(async move { MailBodyChunk(bytes).apply(state).await })
-            }
-            ReadControl::EndOfMailData(_) => MailBodyEnd.apply(state),
-            ReadControl::Empty(_) => Box::pin(ready(state)),
-            ReadControl::EscapeDot(_) => Box::pin(ready(state)),
-        }
+        })
     }
 }
 #[derive(Eq, PartialEq, Debug, Clone)]
