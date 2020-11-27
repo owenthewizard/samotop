@@ -579,10 +579,12 @@ mod codec_tests {
 
         // first comes the session info
         drop(Pin::new(&mut sut).poll_next(&mut cx()));
-        assert_eq!(
-            Pin::new(&mut sut).poll_next(&mut cx())?,
-            Poll::Ready(Some(Raw(b("helo there\r\n"))))
-        );
+        let res = Pin::new(&mut sut).poll_next(&mut cx())?;
+        if let Poll::Ready(Some(Raw(bytes))) = res {
+            assert_eq!(bytes, b("helo there\r\n"));
+        } else {
+            panic!("invalid result. Expected Raw, got {:?}", res);
+        }
         assert_eq!(b(io.read()), b("helo there\r\n"));
         Ok(())
     }
@@ -595,10 +597,10 @@ mod codec_tests {
 
         // first comes the session info
         drop(Pin::new(&mut sut).poll_next(&mut cx()));
-        assert_eq!(
-            Pin::new(&mut sut).poll_next(&mut cx())?,
-            Poll::Ready(Some(Raw(b("he\r\n"))))
-        );
+        match Pin::new(&mut sut).poll_next(&mut cx())? {
+            Poll::Ready(Some(Raw(bytes))) => assert_eq!(bytes, b("he\r\n")),
+            res => panic!("invalid result. Expected Raw, got {:?}", res),
+        }
         Ok(())
     }
 
@@ -610,14 +612,14 @@ mod codec_tests {
 
         // first comes the session info
         drop(Pin::new(&mut sut).poll_next(&mut cx()));
-        assert_eq!(
-            Pin::new(&mut sut).poll_next(&mut cx())?,
-            Poll::Ready(Some(Raw(b("!@#\r\n"))))
-        );
-        assert_eq!(
-            Pin::new(&mut sut).poll_next(&mut cx())?,
-            Poll::Ready(Some(Raw(b("quit\r\n"))))
-        );
+        match Pin::new(&mut sut).poll_next(&mut cx())? {
+            Poll::Ready(Some(Raw(bytes))) => assert_eq!(bytes, b("!@#\r\n")),
+            res => panic!("invalid result. Expected Raw, got {:?}", res),
+        }
+        match Pin::new(&mut sut).poll_next(&mut cx())? {
+            Poll::Ready(Some(Raw(bytes))) => assert_eq!(bytes, b("quit\r\n")),
+            res => panic!("invalid result. Expected Raw, got {:?}", res),
+        }
         Ok(())
     }
 
@@ -629,13 +631,17 @@ mod codec_tests {
 
         // first comes the session info
         drop(Pin::new(&mut sut).poll_next(&mut cx()));
-        assert_eq!(
-            Pin::new(&mut sut).poll_next(&mut cx())?,
-            Poll::Ready(Some(Raw(b("data\r\n"))))
-        );
+
+        match Pin::new(&mut sut).poll_next(&mut cx())? {
+            Poll::Ready(Some(Raw(bytes))) => assert_eq!(bytes, b("data\r\n")),
+            res => panic!("invalid result. Expected Raw, got {:?}", res),
+        }
         // last comes the peer shutdown
         drop(Pin::new(&mut sut).poll_next(&mut cx()));
-        assert_eq!(Pin::new(&mut sut).poll_next(&mut cx())?, Poll::Ready(None));
+        match Pin::new(&mut sut).poll_next(&mut cx())? {
+            Poll::Ready(None) => (/*OK*/),
+            res => panic!("invalid result. Expected None, got {:?}", res),
+        }
         Ok(())
     }
 
@@ -648,34 +654,43 @@ mod codec_tests {
 
         // first comes the session info
         drop(Pin::new(&mut sut).poll_next(&mut cx()));
+
+        match Pin::new(&mut sut).poll_next(&mut cx())? {
+            Poll::Ready(Some(Raw(bytes))) => assert_eq!(bytes, b("something\r\n")),
+            res => panic!("invalid result. Expected Raw, got {:?}", res),
+        }
+
         assert_eq!(sender.poll_ready(&mut cx())?, Poll::Ready(()));
         assert_eq!(
             sender.start_send(WriteControl::StartData(SmtpReply::StartMailInputChallenge))?,
             ()
         );
-        assert_eq!(
-            Pin::new(&mut sut).poll_next(&mut cx())?,
-            Poll::Ready(Some(MailDataChunk(b("something\r\n"))))
-        );
-        assert_eq!(
-            Pin::new(&mut sut).poll_next(&mut cx())?,
-            Poll::Ready(Some(EscapeDot(b("."))))
-        );
-        assert_eq!(
-            Pin::new(&mut sut).poll_next(&mut cx())?,
-            Poll::Ready(Some(MailDataChunk(b(".fun\r\n"))))
-        );
-        assert_eq!(
-            Pin::new(&mut sut).poll_next(&mut cx())?,
-            Poll::Ready(Some(EndOfMailData(b(b".\r\n"))))
-        );
-        assert_eq!(
-            Pin::new(&mut sut).poll_next(&mut cx())?,
-            Poll::Ready(Some(Raw(b(b"COMMAND\r\n"))))
-        );
+        
+        match Pin::new(&mut sut).poll_next(&mut cx())? {
+            Poll::Ready(Some(EscapeDot(bytes))) => assert_eq!(bytes, b(".")),
+            res => panic!("invalid result. Expected escape dot, got {:?}", res),
+        }
+        match Pin::new(&mut sut).poll_next(&mut cx())? {
+            Poll::Ready(Some(MailDataChunk(bytes))) => assert_eq!(bytes, b(".fun\r\n")),
+            res => panic!("invalid result. Expected data chunk, got {:?}", res),
+        }
+        match Pin::new(&mut sut).poll_next(&mut cx())? {
+            Poll::Ready(Some(EndOfMailData(bytes))) => assert_eq!(bytes, b(b".\r\n")),
+            res => panic!("invalid result. Expected data end, got {:?}", res),
+        }
+        match Pin::new(&mut sut).poll_next(&mut cx())? {
+            Poll::Ready(Some(Raw(bytes))) => assert_eq!(bytes, b(b"COMMAND\r\n")),
+            res => panic!("invalid result. Expected command, got {:?}", res),
+        }
         // last comes the peer shutdown
-        drop(Pin::new(&mut sut).poll_next(&mut cx()));
-        assert_eq!(Pin::new(&mut sut).poll_next(&mut cx())?, Poll::Ready(None));
+        match Pin::new(&mut sut).poll_next(&mut cx())? {
+            Poll::Ready(Some(PeerShutdown)) => (/*OK*/),
+            res => panic!("invalid result. Expected peer shutdown, got {:?}", res),
+        }
+        match Pin::new(&mut sut).poll_next(&mut cx())? {
+            Poll::Ready(None) => (/*OK*/),
+            res => panic!("invalid result. Expected None, got {:?}", res),
+        }
         Ok(())
     }
 
@@ -693,10 +708,10 @@ mod codec_tests {
             sender.start_send(WriteControl::StartData(SmtpReply::StartMailInputChallenge))?,
             ()
         );
-        assert_eq!(
-            Pin::new(&mut sut).poll_next(&mut cx())?,
-            Poll::Ready(Some(EndOfMailData(b(b".\r\n"))))
-        );
+        match Pin::new(&mut sut).poll_next(&mut cx())? {
+            Poll::Ready(Some(EndOfMailData(bytes))) => assert_eq!(bytes, b(b".\r\n")),
+            res => panic!("invalid result. Expected data end, got {:?}", res),
+        }
         Ok(())
     }
 }

@@ -26,7 +26,6 @@ pub enum WriteControl {
 }
 
 /// Represents the instructions for the server side of the stream.
-#[derive()]
 pub enum ReadControl {
     /** Peer connected */
     PeerConnected(SessionInfo),

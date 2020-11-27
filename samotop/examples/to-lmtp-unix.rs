@@ -50,8 +50,9 @@ async fn main_fut() -> Result<()> {
     let lmtp_connector: UnixConnector<NoTls> = UnixConnector::default();
     let mail_service = Builder::default()
         .using(LmtpDispatch::new("/var/run/dovecot/lmtp".to_owned(), lmtp_connector)?.reuse(0))
-        .using(rcpt_map);
-    let smtp_service = SmtpService::new(Arc::new(mail_service), SmtpParser);
+        .using(rcpt_map)
+        .using(SmtpParser);
+    let smtp_service = SmtpService::new(Arc::new(mail_service));
     let tls_smtp_service = TlsEnabled::disabled(smtp_service);
 
     TcpServer::on("localhost:2525")
