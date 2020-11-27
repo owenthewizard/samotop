@@ -9,6 +9,7 @@ pub struct SmtpState {
     pub session: SessionInfo,
     pub transaction: Transaction,
     pub writes: VecDeque<WriteControl>,
+    pub reads: Vec<u8>,
 }
 
 impl SmtpState {
@@ -18,6 +19,7 @@ impl SmtpState {
             writes: Default::default(),
             transaction: Default::default(),
             session: Default::default(),
+            reads: Default::default(),
         }
     }
     pub fn reset_helo(&mut self, helo: SmtpHelo) {

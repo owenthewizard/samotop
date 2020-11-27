@@ -5,15 +5,15 @@ use std::fmt;
 pub type ParseResult<'a, T> = std::result::Result<(&'a [u8], T), ParseError>;
 
 pub trait Parser: fmt::Debug {
-    fn command<'i>(&self, input: &'i [u8]) -> ParseResult<'i, SmtpCommand>;
+    fn parse_command<'i>(&self, input: &'i [u8]) -> ParseResult<'i, SmtpCommand>;
 }
 
 impl<T> Parser for Arc<T>
 where
     T: Parser,
 {
-    fn command<'i>(&self, input: &'i [u8]) -> ParseResult<'i, SmtpCommand> {
-        T::command(self, input)
+    fn parse_command<'i>(&self, input: &'i [u8]) -> ParseResult<'i, SmtpCommand> {
+        T::parse_command(self, input)
     }
 }
 

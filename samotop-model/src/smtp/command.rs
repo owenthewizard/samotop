@@ -1,6 +1,6 @@
 pub use super::commands::*;
 use super::ReadControl;
-use crate::{common::*, smtp::state::SmtpState};
+use crate::{common::*, parser::ParseError, smtp::state::SmtpState};
 use std::fmt;
 use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
 
@@ -83,8 +83,22 @@ impl SmtpSessionCommand for ReadControl {
         }
     }
 
-    fn apply<'a>(&'a self, state: SmtpState) -> S2Fut<'a, SmtpState> {
+    fn apply<'a>(&'a self, mut state: SmtpState) -> S2Fut<'a, SmtpState> {
         Box::pin(async move {
+            if !state.reads.is_empty() {
+                // previous raw control left some bytes behind
+                match self {
+                    ReadControl::Raw(_) => {
+                        // ok, parsing will carry on
+                    }
+                    _ => {
+                        // nope, we will not parse the leftover, let's say so.
+                        state.reads.clear();
+                        state = SmtpInvalidCommand::default().apply(state).await;
+                    }
+                }
+            }
+
             match self {
                 ReadControl::PeerConnected(sess) => sess.apply(state).await,
                 ReadControl::PeerShutdown => SessionShutdown.apply(state).await,
@@ -93,9 +107,39 @@ impl SmtpSessionCommand for ReadControl {
                 ReadControl::EndOfMailData(_) => MailBodyEnd.apply(state).await,
                 ReadControl::Empty(_) => state,
                 ReadControl::EscapeDot(_) => state,
-                ReadControl::Raw(_) => {
-                    //state.service.command(input);
-                    SmtpInvalidCommand::default().apply(state).await
+                ReadControl::Raw(b) => {
+                    state.reads.extend_from_slice(b.as_slice());
+
+                    loop {
+                        break if state.reads.is_empty() {
+                            state
+                        } else {
+                            match state.service.parse_command(state.reads.as_slice()) {
+                                Ok((remaining, command)) => {
+                                    trace!(
+                                        "Parsed {} bytes - a {} command",
+                                        state.reads.len() - remaining.len(),
+                                        command.verb()
+                                    );
+                                    state.reads = remaining.to_vec();
+                                    state = command.apply(state).await;
+                                    continue;
+                                }
+                                Err(ParseError::Incomplete) => {
+                                    // we will need more bytes...
+                                    state
+                                }
+                                Err(e) => {
+                                    warn!(
+                                        "Parser did not match, passing current line as is {} long. {:?}",
+                                        state.reads.len(), e
+                                    );
+                                    state.reads.clear();
+                                    SmtpInvalidCommand::default().apply(state).await
+                                }
+                            }
+                        };
+                    }
                 }
             }
         })

@@ -64,7 +64,9 @@ where
                         ))));
                     }
                     Err(ParseError::Mismatch(_)) => {
-                        let len = memchr(b'\n', bytes.as_ref()).unwrap_or_else(|| bytes.len());
+                        let len = memchr(b'\n', bytes.as_ref())
+                            .map(|lf| lf + 1)
+                            .unwrap_or_else(|| bytes.len());
                         let remaining = bytes.split_off(len);
                         let current = std::mem::replace(bytes, remaining);
                         warn!("Parser did not match, passing current line as is: {}.", len);

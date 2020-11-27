@@ -126,7 +126,7 @@ impl EsmtpService for Builder {
 }
 
 impl Parser for Builder {
-    fn command<'i>(&self, input: &'i [u8]) -> ParseResult<'i, SmtpCommand> {
+    fn parse_command<'i>(&self, input: &'i [u8]) -> ParseResult<'i, SmtpCommand> {
         debug!(
             "Parser {} with {} parsers munching on {} bytes",
             self.id,
@@ -134,8 +134,8 @@ impl Parser for Builder {
             input.len()
         );
         for (idx, parser) in self.parser.iter().enumerate() {
-            trace!("Parser {}/{} parse command calling {:?}", self.id, idx, parser);
-            match parser.command(input) {
+            trace!("Parser {}/{} parse_command calling {:?}", self.id, idx, parser);
+            match parser.parse_command(input) {
                 Err(ParseError::Mismatch(e)) => {
                     debug!(
                         "Parser {}/{} - {:?} did not recognize the input: {:?}",

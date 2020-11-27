@@ -2,8 +2,7 @@ use crate::common::*;
 use crate::{
     io::{ConnectionInfo, IoService, MayBeTls},
     mail::{MailService, SessionInfo},
-    parser::Parser,
-    protocol::{parse::*, smtp::SmtpCodec},
+    protocol::smtp::SmtpCodec,
     smtp::*,
 };
 use futures::SinkExt;
@@ -28,36 +27,31 @@ use std::sync::Arc;
 /// It is effectively a composition and setup of components required to serve SMTP.
 ///
 #[derive(Clone)]
-pub struct SmtpService<S, P, IO> {
+pub struct SmtpService<S, IO> {
     mail_service: Arc<S>,
-    parser: Arc<P>,
     phantom: PhantomData<IO>,
 }
 
-impl<S, P, IO> SmtpService<S, P, IO>
+impl<S, IO> SmtpService<S, IO>
 where
     S: MailService + Send + Sync + 'static,
-    P: Parser + Sync + Send + 'static,
     IO: MayBeTls + Read + Write + Unpin + Sync + Send + 'static,
 {
-    pub fn new(mail_service: S, parser: P) -> Self {
+    pub fn new(mail_service: S) -> Self {
         Self {
             mail_service: Arc::new(mail_service),
-            parser: Arc::new(parser),
             phantom: PhantomData,
         }
     }
 }
 
-impl<S, P, IO> IoService<IO> for SmtpService<S, P, IO>
+impl<S, IO> IoService<IO> for SmtpService<S, IO>
 where
     S: MailService + Send + Sync + 'static,
     IO: MayBeTls + Read + Write + Unpin + Sync + Send + 'static,
-    P: Parser + Sync + Send + 'static,
 {
     fn handle(&self, io: Result<IO>, connection: ConnectionInfo) -> S3Fut<Result<()>> {
         let mail_service = self.mail_service.clone();
-        let parser = self.parser.clone();
 
         Box::pin(async move {
             info!("New peer connection {}", connection);
@@ -69,8 +63,7 @@ where
             let state = SmtpState::new(mail_service);
             let codec = SmtpCodec::new(io, sess);
             let sink = codec.get_sender();
-            let stream = codec.parse(parser);
-            let stream = SessionStream::new(stream, state);
+            let stream = SessionStream::new(codec, state);
             stream.forward(sink.sink_err_into()).await
         })
     }
