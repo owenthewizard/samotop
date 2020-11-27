@@ -62,7 +62,6 @@ where
             }
             let mut state = SmtpState::new(mail_service);
             let mut codec = SmtpCodec::new(io);
-            let mut sink = codec.get_sender();
 
             // send connection info
             state = sess.apply(state).await;
@@ -70,7 +69,7 @@ where
             loop {
                 // write all pending responses
                 for response in state.writes.drain(..) {
-                    sink.send(response).await?;
+                    codec.send(response).await?;
                 }
                 // fetch and apply commands
                 if let Some(command) = codec.next().await {

@@ -1,6 +1,5 @@
 use crate::common::*;
 use crate::io::MayBeTls;
-use crate::mail::SessionInfo;
 use crate::smtp::{ReadControl, WriteControl};
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use futures::{
@@ -22,15 +21,7 @@ pub struct SmtpCodec<IO> {
     read_data: Option<bool>,
     sink: Sender<WriteControl>,
     recv: Receiver<WriteControl>,
-}
-
-enum State {
-    /// Connection value is removed on first stream read aspeer connect read control
-    New(SessionInfo),
-    /// After first read control, this captures the connection description
-    Used(String),
-    /// Write is shutting down or read has already shut down
-    Closed,
+    closed: bool,
 }
 
 impl<IO: Read + Write + MayBeTls> SmtpCodec<IO> {
@@ -46,28 +37,18 @@ impl<IO: Read + Write + MayBeTls> SmtpCodec<IO> {
             s2c_pending: vec![].into(),
             sink,
             recv,
+            closed: false,
         }
-    }
-    pub fn respond<'a, 'f, 's, F, S>(
-        &'s mut self,
-        stream: F,
-    ) -> Pin<Box<dyn Future<Output = Result<()>> + 'f + Sync + Send>>
-    where
-        F: FnOnce(&mut Self) -> S,
-        S: Stream<Item = Result<WriteControl>> + 'a + Send + Sync,
-        's: 'a,
-        'a: 'f,
-    {
-        let sink = self.sink.clone();
-        let source = stream(self);
-        let fwd = source.forward(sink.sink_err_into());
-        Box::pin(fwd)
     }
     pub fn get_sender(&self) -> Sender<WriteControl> {
         self.sink.clone()
     }
 
     fn poll_read_buffer(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
+        if self.closed {
+            return Poll::Ready(Ok(()));
+        }
+
         let projection = self.project();
 
         // fill the read buffer if all is read
@@ -195,11 +176,9 @@ impl<IO: Read + Write + MayBeTls> SmtpCodec<IO> {
         }
     }
     fn close_io(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        self.project()
-            .io
-            .as_mut()
-            .poll_close(cx)
-            .map_err(|e| e.into())
+        let mut proj = self.project();
+        *proj.closed = true;
+        proj.io.as_mut().poll_close(cx).map_err(|e| e.into())
     }
     fn write(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
         let mut projection = self.as_mut().project();
@@ -290,6 +269,10 @@ impl<IO: Read + Write + MayBeTls> SmtpCodec<IO> {
             };
         }
     }
+    pub fn send(&self, response: WriteControl) -> S2Fut<Result<()>> {
+        let mut sink = self.sink.clone();
+        Box::pin(async move { Ok(sink.send(response).await?) })
+    }
 }
 
 #[derive(Eq, PartialEq, Debug)]
@@ -362,100 +345,6 @@ where
         }
     }
 }
-/*
-impl<IO> Sink<WriteControl> for SmtpCodec<IO>
-where
-    IO: Write + MayBeTls,
-{
-    type Error = Error;
-
-    fn start_send(self: Pin<&mut Self>, item: WriteControl) -> Result<()> {
-        trace!("Sending {:?}", item);
-        let projection = self.project();
-        match item {
-            WriteControl::Shutdown(reply) => {
-                projection
-                    .s2c_pending
-                    .push_back(PendingWrite::Data(reply.to_string().into()));
-                projection.s2c_pending.push_back(PendingWrite::Shutdown);
-            }
-            WriteControl::Reply(reply) => projection
-                .s2c_pending
-                .push_back(PendingWrite::Data(reply.to_string().into())),
-            WriteControl::StartTls(reply) => {
-                projection
-                    .s2c_pending
-                    .push_back(PendingWrite::Data(reply.to_string().into()));
-                projection.s2c_pending.push_back(PendingWrite::StartTls);
-            }
-            WriteControl::StartData(reply) => {
-                projection
-                    .s2c_pending
-                    .push_back(PendingWrite::Data(reply.to_string().into()));
-                projection.s2c_pending.push_back(PendingWrite::StartData);
-            }
-        }
-        Ok(())
-    }
-    fn poll_ready(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        trace!("Polling ready");
-        let mut projection = self.project();
-
-        while let Some(pending) = projection.s2c_pending.pop_front() {
-            // save bytes for next iteration
-            match pending {
-                PendingWrite::Shutdown => {
-                    trace!("shutting down");
-                    *projection.connection = State::Closed
-                }
-                PendingWrite::StartData => *projection.read_data = Some(true),
-                PendingWrite::StartTls => projection.io.as_mut().start_tls()?,
-                PendingWrite::Data(mut pending) => {
-                    // write data to the IO
-                    trace!("writing {} bytes", pending.len());
-                    match projection.io.as_mut().poll_write(cx, &pending[..])? {
-                        Poll::Pending => {
-                            trace!("write not ready");
-                            // not ready, return the whole buffer to the queue
-                            projection
-                                .s2c_pending
-                                .push_front(PendingWrite::Data(pending));
-                            return Poll::Pending;
-                        }
-                        Poll::Ready(len) => {
-                            trace!("wrote {} bytes", len);
-                            let _consumed = pending.split_to(len);
-                            if !pending.is_empty() {
-                                // written partially, consume written buffer and return it to the queue
-                                projection
-                                    .s2c_pending
-                                    .push_front(PendingWrite::Data(pending));
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        Poll::Ready(Ok(()))
-    }
-    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        trace!("Polling flush");
-        ready!(self.as_mut().poll_ready(cx))?;
-        trace!("flushing...");
-        let projection = self.project();
-        ready!(projection.io.poll_flush(cx))?;
-        Poll::Ready(Ok(()))
-    }
-    fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        trace!("Polling close");
-        ready!(self.as_mut().poll_flush(cx))?;
-        trace!("closing...");
-        let projection = self.project();
-        ready!(projection.io.poll_close(cx))?;
-        Poll::Ready(Ok(()))
-    }
-}
-*/
 
 enum PendingWrite {
     Data(Bytes),
