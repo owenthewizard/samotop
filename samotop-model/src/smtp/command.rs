@@ -54,9 +54,7 @@ impl SmtpSessionCommand for SmtpCommand {
         match self {
             C::Helo(helo) => helo.apply(state),
             C::Mail(mail) => mail.apply(state),
-            C::Rcpt(path) => {
-                Box::pin(async move { SmtpRcpt::from(path.clone()).apply(state).await })
-            }
+            C::Rcpt(rcpt) => rcpt.apply(state),
             C::Data => SmtpData.apply(state),
             C::Quit => SmtpQuit.apply(state),
             C::Rset => SmtpRset.apply(state),
