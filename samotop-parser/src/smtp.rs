@@ -267,7 +267,7 @@ mod tests {
         let result = script(b"sOmE other command\r\n").unwrap();
 
         match result.as_slice() {
-            [Raw(bytes)] => assert_eq!(bytes, &b("sOmE other command\r\n")),
+            [Raw(bytes)] => assert_eq!(bytes.as_slice(), b"sOmE other command\r\n"),
             res => panic!("invalid result. Expected Raw, got {:?}", res),
         }
     }
@@ -311,8 +311,8 @@ mod tests {
 
         match result.as_slice() {
             [Empty(empty1), Empty(empty2)] => {
-                assert_eq!(empty1, &b("   \r\n"));
-                assert_eq!(empty2, &b("\t\t\r\n"));
+                assert_eq!(empty1.as_slice(), b"   \r\n");
+                assert_eq!(empty2.as_slice(), b"\t\t\r\n");
             }
             res => panic!("invalid result. Expected 2x empty, got {:?}", res),
         }
@@ -336,9 +336,9 @@ mod tests {
         match result.as_slice() {
             [Command(cmd, _), Raw(b1), Raw(b2), Raw(b3)] => {
                 assert_eq!(cmd.verb(), "DATA");
-                assert_eq!(b1, " ěšě\r\n".as_bytes());
-                assert_eq!(b2, "š\n".as_bytes());
-                assert_eq!(b3, "čš".as_bytes());
+                assert_eq!(b1.as_slice(), " ěšě\r\n".as_bytes());
+                assert_eq!(b2.as_slice(), "š\n".as_bytes());
+                assert_eq!(b3.as_slice(), "čš".as_bytes());
             }
             res => panic!("invalid result. Expected command and raw, got {:?}", res),
         }
@@ -364,7 +364,7 @@ mod tests {
         match result.as_slice() {
             [Command(cmd1, _), Raw(bytes2)] => {
                 assert_eq!(cmd1.verb(), "QUIT");
-                assert_eq!(bytes2, "QUI".as_bytes());
+                assert_eq!(bytes2.as_slice(), b"QUI");
             }
             res => panic!(
                 "invalid result. Expected command and incomplete, got {:?}",
@@ -380,7 +380,7 @@ mod tests {
         match result.as_slice() {
             [Command(cmd1, bytes1)] => {
                 assert_eq!(cmd1.verb(), "HELP");
-                assert_eq!(bytes1, "Help \"ěščř\"\r\n".as_bytes());
+                assert_eq!(bytes1.as_slice(), "Help \"ěščř\"\r\n".as_bytes());
             }
             res => panic!(
                 "invalid result. Expected command and incomplete, got {:?}",
@@ -395,7 +395,7 @@ mod tests {
 
         match result.as_slice() {
             [Raw(bytes1)] => {
-                assert_eq!(bytes1, b"Help \"\x80\x80\"\r\n");
+                assert_eq!(bytes1.as_slice(), b"Help \"\x80\x80\"\r\n");
             }
             res => panic!("invalid result. Expected raw, got {:?}", res),
         }
