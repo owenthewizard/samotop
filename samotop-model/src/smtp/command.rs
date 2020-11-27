@@ -1,5 +1,5 @@
 pub use super::commands::*;
-use super::ReadControl;
+use super::{ReadControl, SmtpReply, WriteControl};
 use crate::{common::*, parser::ParseError, smtp::state::SmtpState};
 use std::fmt;
 use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
@@ -69,82 +69,27 @@ impl SmtpSessionCommand for SmtpCommand {
     }
 }
 
-impl SmtpSessionCommand for ReadControl {
+impl<T, E> SmtpSessionCommand for std::result::Result<T, E>
+where
+    T: SmtpSessionCommand,
+    E: fmt::Debug + Sync + Send,
+{
     fn verb(&self) -> &str {
-        match self {
-            ReadControl::PeerConnected(sess) => sess.verb(),
-            ReadControl::PeerShutdown => SessionShutdown.verb(),
-            ReadControl::Raw(_) => "",
-            ReadControl::Command(cmd, _) => cmd.verb(),
-            ReadControl::MailDataChunk(_) => "",
-            ReadControl::EndOfMailData(_) => MailBodyEnd.verb(),
-            ReadControl::Empty(_) => "",
-            ReadControl::EscapeDot(_) => "",
-        }
+        ""
     }
 
     fn apply<'a>(&'a self, mut state: SmtpState) -> S2Fut<'a, SmtpState> {
-        Box::pin(async move {
-            if !state.reads.is_empty() {
-                // previous raw control left some bytes behind
-                match self {
-                    ReadControl::Raw(_) => {
-                        // ok, parsing will carry on
-                    }
-                    _ => {
-                        // nope, we will not parse the leftover, let's say so.
-                        state.reads.clear();
-                        state = SmtpInvalidCommand::default().apply(state).await;
-                    }
-                }
+        match self {
+            Ok(command) => Box::pin(async move { command.apply(state).await }),
+            Err(e) => {
+                error!("reading SMTP input failed: {:?}", e);
+                state.say(WriteControl::Shutdown(SmtpReply::ProcesingError));
+                Box::pin(ready(state))
             }
-
-            match self {
-                ReadControl::PeerConnected(sess) => sess.apply(state).await,
-                ReadControl::PeerShutdown => SessionShutdown.apply(state).await,
-                ReadControl::Command(cmd, _) => cmd.apply(state).await,
-                ReadControl::MailDataChunk(bytes) => MailBodyChunk(bytes).apply(state).await,
-                ReadControl::EndOfMailData(_) => MailBodyEnd.apply(state).await,
-                ReadControl::Empty(_) => state,
-                ReadControl::EscapeDot(_) => state,
-                ReadControl::Raw(b) => {
-                    state.reads.extend_from_slice(b.as_slice());
-
-                    loop {
-                        break if state.reads.is_empty() {
-                            state
-                        } else {
-                            match state.service.parse_command(state.reads.as_slice()) {
-                                Ok((remaining, command)) => {
-                                    trace!(
-                                        "Parsed {} bytes - a {} command",
-                                        state.reads.len() - remaining.len(),
-                                        command.verb()
-                                    );
-                                    state.reads = remaining.to_vec();
-                                    state = command.apply(state).await;
-                                    continue;
-                                }
-                                Err(ParseError::Incomplete) => {
-                                    // we will need more bytes...
-                                    state
-                                }
-                                Err(e) => {
-                                    warn!(
-                                        "Parser did not match, passing current line as is {} long. {:?}",
-                                        state.reads.len(), e
-                                    );
-                                    state.reads.clear();
-                                    SmtpInvalidCommand::default().apply(state).await
-                                }
-                            }
-                        };
-                    }
-                }
-            }
-        })
+        }
     }
 }
+
 #[derive(Eq, PartialEq, Debug, Clone)]
 pub enum SmtpHost {
     Domain(String),

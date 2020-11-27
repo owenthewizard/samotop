@@ -60,11 +60,27 @@ where
             if io.can_encrypt() && !io.is_encrypted() {
                 sess.extensions.enable(&extension::STARTTLS);
             }
-            let state = SmtpState::new(mail_service);
-            let codec = SmtpCodec::new(io, sess);
-            let sink = codec.get_sender();
-            let stream = SessionStream::new(codec, state);
-            stream.forward(sink.sink_err_into()).await
+            let mut state = SmtpState::new(mail_service);
+            let mut codec = SmtpCodec::new(io);
+            let mut sink = codec.get_sender();
+
+            // send connection info
+            state = sess.apply(state).await;
+
+            loop {
+                // write all pending responses
+                for response in state.writes.drain(..) {
+                    sink.send(response).await?;
+                }
+                // fetch and apply commands
+                if let Some(command) = codec.next().await {
+                    state = command.apply(state).await;
+                } else {
+                    // client went silent, we're done!
+                    SessionShutdown.apply(state).await;
+                    return Ok(());
+                }
+            }
         })
     }
 }

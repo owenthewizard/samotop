@@ -134,7 +134,12 @@ impl Parser for Builder {
             input.len()
         );
         for (idx, parser) in self.parser.iter().enumerate() {
-            trace!("Parser {}/{} parse_command calling {:?}", self.id, idx, parser);
+            trace!(
+                "Parser {}/{} parse_command calling {:?}",
+                self.id,
+                idx,
+                parser
+            );
             match parser.parse_command(input) {
                 Err(ParseError::Mismatch(e)) => {
                     debug!(
