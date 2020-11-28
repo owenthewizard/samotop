@@ -43,7 +43,7 @@ impl SmtpParserPeg {
     pub fn forward_path<'i>(&self, input: &'i [u8]) -> ParseResult<'i, SmtpPath> {
         Self::map(path_forward(input), b"")
     }
-    fn map<'i, T, E>(myres: std::result::Result<T, E>, input: &'i [u8]) -> ParseResult<'i, T>
+    fn map<T, E>(myres: std::result::Result<T, E>, input: &[u8]) -> ParseResult<T>
     where
         E: Into<Error>,
     {
