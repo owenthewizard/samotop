@@ -1,18 +1,17 @@
-use crate::common::*;
-use crate::smtp::SmtpCommand;
+use crate::{smtp::SmtpSessionCommand, common::*};
 use std::fmt;
 
 pub type ParseResult<'a, T> = std::result::Result<(&'a [u8], T), ParseError>;
 
 pub trait Parser: fmt::Debug {
-    fn parse_command<'i>(&self, input: &'i [u8]) -> ParseResult<'i, SmtpCommand>;
+    fn parse_command<'i>(&self, input: &'i [u8]) -> ParseResult<'i, Box<dyn SmtpSessionCommand>>;
 }
 
 impl<T> Parser for Arc<T>
 where
     T: Parser,
 {
-    fn parse_command<'i>(&self, input: &'i [u8]) -> ParseResult<'i, SmtpCommand> {
+    fn parse_command<'i>(&self, input: &'i [u8]) -> ParseResult<'i, Box<dyn SmtpSessionCommand>> {
         T::parse_command(self, input)
     }
 }

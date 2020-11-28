@@ -41,9 +41,9 @@ impl MailSetup for SmtpParserNom {
 }
 
 impl Parser for SmtpParserNom {
-    fn parse_command<'i>(&self, input: &'i [u8]) -> ParseResult<'i, SmtpCommand> {
+    fn parse_command<'i>(&self, input: &'i [u8]) -> ParseResult<'i, Box<dyn SmtpSessionCommand>> {
         match rustyknife::rfc5321::command::<rustyknife::behaviour::Intl>(input) {
-            Ok((i, cmd)) => Ok((i, map_cmd(cmd))),
+            Ok((i, cmd)) => Ok((i, Box::new(map_cmd(cmd)))),
             Err(e) => Err(map_error(e)),
         }
     }

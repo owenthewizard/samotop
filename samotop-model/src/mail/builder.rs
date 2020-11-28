@@ -6,7 +6,7 @@ use crate::{
     },
     parser::ParseResult,
     parser::{ParseError, Parser},
-    smtp::SmtpCommand,
+    smtp::SmtpSessionCommand,
 };
 
 #[derive(Default, Debug)]
@@ -126,7 +126,7 @@ impl EsmtpService for Builder {
 }
 
 impl Parser for Builder {
-    fn parse_command<'i>(&self, input: &'i [u8]) -> ParseResult<'i, SmtpCommand> {
+    fn parse_command<'i>(&self, input: &'i [u8]) -> ParseResult<'i, Box<dyn SmtpSessionCommand>> {
         debug!(
             "Parser {} with {} parsers munching on {} bytes",
             self.id,

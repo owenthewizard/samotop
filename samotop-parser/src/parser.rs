@@ -6,6 +6,7 @@ use memchr::memchr;
 use samotop_model::{
     mail::MailSetup,
     parser::{ParseError, ParseResult, Parser},
+    smtp::SmtpSessionCommand,
     smtp::{SmtpCommand, SmtpPath},
     Error,
 };
@@ -14,7 +15,7 @@ use samotop_model::{
 pub struct SmtpParserPeg;
 
 impl Parser for SmtpParserPeg {
-    fn parse_command<'i>(&self, input: &'i [u8]) -> ParseResult<'i, SmtpCommand> {
+    fn parse_command<'i>(&self, input: &'i [u8]) -> ParseResult<'i, Box<dyn SmtpSessionCommand>> {
         let eol = memchr(b'\n', input)
             .map(|lf| lf + 1)
             .unwrap_or_else(|| input.len());
@@ -25,7 +26,10 @@ impl Parser for SmtpParserPeg {
             input.len(),
             String::from_utf8_lossy(line)
         );
-        Self::map(command(line), input)
+        Self::map(
+            command(line).map(|cmd| -> Box<dyn SmtpSessionCommand> { Box::new(cmd) }),
+            input,
+        )
     }
 }
 
