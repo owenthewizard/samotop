@@ -1,4 +1,4 @@
-use crate::{smtp::SmtpSessionCommand, common::*};
+use crate::{common::*, smtp::SmtpSessionCommand};
 use std::fmt;
 
 pub type ParseResult<'a, T> = std::result::Result<(&'a [u8], T), ParseError>;
