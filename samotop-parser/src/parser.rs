@@ -6,8 +6,8 @@ use memchr::memchr;
 use samotop_model::{
     mail::MailSetup,
     parser::{ParseError, ParseResult, Parser},
+    smtp::SmtpPath,
     smtp::SmtpSessionCommand,
-    smtp::{SmtpCommand, SmtpPath},
     Error,
 };
 

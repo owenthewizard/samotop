@@ -122,15 +122,14 @@ fn map_path(path: Path) -> SmtpPath {
 fn map_host(host: DomainPart) -> SmtpHost {
     match host {
         DomainPart::Domain(domain) => SmtpHost::Domain(domain.to_string()),
-        DomainPart::Address(AddressLiteral::IP(IpAddr::V4(ip))) => SmtpHost::Ipv4(ip.clone()),
-        DomainPart::Address(AddressLiteral::IP(IpAddr::V6(ip))) => SmtpHost::Ipv6(ip.clone()),
-        DomainPart::Address(AddressLiteral::Tagged(label, literal)) => SmtpHost::Other {
-            label: label.clone(),
-            literal: literal.clone(),
-        },
+        DomainPart::Address(AddressLiteral::IP(IpAddr::V4(ip))) => SmtpHost::Ipv4(ip),
+        DomainPart::Address(AddressLiteral::IP(IpAddr::V6(ip))) => SmtpHost::Ipv6(ip),
+        DomainPart::Address(AddressLiteral::Tagged(label, literal)) => {
+            SmtpHost::Other { label, literal }
+        }
         DomainPart::Address(AddressLiteral::FreeForm(literal)) => SmtpHost::Invalid {
             label: String::new(),
-            literal: literal.clone(),
+            literal,
         },
     }
 }
