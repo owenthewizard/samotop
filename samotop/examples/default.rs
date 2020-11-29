@@ -36,8 +36,10 @@ fn main() -> Result<()> {
 }
 
 async fn main_fut() -> Result<()> {
-    let mail_service = Builder::default().using(NullDispatch);
-    let smtp_service = SmtpService::new(Arc::new(mail_service), SmtpParser);
+    let mail_service = Builder::default()
+        .using(NullDispatch)
+        .using(SmtpParser::default());
+    let smtp_service = SmtpService::new(Arc::new(mail_service));
     let tls_smtp_service = TlsEnabled::disabled(smtp_service);
     TcpServer::on("localhost:2525")
         .serve(tls_smtp_service)

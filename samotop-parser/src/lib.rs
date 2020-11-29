@@ -1,3 +1,5 @@
+#[macro_use]
+extern crate log;
 mod parser;
 mod smtp;
 pub use self::parser::*;

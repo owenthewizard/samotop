@@ -6,7 +6,7 @@ pub mod mail;
 pub mod parser;
 pub mod smtp;
 
-pub type Error = Box<dyn std::error::Error + Send + Sync>;
+pub type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
 pub type Result<T> = std::result::Result<T, Error>;
 
 pub mod common {

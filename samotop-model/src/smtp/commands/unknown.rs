@@ -14,7 +14,7 @@ impl SmtpSessionCommand for SmtpUnknownCommand {
         self.verb.as_str()
     }
 
-    fn apply(self, mut state: SmtpState) -> S3Fut<SmtpState> {
+    fn apply(&self, mut state: SmtpState) -> S3Fut<SmtpState> {
         state.say_not_implemented();
         Box::pin(ready(state))
     }

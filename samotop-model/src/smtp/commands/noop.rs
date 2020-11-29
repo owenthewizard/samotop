@@ -11,7 +11,7 @@ impl SmtpSessionCommand for SmtpNoop {
         "NOOP"
     }
 
-    fn apply(self, mut state: SmtpState) -> S3Fut<SmtpState> {
+    fn apply(&self, mut state: SmtpState) -> S2Fut<SmtpState> {
         state.say_ok();
         Box::pin(ready(state))
     }
