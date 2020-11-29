@@ -102,9 +102,9 @@ extern crate samotop;
 use std::sync::Arc;
 fn main() {
     env_logger::init();
-    let mail = Arc::new(samotop::mail::Builder::default());
-    let parser = samotop::parser::SmtpParser;
-    let svc = samotop::io::smtp::SmtpService::new(mail, parser);
+    let parser = samotop::parser::SmtpParser::default();
+    let mail = Arc::new(samotop::mail::Builder::default().using(parser));
+    let svc = samotop::io::smtp::SmtpService::new(mail);
     let svc = samotop::io::tls::TlsEnabled::disabled(svc);
     let srv = samotop::server::TcpServer::on("localhost:25").serve(svc);
     async_std::task::block_on(srv).unwrap()
@@ -202,7 +202,15 @@ mod common {
 
 pub mod parser {
     pub use samotop_core::parser::*;
+    #[cfg(feature = "parser-peg")]
     pub use samotop_parser::*;
+    #[cfg(feature = "parser-nom")]
+    pub use samotop_parser_nom::*;
+
+    #[cfg(feature = "parser-nom")]
+    pub type SmtpParser = samotop_parser_nom::SmtpParserNom;
+    #[cfg(all(feature = "parser-peg", not(feature = "parser-nom")))]
+    pub type SmtpParser = samotop_parser::SmtpParserPeg;
 }
 
 pub mod io {

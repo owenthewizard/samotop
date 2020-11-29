@@ -5,20 +5,14 @@ use crate::{
 };
 
 #[derive(Eq, PartialEq, Debug, Clone)]
-pub struct SmtpRcpt(SmtpPath);
-
-impl From<SmtpPath> for SmtpRcpt {
-    fn from(from: SmtpPath) -> Self {
-        Self(from)
-    }
-}
+pub struct SmtpRcpt(pub SmtpPath, pub Vec<String>);
 
 impl SmtpSessionCommand for SmtpRcpt {
     fn verb(&self) -> &str {
         "RCPT"
     }
 
-    fn apply(self, mut state: SmtpState) -> S3Fut<SmtpState> {
+    fn apply(&self, mut state: SmtpState) -> S2Fut<SmtpState> {
         if state.transaction.mail.is_none() {
             state.say_command_sequence_fail();
             return Box::pin(ready(state));
@@ -26,7 +20,7 @@ impl SmtpSessionCommand for SmtpRcpt {
         let transaction = std::mem::take(&mut state.transaction);
         let request = AddRecipientRequest {
             transaction,
-            rcpt: self.0,
+            rcpt: self.0.clone(),
         };
         let fut = async move {
             match state.service.add_recipient(request).await {
@@ -77,7 +71,7 @@ mod tests {
         set.transaction.mail = Some(SmtpMail::Mail(SmtpPath::Null, vec![]));
         set.transaction.rcpts.push(SmtpPath::Null);
         set.transaction.extra_headers.insert_str(0, "feeeha");
-        let sut = SmtpRcpt(SmtpPath::Postmaster);
+        let sut = SmtpRcpt(SmtpPath::Postmaster, vec![]);
         let res = sut.apply(set).await;
         assert_eq!(res.transaction.rcpts.len(), 2);
     }

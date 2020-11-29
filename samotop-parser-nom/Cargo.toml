@@ -1,5 +1,5 @@
 [package]
-name = "samotop-parser"
+name = "samotop-parser-nom"
 version = "0.11.0"
 authors = ["jocutajar <tellnoone@robajz.info>"]
 license = "MIT OR Apache-2.0"
@@ -22,6 +22,5 @@ version = "0.11.0"
 path = "../samotop-model"
 
 [dependencies]
-log = "0.4"
-peg = "0.6"
-memchr = "2.3"
+rustyknife = "0.2"
+nom = "6.0.1"

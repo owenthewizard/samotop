@@ -1,13 +1,13 @@
 pub use super::commands::*;
-use super::ReadControl;
+use super::{SmtpReply, WriteControl};
 use crate::{common::*, smtp::state::SmtpState};
 use std::fmt;
 use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
 
-pub trait SmtpSessionCommand {
+pub trait SmtpSessionCommand: Sync + Send + fmt::Debug {
     fn verb(&self) -> &str;
     #[must_use = "apply must be awaited"]
-    fn apply(self, state: SmtpState) -> S3Fut<SmtpState>;
+    fn apply(&self, state: SmtpState) -> S2Fut<SmtpState>;
 }
 
 #[derive(Eq, PartialEq, Debug, Clone)]
@@ -15,7 +15,7 @@ pub enum SmtpCommand {
     StartTls,
     Helo(SmtpHelo),
     Mail(SmtpMail),
-    Rcpt(SmtpPath),
+    Rcpt(SmtpRcpt),
     Expn(String),
     Vrfy(String),
     Help(Vec<String>),
@@ -49,51 +49,45 @@ impl SmtpSessionCommand for SmtpCommand {
         }
     }
 
-    fn apply(self, state: SmtpState) -> S3Fut<SmtpState> {
+    fn apply(&self, state: SmtpState) -> S2Fut<SmtpState> {
         use SmtpCommand as C;
         match self {
             C::Helo(helo) => helo.apply(state),
             C::Mail(mail) => mail.apply(state),
-            C::Rcpt(path) => SmtpRcpt::from(path).apply(state),
+            C::Rcpt(rcpt) => rcpt.apply(state),
             C::Data => SmtpData.apply(state),
             C::Quit => SmtpQuit.apply(state),
             C::Rset => SmtpRset.apply(state),
             C::Noop(_) => SmtpNoop.apply(state),
             C::StartTls => StartTls.apply(state),
             C::Expn(_) | C::Vrfy(_) | C::Help(_) | C::Turn | C::Other(_, _) => {
-                SmtpUnknownCommand::default().apply(state)
+                Box::pin(async move { SmtpUnknownCommand::default().apply(state).await })
             }
         }
     }
 }
 
-impl SmtpSessionCommand for ReadControl {
+impl<T, E> SmtpSessionCommand for std::result::Result<T, E>
+where
+    T: SmtpSessionCommand,
+    E: fmt::Debug + Sync + Send,
+{
     fn verb(&self) -> &str {
-        match self {
-            ReadControl::PeerConnected(sess) => sess.verb(),
-            ReadControl::PeerShutdown => SessionShutdown.verb(),
-            ReadControl::Raw(_) => "",
-            ReadControl::Command(cmd, _) => cmd.verb(),
-            ReadControl::MailDataChunk(_) => "",
-            ReadControl::EndOfMailData(_) => MailBodyEnd.verb(),
-            ReadControl::Empty(_) => "",
-            ReadControl::EscapeDot(_) => "",
-        }
+        ""
     }
 
-    fn apply(self, state: SmtpState) -> S3Fut<SmtpState> {
+    fn apply(&self, mut state: SmtpState) -> S2Fut<SmtpState> {
         match self {
-            ReadControl::PeerConnected(sess) => sess.apply(state),
-            ReadControl::PeerShutdown => SessionShutdown.apply(state),
-            ReadControl::Raw(_) => SmtpInvalidCommand::default().apply(state),
-            ReadControl::Command(cmd, _) => cmd.apply(state),
-            ReadControl::MailDataChunk(bytes) => MailBodyChunk(bytes).apply(state),
-            ReadControl::EndOfMailData(_) => MailBodyEnd.apply(state),
-            ReadControl::Empty(_) => Box::pin(ready(state)),
-            ReadControl::EscapeDot(_) => Box::pin(ready(state)),
+            Ok(command) => Box::pin(async move { command.apply(state).await }),
+            Err(e) => {
+                error!("reading SMTP input failed: {:?}", e);
+                state.say(WriteControl::Shutdown(SmtpReply::ProcesingError));
+                Box::pin(ready(state))
+            }
         }
     }
 }
+
 #[derive(Eq, PartialEq, Debug, Clone)]
 pub enum SmtpHost {
     Domain(String),

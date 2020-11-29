@@ -2,31 +2,54 @@
     Aim: wrap generated parser fns in struct
 */
 use crate::grammar::*;
+use memchr::memchr;
 use samotop_model::{
-    common::Result,
-    parser::Parser,
-    smtp::{ReadControl, SmtpCommand, SmtpPath},
+    mail::MailSetup,
+    parser::{ParseError, ParseResult, Parser},
+    smtp::SmtpPath,
+    smtp::SmtpSessionCommand,
+    Error,
 };
 
-static PARSER: SmtpParser = SmtpParser;
+#[derive(Clone, Copy, Debug, Default)]
+pub struct SmtpParserPeg;
 
-#[derive(Clone, Debug)]
-pub struct SmtpParser;
-
-impl Default for SmtpParser {
-    fn default() -> SmtpParser {
-        PARSER.clone()
+impl Parser for SmtpParserPeg {
+    fn parse_command<'i>(&self, input: &'i [u8]) -> ParseResult<'i, Box<dyn SmtpSessionCommand>> {
+        let eol = memchr(b'\n', input)
+            .map(|lf| lf + 1)
+            .unwrap_or_else(|| input.len());
+        let (line, input) = input.split_at(eol);
+        trace!(
+            "PARSING {}, remains {}. input: {:?}",
+            eol,
+            input.len(),
+            String::from_utf8_lossy(line)
+        );
+        Self::map(
+            command(line).map(|cmd| -> Box<dyn SmtpSessionCommand> { Box::new(cmd) }),
+            input,
+        )
     }
 }
 
-impl Parser for SmtpParser {
-    fn command(&self, input: &[u8]) -> Result<SmtpCommand> {
-        Ok(command(input)?)
+impl MailSetup for SmtpParserPeg {
+    fn setup(self, builder: &mut samotop_model::mail::Builder) {
+        builder.parser.insert(0, Box::new(self))
     }
-    fn script(&self, input: &[u8]) -> Result<Vec<ReadControl>> {
-        Ok(session(input)?)
+}
+
+impl SmtpParserPeg {
+    pub fn forward_path<'i>(&self, input: &'i [u8]) -> ParseResult<'i, SmtpPath> {
+        Self::map(path_forward(input), b"")
     }
-    fn forward_path(&self, input: &[u8]) -> Result<SmtpPath> {
-        Ok(path_forward(input)?)
+    fn map<T, E>(myres: std::result::Result<T, E>, input: &[u8]) -> ParseResult<T>
+    where
+        E: Into<Error>,
+    {
+        match myres {
+            Ok(item) => Ok((input, item)),
+            Err(e) => Err(ParseError::Mismatch(e.into())),
+        }
     }
 }

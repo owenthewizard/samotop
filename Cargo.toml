@@ -4,6 +4,7 @@ members = [
     "samotop-model",
     "samotop-core",
     "samotop-parser",
+    "samotop-parser-nom",
     "samotop-with-spf",
     "samotop",
     "samotop-server",

@@ -9,7 +9,7 @@ impl SmtpSessionCommand for StartTls {
         "STARTTLS"
     }
 
-    fn apply(self, mut state: SmtpState) -> S3Fut<SmtpState> {
+    fn apply(&self, mut state: SmtpState) -> S3Fut<SmtpState> {
         if state.session.smtp_helo.is_none() {
             state.say_command_sequence_fail()
         } else {

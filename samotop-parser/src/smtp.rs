@@ -22,7 +22,7 @@ peg::parser! {
             = inp_none() / inp_command() / inp_invalid() /// inp_incomplete()
         pub rule inp_command() -> ReadControl
             = start:position!() c:command() end:position!()
-            { ReadControl::Command( c, Vec::from(&__input[start..end])) }
+            { ReadControl::Command( Box::new(c), Vec::from(&__input[start..end])) }
         pub rule inp_none() -> ReadControl
             =  s:$(NL() / __* NL())
             { ReadControl::Empty(Vec::from(s)) }
@@ -91,8 +91,8 @@ peg::parser! {
             { SmtpCommand::Mail(SmtpMail::Saml(p, s)) }
 
         pub rule cmd_rcpt() -> SmtpCommand
-            = i("rcpt to:") p:path_forward() NL()
-            { SmtpCommand::Rcpt(p) }
+            = i("rcpt to:") p:path_forward() s:strparam()* NL()
+            { SmtpCommand::Rcpt(SmtpRcpt(p, s)) }
 
         pub rule cmd_helo() -> SmtpCommand
             = i("helo") _ h:host() NL()
@@ -254,19 +254,18 @@ peg::parser! {
 #[cfg(test)]
 mod tests {
     use super::ReadControl::*;
-    use super::SmtpCommand::*;
-    use super::SmtpHost::*;
     use super::*;
     use crate::grammar::*;
-
-    fn b(bytes: impl AsRef<[u8]>) -> Vec<u8> {
-        Vec::from(bytes.as_ref())
-    }
+    use samotop_model::Result;
 
     #[test]
     fn script_parses_unknown_command() {
         let result = script(b"sOmE other command\r\n").unwrap();
-        assert_eq!(result, vec![ReadControl::Raw(b("sOmE other command\r\n"),)]);
+
+        match result.as_slice() {
+            [Raw(bytes)] => assert_eq!(bytes.as_slice(), b"sOmE other command\r\n"),
+            res => panic!("invalid result. Expected Raw, got {:?}", res),
+        }
     }
 
     #[test]
@@ -305,13 +304,14 @@ mod tests {
     #[test]
     fn script_parses_whitespace_line() {
         let result = script(b"   \r\n\t\t\r\n").unwrap();
-        assert_eq!(
-            result,
-            vec![
-                ReadControl::Empty(b("   \r\n")),
-                ReadControl::Empty(b("\t\t\r\n")),
-            ]
-        );
+
+        match result.as_slice() {
+            [Empty(empty1), Empty(empty2)] => {
+                assert_eq!(empty1.as_slice(), b"   \r\n");
+                assert_eq!(empty2.as_slice(), b"\t\t\r\n");
+            }
+            res => panic!("invalid result. Expected 2x empty, got {:?}", res),
+        }
     }
 
     #[test]
@@ -319,70 +319,82 @@ mod tests {
         let input = b"helo domain.com\r\n";
         let result = session(input).unwrap();
 
-        assert_eq!(
-            result,
-            vec![Command(
-                Helo(SmtpHelo::Helo(Domain("domain.com".to_string()))),
-                b(input)
-            )]
-        );
+        match result.as_slice() {
+            [Command(cmd, _)] => assert_eq!(cmd.verb(), "HELO"),
+            res => panic!("invalid result. Expected helo, got {:?}", res),
+        }
     }
 
     #[test]
-    fn session_parses_data() {
-        let result = session("DATA\r\n ěšě\r\nš\nčš".as_bytes()).unwrap();
-
-        assert_eq!(
-            result,
-            vec![
-                Command(Data, b(b"DATA\r\n")),
-                Raw(b(" ěšě\r\n")),
-                Raw(b("š\n")),
-                Raw(b("čš")),
-            ]
-        );
+    fn session_parses_data() -> Result<()> {
+        let input = "DATA\r\n ěšě\r\nš\nčš".as_bytes();
+        let result = session(input)?;
+        match result.as_slice() {
+            [Command(cmd, _), Raw(b1), Raw(b2), Raw(b3)] => {
+                assert_eq!(cmd.verb(), "DATA");
+                assert_eq!(b1.as_slice(), " ěšě\r\n".as_bytes());
+                assert_eq!(b2.as_slice(), "š\n".as_bytes());
+                assert_eq!(b3.as_slice(), "čš".as_bytes());
+            }
+            res => panic!("invalid result. Expected command and raw, got {:?}", res),
+        }
+        Ok(())
     }
 
     #[test]
     fn session_parses_wrong_newline() {
         let result = session(b"QUIT\nQUIT\r\nquit\r\n").unwrap();
-
-        assert_eq!(
-            result,
-            vec![
-                Command(Quit, b("QUIT\n")),
-                Command(Quit, b("QUIT\r\n")),
-                Command(Quit, b("quit\r\n")),
-            ]
-        );
+        match result.as_slice() {
+            [Command(cmd1, _), Command(cmd2, _), Command(cmd3, _)] => {
+                assert_eq!(cmd1.verb(), "QUIT");
+                assert_eq!(cmd2.verb(), "QUIT");
+                assert_eq!(cmd3.verb(), "QUIT");
+            }
+            res => panic!("invalid result. Expected commands, got {:?}", res),
+        }
     }
 
     #[test]
     fn session_parses_incomplete_command() {
         let result = session(b"QUIT\r\nQUI").unwrap();
-
-        assert_eq!(
-            result,
-            vec![Command(Quit, b("QUIT\r\n")), Raw(Vec::from("QUI"))]
-        );
+        match result.as_slice() {
+            [Command(cmd1, _), Raw(bytes2)] => {
+                assert_eq!(cmd1.verb(), "QUIT");
+                assert_eq!(bytes2.as_slice(), b"QUI");
+            }
+            res => panic!(
+                "invalid result. Expected command and incomplete, got {:?}",
+                res
+            ),
+        }
     }
 
     #[test]
     fn session_parses_valid_utf8() {
         let result = session("Help \"ěščř\"\r\n".as_bytes()).unwrap();
-        assert_eq!(
-            result,
-            vec![Command(
-                Help(vec!["ěščř".to_string()]),
-                b("Help \"ěščř\"\r\n")
-            ),]
-        );
+
+        match result.as_slice() {
+            [Command(cmd1, bytes1)] => {
+                assert_eq!(cmd1.verb(), "HELP");
+                assert_eq!(bytes1.as_slice(), "Help \"ěščř\"\r\n".as_bytes());
+            }
+            res => panic!(
+                "invalid result. Expected command and incomplete, got {:?}",
+                res
+            ),
+        }
     }
 
     #[test]
     fn session_parses_invalid_utf8() {
         let result = session(b"Help \"\x80\x80\"\r\n").unwrap();
-        assert_eq!(result, vec![Raw(b(b"Help \"\x80\x80\"\r\n"))]);
+
+        match result.as_slice() {
+            [Raw(bytes1)] => {
+                assert_eq!(bytes1.as_slice(), b"Help \"\x80\x80\"\r\n");
+            }
+            res => panic!("invalid result. Expected raw, got {:?}", res),
+        }
     }
 
     #[test]
@@ -397,37 +409,47 @@ mod tests {
             .as_bytes(),
         )
         .unwrap();
-
-        assert_eq!(
-            result,
-            vec![
-                Command(
-                    Helo(SmtpHelo::Helo(Domain("domain.com".to_string()))),
-                    b("helo domain.com\r\n")
-                ),
-                Command(
-                    Mail(SmtpMail::Mail(
-                        SmtpPath::Direct(SmtpAddress::Mailbox(
-                            "me".to_string(),
-                            Domain("there.net".to_string()),
-                        )),
-                        vec![]
-                    )),
-                    b("mail from:<me@there.net>\r\n")
-                ),
-                Command(
-                    Rcpt(SmtpPath::Relay(
-                        vec![Domain("relay.net".to_string())],
-                        SmtpAddress::Mailbox(
-                            "him".to_string(),
-                            Domain("unreachable.local".to_string()),
-                        ),
-                    )),
-                    b("rcpt to:<@relay.net:him@unreachable.local>\r\n")
-                ),
-                Command(Quit, b("quit\r\n")),
-            ]
-        );
+        match result.as_slice() {
+            [Command(cmd1, _), Command(cmd2, _), Command(cmd3, _), Command(cmd4, _)] => {
+                assert_eq!(cmd1.verb(), "HELO");
+                assert_eq!(cmd2.verb(), "MAIL");
+                assert_eq!(cmd3.verb(), "RCPT");
+                assert_eq!(cmd4.verb(), "QUIT");
+            }
+            res => panic!("invalid result. Expected commands, got {:?}", res),
+        }
+        // use super::SmtpCommand::*;
+        // use super::SmtpHost::*;
+        // assert_eq!(
+        //     result,
+        //     vec![
+        //         Command(
+        //             Helo(SmtpHelo::Helo(Domain("domain.com".to_string()))),
+        //             b("helo domain.com\r\n")
+        //         ),
+        //         Command(
+        //             Mail(SmtpMail::Mail(
+        //                 SmtpPath::Direct(SmtpAddress::Mailbox(
+        //                     "me".to_string(),
+        //                     Domain("there.net".to_string()),
+        //                 )),
+        //                 vec![]
+        //             )),
+        //             b("mail from:<me@there.net>\r\n")
+        //         ),
+        //         Command(
+        //             Rcpt(SmtpPath::Relay(
+        //                 vec![Domain("relay.net".to_string())],
+        //                 SmtpAddress::Mailbox(
+        //                     "him".to_string(),
+        //                     Domain("unreachable.local".to_string()),
+        //                 ),
+        //             )),
+        //             b("rcpt to:<@relay.net:him@unreachable.local>\r\n")
+        //         ),
+        //         Command(Quit, b("quit\r\n")),
+        //     ]
+        // );
     }
 
     #[test]

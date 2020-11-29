@@ -1,6 +1,8 @@
 use crate::common::*;
 use crate::parser::Parser;
 use crate::smtp::ReadControl;
+use memchr::memchr;
+use samotop_model::{parser::ParseError, smtp::SmtpSessionCommand};
 
 pub trait IntoParse
 where
@@ -20,7 +22,8 @@ pub struct Parse<S, P> {
     #[pin]
     stream: S,
     parser: P,
-    input: Vec<Option<Result<ReadControl>>>,
+    bytes: Vec<u8>,
+    pending: Option<Result<ReadControl>>,
 }
 
 impl<S, P> Parse<S, P> {
@@ -28,7 +31,8 @@ impl<S, P> Parse<S, P> {
         Self {
             stream,
             parser,
-            input: vec![],
+            bytes: vec![],
+            pending: None,
         }
     }
 }
@@ -43,62 +47,69 @@ where
         let ParseProjection {
             mut stream,
             parser,
-            input,
+            bytes,
+            pending,
         } = self.project();
         loop {
-            let tail = match input.first() {
-                Some(Some(Ok(ReadControl::Raw(ref bytes)))) if !bytes.ends_with(b"\n") => {
-                    // this is a line without LF, we'll concat with the next
-                    if let Some(Ok(ReadControl::Raw(bytes))) = input.remove(0) {
-                        Some(bytes)
-                    } else {
-                        unreachable!("checked in previous match")
+            if !bytes.is_empty() {
+                match parser.command(bytes.as_ref()) {
+                    Ok((remaining, command)) => {
+                        let len = bytes.len() - remaining.len();
+                        let remaining = bytes.split_off(len);
+                        let current = std::mem::replace(bytes, remaining);
+                        trace!("Parsed {} bytes - a {} command", len, command.verb());
+                        return Poll::Ready(Some(Ok(ReadControl::Command(
+                            Box::new(command),
+                            current,
+                        ))));
+                    }
+                    Err(ParseError::Mismatch(_)) => {
+                        let len = memchr(b'\n', bytes.as_ref())
+                            .map(|lf| lf + 1)
+                            .unwrap_or_else(|| bytes.len());
+                        let remaining = bytes.split_off(len);
+                        let current = std::mem::replace(bytes, remaining);
+                        warn!("Parser did not match, passing current line as is: {}.", len);
+                        return Poll::Ready(Some(Ok(ReadControl::Raw(current))));
+                    }
+                    Err(ParseError::Failed(e)) => {
+                        return Poll::Ready(Some(Err(
+                            format!("Parsing command failed: {}", e).into()
+                        )));
+                    }
+                    Err(ParseError::Incomplete) => {
+                        // we will need more bytes...
                     }
                 }
-                _ => {
-                    // it is not an open ended raw line, leave it put
-                    None
-                }
-            };
-
-            if !input.is_empty() {
-                assert!(
-                    tail.is_none(),
-                    "In previous code block, tail is some only if it is the last element"
-                );
-                // return previously parsed items
-                return Poll::Ready(input.remove(0));
             }
 
-            match ready!(stream.as_mut().poll_next(cx)) {
-                Some(Ok(ReadControl::Raw(mut bytes))) => {
-                    if let Some(tail) = tail {
-                        let mut bytes2 = tail.to_vec();
-                        bytes2.extend_from_slice(&bytes[..]);
-                        // concat previous open ended line with new raw
-                        bytes = bytes2;
-                    }
+            if pending.is_none() {
+                // we got here looking for more.
+                // it's either in the buffer already or we ask for it
+                *pending = ready!(stream.as_mut().poll_next(cx));
+            }
 
-                    trace!("Parsing {} raw bytes as a script", bytes.len());
-                    match parser.script(&bytes[..]) {
-                        Ok(script) => {
-                            trace!("Parsed a script of {} inputs", script.len());
-                            input.extend(script.into_iter().map(|i| Some(Ok(i))))
-                        }
-                        _ => {
-                            warn!("Parsing the script failed, passing as is.");
-                            input.push(Some(Ok(ReadControl::Raw(bytes))));
-                        }
+            match pending.take() {
+                Some(Ok(ReadControl::Raw(new))) => {
+                    if bytes.is_empty() {
+                        *bytes = new;
+                    } else {
+                        bytes.extend_from_slice(new.as_slice());
                     }
+                    // we got some bytes, let's munch in next loop round!
+                    continue;
                 }
                 other => {
-                    if let Some(bytes) = tail {
-                        trace!("Passing server control {:?} after the tail", other);
-                        input.insert(0, other);
-                        return Poll::Ready(Some(Ok(ReadControl::Raw(bytes))));
-                    } else {
+                    if bytes.is_empty() {
                         trace!("Passing server control {:?}", other);
                         return Poll::Ready(other);
+                    } else {
+                        trace!("Passing server control {:?} after the tail", other);
+                        // we can't process this one until we deal with the bytes.
+                        // we'll put it in the pending buffer for next call.
+                        *pending = other;
+                        let current = std::mem::take(bytes);
+                        return Poll::Ready(Some(Ok(ReadControl::Raw(current))));
                     }
                 }
             }

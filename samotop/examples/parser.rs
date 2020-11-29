@@ -11,7 +11,12 @@ fn main() {
         + "RCPT TO:<x@y.z>\r\n"
         + "DATA\r\n"
         + "QUIT\r\n";
-    let result = SmtpParser.script(input.as_bytes()).unwrap();
 
-    println!("Parsed: {:#?}", result);
+    let mut input = input.as_bytes();
+
+    while !input.is_empty() {
+        let (i, item) = SmtpParser::default().parse_command(input).unwrap();
+        input = i;
+        println!("Parsed: {:#?}", item);
+    }
 }

@@ -1,5 +1,5 @@
 use crate::{
-    common::{ready, S3Fut},
+    common::*,
     mail::SessionInfo,
     smtp::{SmtpSessionCommand, SmtpState},
 };
@@ -9,9 +9,9 @@ impl SmtpSessionCommand for SessionInfo {
         ""
     }
 
-    fn apply(mut self, mut state: SmtpState) -> S3Fut<SmtpState> {
-        state.service.prepare_session(&mut self);
-        state.session = self;
+    fn apply(&self, mut state: SmtpState) -> S2Fut<SmtpState> {
+        state.session = self.clone();
+        state.service.prepare_session(&mut state.session);
 
         if state.session.service_name.is_empty() {
             if !state.session.connection.local_addr.is_empty() {
@@ -46,7 +46,7 @@ impl SmtpSessionCommand for SessionShutdown {
         ""
     }
 
-    fn apply(self, mut state: SmtpState) -> S3Fut<SmtpState> {
+    fn apply(&self, mut state: SmtpState) -> S2Fut<SmtpState> {
         state.reset();
         state.session = SessionInfo::default();
         Box::pin(ready(state))
