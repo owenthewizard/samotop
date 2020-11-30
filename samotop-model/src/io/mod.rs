@@ -1,3 +1,4 @@
+pub mod tls;
 mod traits;
 mod types;
 

@@ -17,6 +17,5 @@ fn builder_builds_task() {
     let parser = samotop::parser::SmtpParser::default();
     let mail = Arc::new(samotop::mail::Builder::default().using(parser));
     let svc = samotop::io::smtp::SmtpService::new(mail);
-    let svc = samotop::io::tls::TlsEnabled::disabled(svc);
     let _srv = samotop::server::TcpServer::on("localhost:25").serve(svc);
 }

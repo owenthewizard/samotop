@@ -93,8 +93,8 @@ use async_std::io::ReadExt;
 use async_std::task;
 use async_tls::TlsAcceptor;
 use rustls::ServerConfig;
-use samotop::io::tls::provide_rustls;
-use samotop::io::{smtp::SmtpService, tls::TlsEnabled};
+use samotop::io::smtp::SmtpService;
+use samotop::io::tls::RustlsProvider;
 use samotop::mail::{Builder, Dir, Name};
 use samotop::parser::SmtpParser;
 use samotop::server::TcpServer;
@@ -115,17 +115,17 @@ async fn main_fut() -> Result<()> {
     let ports = setup.get_service_ports();
     let tls_config = setup.get_tls_config().await?;
     let tls_acceptor =
-        tls_config.map(|cfg| provide_rustls(TlsAcceptor::from(std::sync::Arc::new(cfg))));
+        tls_config.map(|cfg| RustlsProvider::from(TlsAcceptor::from(std::sync::Arc::new(cfg))));
     let mail_service = Builder::default()
         .using(Name::new(setup.get_my_name()))
         .using(Dir::new(setup.get_mail_dir())?)
         .using(samotop::mail::spf::provide_viaspf())
         .using(SmtpParser::default());
     let smtp_service = SmtpService::new(Arc::new(mail_service));
-    let tls_smtp_service = TlsEnabled::new(smtp_service, tls_acceptor);
+    //TODO: let tls_smtp_service = TlsEnabled::new(smtp_service, tls_acceptor);
 
     info!("I am {}", setup.get_my_name());
-    TcpServer::on_all(ports).serve(tls_smtp_service).await
+    TcpServer::on_all(ports).serve(smtp_service).await
 }
 
 pub struct Setup {

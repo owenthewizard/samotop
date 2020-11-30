@@ -26,13 +26,9 @@ maintenance = { status = "actively-developed" }
 [features]
 default = ["rust-tls", "spf", "parser-peg"]
 spf = ["samotop-with-spf"]
-rust-tls = ["async-tls", "samotop-delivery/rust-tls"]
-native-tls = ["async-native-tls", "samotop-delivery/native-tls"]
-native-tls-vendored = [
-    "async-native-tls/vendored",
-    "native-tls",
-    "samotop-delivery/native-tls-vendored",
-]
+rust-tls = ["samotop-with-rustls"]
+native-tls = ["samotop-with-native-tls"]
+native-tls-vendored = ["samotop-with-native-tls/vendored", "native-tls"]
 parser-peg = ["samotop-parser"]
 parser-nom = ["samotop-parser-nom"]
 
@@ -55,6 +51,16 @@ version = "0.11.0"
 path = "../samotop-with-spf"
 optional = true
 
+[dependencies.samotop-with-rustls]
+version = "0.11.0"
+path = "../samotop-with-rustls"
+optional = true
+
+[dependencies.samotop-with-native-tls]
+version = "0.11.0"
+path = "../samotop-with-native-tls"
+optional = true
+
 [dependencies.samotop-delivery]
 version = "0.5.1-samotop-dev"
 path = "../samotop-delivery"
@@ -65,8 +71,6 @@ bytes = "0.6"
 pin-project = "1.0"
 futures = "0.3"
 async-std = "1.7"
-async-tls = { version = "0.10", optional = true }
-async-native-tls = { version = "0.3", optional = true }
 regex = "1.4"
 
 [dev-dependencies]

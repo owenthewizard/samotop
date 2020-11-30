@@ -1,13 +1,12 @@
+use crate::smtp::net::tls::TlsCapable;
 use crate::smtp::net::tls::{TlsProvider, TlsUpgrade};
 use crate::smtp::net::Connector;
-use crate::smtp::net::NetworkStream;
-use crate::smtp::net::State;
 use crate::smtp::net::TlsMode;
 use crate::{smtp::net::ConnectionConfiguration, SyncFuture};
 use async_std::io;
 use async_std::net::{TcpStream, ToSocketAddrs};
 use samotop_model::common::Pin;
-use samotop_model::io::MayBeTls;
+use samotop_model::io::tls::MayBeTls;
 
 #[derive(Debug)]
 pub struct TcpConnector<TLS> {
@@ -26,10 +25,9 @@ impl<TLS: Default> Default for TcpConnector<TLS> {
 
 impl<TLS> Connector for TcpConnector<TLS>
 where
-    TLS: TlsProvider<TcpStream> + Sync + Send + 'static,
+    TLS: TlsProvider + Sync + Send + 'static,
 {
-    type Stream =
-        NetworkStream<TcpStream, <TLS::Upgrade as TlsUpgrade<TcpStream>>::Encrypted, TLS::Upgrade>;
+    type Stream = TlsCapable;
     /// This provider of connectivity takes care of resolving
     /// given address (which could be an IP, FQDN, URL...),
     /// establishing a connection and enabling (or not) TLS upgrade.
@@ -56,13 +54,10 @@ where
 
             // remove port part, domain/host remains
             to.find(':').map(|i| to.split_off(i));
-            let mut stream = NetworkStream {
-                peer_addr: stream.peer_addr().ok(),
-                peer_name: to,
-                state: match self.provider.get() {
-                    Some(u) => State::Enabled(stream, u),
-                    None => State::Disabled(stream),
-                },
+            let stream = Box::new(stream);
+            let mut stream = match self.provider.get() {
+                Some(u) => TlsCapable::enabled(stream, Box::new(u), to),
+                None => TlsCapable::plaintext(stream),
             };
 
             match self.tls_mode {

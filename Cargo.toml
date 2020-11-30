@@ -5,6 +5,8 @@ members = [
     "samotop-core",
     "samotop-parser",
     "samotop-parser-nom",
+    "samotop-with-rustls",
+    "samotop-with-native-tls",
     "samotop-with-spf",
     "samotop",
     "samotop-server",
