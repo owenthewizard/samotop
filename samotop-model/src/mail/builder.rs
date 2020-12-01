@@ -1,17 +1,18 @@
 use crate::{
     common::S2Fut,
+    io::tls::{NoTls, TlsProvider, TlsUpgrade},
     mail::{
         AddRecipientRequest, AddRecipientResult, DispatchResult, EsmtpService, MailDispatch,
         MailGuard, MailSetup, SessionInfo, StartMailRequest, StartMailResult, Transaction,
     },
-    parser::ParseResult,
-    parser::{ParseError, Parser},
+    parser::{ParseError, ParseResult, Parser},
     smtp::SmtpSessionCommand,
 };
 
-#[derive(Default, Debug)]
+#[derive(Debug)]
 pub struct Builder {
     pub id: String,
+    pub tls: Box<dyn TlsProvider + Sync + Send + 'static>,
     pub parser: Vec<Box<dyn Parser + Sync + Send + 'static>>,
     pub dispatch: Vec<Box<dyn MailDispatch + Sync + Send + 'static>>,
     pub guard: Vec<Box<dyn MailGuard + Sync + Send + 'static>>,
@@ -23,6 +24,19 @@ impl Builder {
         trace!("Builder {} using setup {:?}", self.id, setup);
         setup.setup(&mut self);
         self
+    }
+}
+
+impl Default for Builder {
+    fn default() -> Self {
+        Self {
+            id: Default::default(),
+            tls: Box::new(NoTls),
+            parser: Default::default(),
+            dispatch: Default::default(),
+            guard: Default::default(),
+            esmtp: Default::default(),
+        }
     }
 }
 
@@ -151,5 +165,11 @@ impl Parser for Builder {
             }
         }
         Err(ParseError::Mismatch("No parser can parse this".into()))
+    }
+}
+
+impl TlsProvider for Builder {
+    fn get(&self) -> Option<Box<dyn TlsUpgrade>> {
+        self.tls.get()
     }
 }

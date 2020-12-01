@@ -24,7 +24,6 @@ use samotop::{
     io::{
         client::{tls::NoTls, TcpConnector},
         smtp::SmtpService,
-        tls::TlsEnabled,
     },
     mail::{Builder, LmtpDispatch, Mapper},
     parser::SmtpParser,
@@ -50,9 +49,6 @@ async fn main_fut() -> Result<()> {
         .using(rcpt_map)
         .using(SmtpParser::default());
     let smtp_service = SmtpService::new(Arc::new(mail_service));
-    let tls_smtp_service = TlsEnabled::disabled(smtp_service);
 
-    TcpServer::on("localhost:2525")
-        .serve(tls_smtp_service)
-        .await
+    TcpServer::on("localhost:2525").serve(smtp_service).await
 }

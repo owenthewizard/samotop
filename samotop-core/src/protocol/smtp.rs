@@ -1,5 +1,5 @@
 use crate::common::*;
-use crate::io::MayBeTls;
+use crate::io::tls::MayBeTls;
 use crate::smtp::{ReadControl, WriteControl};
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use futures::{

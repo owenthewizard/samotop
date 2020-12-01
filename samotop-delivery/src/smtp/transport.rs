@@ -9,7 +9,7 @@ use crate::{Envelope, Transport};
 use async_std::io::{Read, Write};
 use pin_project::pin_project;
 use potential::{Lease, Potential};
-use samotop_model::io::MayBeTls;
+use samotop_model::io::tls::MayBeTls;
 use std::time::Duration;
 use std::{fmt, pin::Pin};
 

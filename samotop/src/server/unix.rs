@@ -1,10 +1,8 @@
 use crate::common::*;
+use crate::io::tls::{Io, MayBeTls, TlsCapable};
 use crate::io::*;
 use async_std::task;
-use async_std::{
-    os::unix::net::{UnixListener, UnixStream},
-    path::PathBuf,
-};
+use async_std::{os::unix::net::UnixListener, path::PathBuf};
 use futures::{future::BoxFuture, stream::FuturesUnordered};
 
 /// `UnixServer` takes care of accepting Unix socket connections and passing them to an `IoService` to `handle()`.
@@ -58,13 +56,13 @@ impl<'a> UnixServer<'a> {
     }
     pub async fn serve<S>(mut self, service: S) -> Result<()>
     where
-        S: IoService<UnixStream> + Send + Sync,
+        S: IoService + Send + Sync,
     {
         Self::serve_ports(service, self.resolve_ports().await?).await
     }
     async fn serve_ports<S>(service: S, addrs: impl IntoIterator<Item = PathBuf>) -> Result<()>
     where
-        S: IoService<UnixStream> + Send + Sync,
+        S: IoService + Send + Sync,
     {
         let svc = Arc::new(service);
         addrs
@@ -81,7 +79,7 @@ impl<'a> UnixServer<'a> {
     }
     async fn serve_port<S>(service: S, addr: PathBuf) -> Result<()>
     where
-        S: IoService<UnixStream> + Clone,
+        S: IoService + Clone,
     {
         trace!("Binding on {:?}", addr);
         let listener = UnixListener::bind(addr.clone())
@@ -114,7 +112,14 @@ impl<'a> UnixServer<'a> {
             } else {
                 ConnectionInfo::default()
             };
-            let stream = stream.map_err(|e| e.into());
+            let stream = match stream {
+                Ok(s) => {
+                    let s: Box<dyn Io> = Box::new(s);
+                    let s: Box<dyn MayBeTls> = Box::new(TlsCapable::plaintext(s));
+                    Ok(s)
+                }
+                Err(e) => (Err(e.into())),
+            };
             let service = service.clone();
             spawn_task_and_swallow_log_errors(
                 format!("TCP transmission {}", conn),

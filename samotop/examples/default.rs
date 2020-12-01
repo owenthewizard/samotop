@@ -22,10 +22,7 @@ use async_std::task;
 use samotop::mail::Builder;
 use samotop::parser::SmtpParser;
 use samotop::server::TcpServer;
-use samotop::{
-    io::{smtp::SmtpService, tls::TlsEnabled},
-    mail::NullDispatch,
-};
+use samotop::{io::smtp::SmtpService, mail::NullDispatch};
 use std::sync::Arc;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
@@ -40,8 +37,6 @@ async fn main_fut() -> Result<()> {
         .using(NullDispatch)
         .using(SmtpParser::default());
     let smtp_service = SmtpService::new(Arc::new(mail_service));
-    let tls_smtp_service = TlsEnabled::disabled(smtp_service);
-    TcpServer::on("localhost:2525")
-        .serve(tls_smtp_service)
-        .await
+
+    TcpServer::on("localhost:2525").serve(smtp_service).await
 }

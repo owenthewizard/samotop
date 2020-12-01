@@ -1,6 +1,7 @@
 use crate::common::*;
+use crate::io::tls::{Io, MayBeTls, TlsCapable};
 use crate::io::*;
-use async_std::net::{TcpListener, TcpStream, ToSocketAddrs};
+use async_std::net::{TcpListener, ToSocketAddrs};
 use async_std::task;
 use futures::{
     future::{BoxFuture, TryFutureExt},
@@ -65,13 +66,13 @@ impl<'a> TcpServer<'a> {
     }
     pub async fn serve<S>(mut self: TcpServer<'a>, service: S) -> Result<()>
     where
-        S: IoService<TcpStream> + Send + Sync,
+        S: IoService + Send + Sync,
     {
         Self::serve_ports(service, self.resolve_ports().await?).await
     }
     async fn serve_ports<S>(service: S, addrs: impl IntoIterator<Item = SocketAddr>) -> Result<()>
     where
-        S: IoService<TcpStream> + Send + Sync,
+        S: IoService + Send + Sync,
     {
         let svc = Arc::new(service);
         addrs
@@ -88,7 +89,7 @@ impl<'a> TcpServer<'a> {
     }
     async fn serve_port<S>(service: S, addr: SocketAddr) -> Result<()>
     where
-        S: IoService<TcpStream> + Clone,
+        S: IoService + Clone,
     {
         trace!("Binding on {}", addr);
         let listener = TcpListener::bind(addr)
@@ -111,7 +112,15 @@ impl<'a> TcpServer<'a> {
             } else {
                 ConnectionInfo::default()
             };
-            let stream = stream.map_err(|e| e.into());
+            let stream = match stream {
+                Ok(s) => {
+                    let s: Box<dyn Io> = Box::new(s);
+                    let s: Box<dyn MayBeTls> = Box::new(TlsCapable::plaintext(s));
+                    Ok(s)
+                }
+                Err(e) => (Err(e.into())),
+            };
+
             let service = service.clone();
             spawn_task_and_swallow_log_errors(
                 format!("TCP transmission {}", conn),

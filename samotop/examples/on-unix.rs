@@ -24,7 +24,7 @@ find tmp/samotop/spool/
 
 use async_std::task;
 use samotop::{
-    io::{smtp::SmtpService, tls::TlsEnabled},
+    io::smtp::SmtpService,
     mail::{Builder, Dir},
     parser::SmtpParser,
 };
@@ -51,7 +51,6 @@ async fn main_fut() -> Result<()> {
             .using(SmtpParser::default()),
     );
     let smtp_service = SmtpService::new(mail_service);
-    let tls_smtp_service = TlsEnabled::disabled(smtp_service);
     use samotop::server::UnixServer;
-    UnixServer::on("local.socket").serve(tls_smtp_service).await
+    UnixServer::on("local.socket").serve(smtp_service).await
 }
