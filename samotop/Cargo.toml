@@ -1,6 +1,6 @@
 [package]
 name = "samotop"
-version = "0.11.1"
+version = "0.12.0"
 authors = ["jocutajar <tellnoone@robajz.info>"]
 license = "MIT OR Apache-2.0"
 description = "SMTP server and library built on async-std"
@@ -33,31 +33,31 @@ parser-peg = ["samotop-parser"]
 parser-nom = ["samotop-parser-nom"]
 
 [dependencies.samotop-core]
-version = "0.11.0"
+version = "0.12.0"
 path = "../samotop-core"
 
 [dependencies.samotop-parser]
-version = "0.11.0"
+version = "0.12.0"
 path = "../samotop-parser"
 optional = true
 
 [dependencies.samotop-parser-nom]
-version = "0.11.0"
+version = "0.12.0"
 path = "../samotop-parser-nom"
 optional = true
 
 [dependencies.samotop-with-spf]
-version = "0.11.0"
+version = "0.12.0"
 path = "../samotop-with-spf"
 optional = true
 
 [dependencies.samotop-with-rustls]
-version = "0.11.0"
+version = "0.12.0"
 path = "../samotop-with-rustls"
 optional = true
 
 [dependencies.samotop-with-native-tls]
-version = "0.11.0"
+version = "0.12.0"
 path = "../samotop-with-native-tls"
 optional = true
 

@@ -1,6 +1,6 @@
 [package]
 name = "samotop-with-native-tls"
-version = "0.11.0"
+version = "0.12.0"
 authors = ["jocutajar <tellnoone@robajz.info>"]
 license = "MIT OR Apache-2.0"
 description = "Native TLS support for Samotop"
@@ -18,7 +18,7 @@ gitlab = { repository = "BrightOpen/BackYard/Samotop", branch = "develop" }
 maintenance = { status = "actively-developed" }
 
 [dependencies.samotop-model]
-version = "0.11.0"
+version = "0.12.0"
 path = "../samotop-model"
 
 [dependencies]

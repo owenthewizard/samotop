@@ -1,6 +1,6 @@
 [package]
 name = "samotop-model"
-version = "0.11.0"
+version = "0.12.0"
 authors = ["jocutajar <tellnoone@robajz.info>"]
 license = "MIT OR Apache-2.0"
 description = "The domain model of Samotop - SMTP server and library built on async-std. A base crate for samotop extensions."
