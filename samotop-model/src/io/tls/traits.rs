@@ -22,14 +22,14 @@ where
     T: Unpin + Read + Write + Sync + Send,
     TLSIO: MayBeTls + Unpin + ?Sized,
 {
-    fn encrypt(mut self: Pin<&mut Self>) {
-        Pin::new(self.deref_mut()).encrypt()
+    fn encrypt(self: Pin<&mut Self>) {
+        TLSIO::encrypt(Pin::new(DerefMut::deref_mut(self.get_mut())))
     }
     fn can_encrypt(&self) -> bool {
-        Deref::deref(self).can_encrypt()
+        TLSIO::can_encrypt(T::deref(self))
     }
     fn is_encrypted(&self) -> bool {
-        Deref::deref(self).is_encrypted()
+        TLSIO::is_encrypted(T::deref(self))
     }
 }
 
