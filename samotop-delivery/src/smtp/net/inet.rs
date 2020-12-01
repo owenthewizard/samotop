@@ -55,7 +55,7 @@ where
             // remove port part, domain/host remains
             to.find(':').map(|i| to.split_off(i));
             let stream = Box::new(stream);
-            let mut stream = match self.provider.get() {
+            let mut stream = match self.provider.get_tls_upgrade() {
                 Some(u) => TlsCapable::enabled(stream, u, to),
                 None => TlsCapable::plaintext(stream),
             };

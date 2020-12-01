@@ -37,7 +37,7 @@ pub trait Io: Read + Write + Sync + Send + Unpin {}
 impl<T> Io for T where T: Read + Write + Sync + Send + Unpin {}
 
 pub trait TlsProvider: std::fmt::Debug {
-    fn get(&self) -> Option<Box<dyn TlsUpgrade>>;
+    fn get_tls_upgrade(&self) -> Option<Box<dyn TlsUpgrade>>;
 }
 
 pub trait TlsUpgrade: Sync + Send {

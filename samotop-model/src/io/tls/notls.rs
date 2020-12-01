@@ -12,7 +12,7 @@ pub struct NoTls;
 pub struct Impossible {}
 
 impl TlsProvider for NoTls {
-    fn get(&self) -> Option<Box<dyn TlsUpgrade>> {
+    fn get_tls_upgrade(&self) -> Option<Box<dyn TlsUpgrade>> {
         None
     }
 }

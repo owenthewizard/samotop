@@ -61,7 +61,7 @@ where
 
             // Add tls if needed and available
             if !io.can_encrypt() && !io.is_encrypted() {
-                if let Some(upgrade) = mail_service.get() {
+                if let Some(upgrade) = mail_service.get_tls_upgrade() {
                     let plain: Box<dyn Io> = Box::new(io);
                     io = Box::new(TlsCapable::enabled(plain, upgrade, String::default()));
                 }

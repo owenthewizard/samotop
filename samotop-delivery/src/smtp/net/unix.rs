@@ -45,7 +45,7 @@ where
 
             let stream = io::timeout(timeout, UnixStream::connect(&to)).await?;
             let stream = Box::new(stream);
-            let mut stream = match self.provider.get() {
+            let mut stream = match self.provider.get_tls_upgrade() {
                 Some(u) => TlsCapable::enabled(stream, u, String::default()),
                 None => TlsCapable::plaintext(stream),
             };

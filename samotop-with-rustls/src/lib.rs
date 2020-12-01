@@ -56,13 +56,13 @@ impl TlsUpgrade for RustlsProvider<TlsConnector> {
 }
 
 impl TlsProvider for RustlsProvider<TlsAcceptor> {
-    fn get(&self) -> Option<Box<dyn TlsUpgrade>> {
+    fn get_tls_upgrade(&self) -> Option<Box<dyn TlsUpgrade>> {
         Some(Box::new(self.clone()))
     }
 }
 
 impl TlsProvider for RustlsProvider<TlsConnector> {
-    fn get(&self) -> Option<Box<dyn TlsUpgrade>> {
+    fn get_tls_upgrade(&self) -> Option<Box<dyn TlsUpgrade>> {
         Some(Box::new(self.clone()))
     }
 }

@@ -169,7 +169,7 @@ impl Parser for Builder {
 }
 
 impl TlsProvider for Builder {
-    fn get(&self) -> Option<Box<dyn TlsUpgrade>> {
-        self.tls.get()
+    fn get_tls_upgrade(&self) -> Option<Box<dyn TlsUpgrade>> {
+        self.tls.get_tls_upgrade()
     }
 }

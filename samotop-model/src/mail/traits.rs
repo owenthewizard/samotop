@@ -124,8 +124,8 @@ impl<T> TlsProvider for Arc<T>
 where
     T: TlsProvider,
 {
-    fn get(&self) -> Option<Box<dyn crate::io::tls::TlsUpgrade>> {
-        T::get(self)
+    fn get_tls_upgrade(&self) -> Option<Box<dyn crate::io::tls::TlsUpgrade>> {
+        T::get_tls_upgrade(self)
     }
 }
 
