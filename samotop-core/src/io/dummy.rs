@@ -1,4 +1,5 @@
 use crate::common::*;
+use crate::io::tls::MayBeTls;
 use crate::io::ConnectionInfo;
 use crate::io::IoService;
 
@@ -6,9 +7,13 @@ use crate::io::IoService;
 #[derive(Clone, Debug)]
 pub struct DummyService;
 
-impl<IO> IoService<IO> for DummyService {
-    fn handle(&self, _io: Result<IO>, conn: ConnectionInfo) -> S3Fut<Result<()>> {
-        info!("Received connection {}", conn);
+impl IoService for DummyService {
+    fn handle(
+        &self,
+        _io: Result<Box<dyn MayBeTls>>,
+        connection: ConnectionInfo,
+    ) -> S3Fut<Result<()>> {
+        info!("Received connection {}", connection);
         Box::pin(future::ready(Ok(())))
     }
 }

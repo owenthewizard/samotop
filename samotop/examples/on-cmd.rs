@@ -26,7 +26,7 @@ use async_std::task;
 use futures::AsyncRead as Read;
 use futures::AsyncWrite as Write;
 use samotop::{
-    io::{smtp::SmtpService, tls::TlsEnabled, ConnectionInfo, IoService},
+    io::{smtp::SmtpService, tls::TlsCapable, ConnectionInfo, IoService},
     mail::{Builder, Dir},
     parser::SmtpParser,
 };
@@ -48,15 +48,15 @@ async fn main_fut() -> Result<()> {
             .using(SmtpParser::default()),
     );
     let smtp_service = SmtpService::new(Arc::new(mail_service));
-    let tls_smtp_service = TlsEnabled::disabled(smtp_service);
 
     let stream = MyIo {
         read: Box::pin(async_std::io::stdin()),
         write: Box::pin(async_std::io::stdout()),
     };
+    let stream = TlsCapable::plaintext(Box::new(stream));
     let conn = ConnectionInfo::default();
 
-    tls_smtp_service.handle(Ok(stream), conn).await
+    smtp_service.handle(Ok(Box::new(stream)), conn).await
 }
 
 struct MyIo<R, W> {

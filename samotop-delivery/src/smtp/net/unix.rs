@@ -1,13 +1,12 @@
-use crate::smtp::net::tls::{TlsProvider, TlsUpgrade};
+use crate::smtp::net::tls::TlsCapable;
+use crate::smtp::net::tls::TlsProvider;
 use crate::smtp::net::Connector;
-use crate::smtp::net::NetworkStream;
-use crate::smtp::net::State;
 use crate::smtp::net::TlsMode;
 use crate::{smtp::net::ConnectionConfiguration, SyncFuture};
 use async_std::io;
 use async_std::os::unix::net::UnixStream;
 use samotop_model::common::Pin;
-use samotop_model::io::MayBeTls;
+use samotop_model::io::tls::MayBeTls;
 
 #[derive(Debug)]
 pub struct UnixConnector<TLS> {
@@ -26,13 +25,9 @@ impl<TLS: Default> Default for UnixConnector<TLS> {
 
 impl<TLS> Connector for UnixConnector<TLS>
 where
-    TLS: TlsProvider<UnixStream> + Sync + Send + 'static,
+    TLS: TlsProvider + Sync + Send + 'static,
 {
-    type Stream = NetworkStream<
-        UnixStream,
-        <TLS::Upgrade as TlsUpgrade<UnixStream>>::Encrypted,
-        TLS::Upgrade,
-    >;
+    type Stream = TlsCapable;
     /// This provider of connectivity takes care of resolving
     /// given address (which could be an IP, FQDN, URL...),
     /// establishing a connection and enabling (or not) TLS upgrade.
@@ -49,14 +44,10 @@ where
             let timeout = configuration.timeout();
 
             let stream = io::timeout(timeout, UnixStream::connect(&to)).await?;
-
-            let mut stream = NetworkStream {
-                peer_addr: None,
-                peer_name: to,
-                state: match self.provider.get() {
-                    Some(u) => State::Enabled(stream, u),
-                    None => State::Disabled(stream),
-                },
+            let stream = Box::new(stream);
+            let mut stream = match self.provider.get() {
+                Some(u) => TlsCapable::enabled(stream, u, String::default()),
+                None => TlsCapable::plaintext(stream),
             };
 
             match self.tls_mode {

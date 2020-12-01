@@ -1,11 +1,12 @@
+use samotop_model::io::tls::{Io, TlsCapable};
+
 use crate::common::*;
 use crate::{
-    io::{ConnectionInfo, IoService, MayBeTls},
+    io::{tls::MayBeTls, ConnectionInfo, IoService},
     mail::{MailService, SessionInfo},
     protocol::smtp::SmtpCodec,
     smtp::*,
 };
-use std::marker::PhantomData;
 use std::sync::Arc;
 
 /// `SmtpService` provides a stateful SMTP service on a TCP, Unix or other asyn IO conection.
@@ -26,39 +27,51 @@ use std::sync::Arc;
 /// It is effectively a composition and setup of components required to serve SMTP.
 ///
 #[derive(Clone)]
-pub struct SmtpService<S, IO> {
+pub struct SmtpService<S> {
     mail_service: Arc<S>,
-    phantom: PhantomData<IO>,
 }
 
-impl<S, IO> SmtpService<S, IO>
+impl<S> SmtpService<S>
 where
     S: MailService + Send + Sync + 'static,
-    IO: MayBeTls + Read + Write + Unpin + Sync + Send + 'static,
 {
     pub fn new(mail_service: S) -> Self {
         Self {
             mail_service: Arc::new(mail_service),
-            phantom: PhantomData,
         }
     }
 }
 
-impl<S, IO> IoService<IO> for SmtpService<S, IO>
+impl<S> IoService for SmtpService<S>
 where
     S: MailService + Send + Sync + 'static,
-    IO: MayBeTls + Read + Write + Unpin + Sync + Send + 'static,
 {
-    fn handle(&self, io: Result<IO>, connection: ConnectionInfo) -> S3Fut<Result<()>> {
+    fn handle(
+        &self,
+        io: Result<Box<dyn MayBeTls>>,
+        connection: ConnectionInfo,
+    ) -> S3Fut<Result<()>> {
         let mail_service = self.mail_service.clone();
 
         Box::pin(async move {
             info!("New peer connection {}", connection);
-            let io = io?;
+
+            let mut io = io?;
             let mut sess = SessionInfo::new(connection, "".to_owned());
+
+            // Add tls if needed and available
+            if !io.can_encrypt() && !io.is_encrypted() {
+                if let Some(upgrade) = mail_service.get() {
+                    let plain: Box<dyn Io> = Box::new(io);
+                    io = Box::new(TlsCapable::enabled(plain, upgrade, String::default()));
+                }
+            }
+
+            // enable STARTTLS extension if it can be used
             if io.can_encrypt() && !io.is_encrypted() {
                 sess.extensions.enable(&extension::STARTTLS);
             }
+
             let mut state = SmtpState::new(mail_service);
             let mut codec = SmtpCodec::new(io);
 

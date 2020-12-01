@@ -25,7 +25,7 @@ pub mod parser {
 pub mod test_util {
 
     pub use crate::common::*;
-    use crate::io::MayBeTls;
+    use crate::io::tls::MayBeTls;
     use std::collections::VecDeque;
 
     pub fn cx() -> Context<'static> {

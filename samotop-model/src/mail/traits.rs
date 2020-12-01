@@ -1,9 +1,9 @@
-use crate::mail::*;
 use crate::{common::*, parser::Parser};
+use crate::{io::tls::TlsProvider, mail::*};
 use std::fmt::Debug;
 
-pub trait MailService: Parser + EsmtpService + MailGuard + MailDispatch {}
-impl<T> MailService for T where T: Parser + EsmtpService + MailGuard + MailDispatch {}
+pub trait MailService: TlsProvider + Parser + EsmtpService + MailGuard + MailDispatch {}
+impl<T> MailService for T where T: TlsProvider + Parser + EsmtpService + MailGuard + MailDispatch {}
 
 /**
 The service which implements this trait delivers ESMTP extensions.
@@ -117,6 +117,15 @@ where
         's: 'f,
     {
         T::send_mail(self, session, transaction)
+    }
+}
+
+impl<T> TlsProvider for Arc<T>
+where
+    T: TlsProvider,
+{
+    fn get(&self) -> Option<Box<dyn crate::io::tls::TlsUpgrade>> {
+        T::get(self)
     }
 }
 

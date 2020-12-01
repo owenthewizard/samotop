@@ -105,7 +105,6 @@ fn main() {
     let parser = samotop::parser::SmtpParser::default();
     let mail = Arc::new(samotop::mail::Builder::default().using(parser));
     let svc = samotop::io::smtp::SmtpService::new(mail);
-    let svc = samotop::io::tls::TlsEnabled::disabled(svc);
     let srv = samotop::server::TcpServer::on("localhost:25").serve(svc);
     async_std::task::block_on(srv).unwrap()
 }
@@ -217,21 +216,15 @@ pub mod io {
     pub use samotop_core::io::*;
 
     pub use samotop_delivery::smtp::net as client;
-    pub mod tls {
 
+    pub mod tls {
         pub use samotop_core::io::tls::*;
 
         #[cfg(feature = "rust-tls")]
-        mod tls_impl_rust;
-
-        #[cfg(feature = "rust-tls")]
-        pub use tls_impl_rust::*;
+        pub use samotop_with_rustls::*;
 
         #[cfg(feature = "native-tls")]
-        mod tls_impl_native;
-
-        #[cfg(feature = "native-tls")]
-        pub use tls_impl_native::*;
+        pub use samotop_with_native_tls::*;
     }
 }
 

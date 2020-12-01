@@ -1,0 +1,28 @@
+[package]
+name = "samotop-with-native-tls"
+version = "0.11.0"
+authors = ["jocutajar <tellnoone@robajz.info>"]
+license = "MIT OR Apache-2.0"
+description = "Native TLS support for Samotop"
+documentation = "https://docs.rs/samotop/"
+homepage = "https://gitlab.com/BrightOpen/BackYard/Samotop/-/tree/develop/samotop-with-rustls"
+repository = "https://gitlab.com/BrightOpen/BackYard/Samotop/"
+keywords = ["smtp", "tls"]
+edition = "2018"
+
+# see crates.io/category_slugs
+categories = ["email", "network-programming"]
+
+[badges]
+gitlab = { repository = "BrightOpen/BackYard/Samotop", branch = "develop" }
+maintenance = { status = "actively-developed" }
+
+[dependencies.samotop-model]
+version = "0.11.0"
+path = "../samotop-model"
+
+[dependencies]
+async-native-tls = "0.3"
+
+[features]
+vendored = ["async-native-tls/vendored"]
