@@ -56,7 +56,7 @@ where
             to.find(':').map(|i| to.split_off(i));
             let stream = Box::new(stream);
             let mut stream = match self.provider.get() {
-                Some(u) => TlsCapable::enabled(stream, Box::new(u), to),
+                Some(u) => TlsCapable::enabled(stream, u, to),
                 None => TlsCapable::plaintext(stream),
             };
 

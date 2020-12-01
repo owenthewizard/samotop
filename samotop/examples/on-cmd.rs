@@ -53,7 +53,7 @@ async fn main_fut() -> Result<()> {
         read: Box::pin(async_std::io::stdin()),
         write: Box::pin(async_std::io::stdout()),
     };
-    let stream = TlsCapable::disabled(stream);
+    let stream = TlsCapable::plaintext(Box::new(stream));
     let conn = ConnectionInfo::default();
 
     smtp_service.handle(Ok(Box::new(stream)), conn).await

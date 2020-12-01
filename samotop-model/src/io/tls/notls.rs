@@ -1,6 +1,9 @@
 use super::{TlsProvider, TlsUpgrade};
-use crate::common::*;
 use crate::io::tls::Io;
+use crate::{
+    common::*,
+    mail::{Builder, MailSetup},
+};
 
 #[derive(Default, Debug, Clone, Copy)]
 pub struct NoTls;
@@ -9,8 +12,7 @@ pub struct NoTls;
 pub struct Impossible {}
 
 impl TlsProvider for NoTls {
-    type Upgrade = Impossible;
-    fn get(&self) -> Option<Self::Upgrade> {
+    fn get(&self) -> Option<Box<dyn TlsUpgrade>> {
         None
     }
 }
@@ -18,7 +20,7 @@ impl TlsProvider for NoTls {
 impl TlsUpgrade for Impossible {
     fn upgrade_to_tls(
         &self,
-        stream: Box<dyn Io>,
+        _stream: Box<dyn Io>,
         _name: String,
     ) -> S3Fut<std::io::Result<Box<dyn Io>>> {
         unreachable!()
@@ -49,5 +51,11 @@ impl Write for Impossible {
     }
     fn poll_close(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
         unreachable!()
+    }
+}
+
+impl MailSetup for NoTls {
+    fn setup(self, builder: &mut Builder) {
+        builder.tls = Box::new(self);
     }
 }

@@ -1,12 +1,12 @@
 use async_native_tls::TlsAcceptor;
 use async_native_tls::TlsConnector;
 use async_native_tls::TlsStream;
-use samotop_model::common::*;
 use samotop_model::io::tls::Io;
 use samotop_model::io::tls::MayBeTls;
 use samotop_model::io::tls::TlsCapable;
 use samotop_model::io::tls::TlsProvider;
 use samotop_model::io::tls::TlsUpgrade;
+use samotop_model::{common::*, mail::MailSetup};
 use std::fmt;
 
 pub struct NativeTlsProvider<T> {
@@ -60,9 +60,8 @@ impl TlsUpgrade for NativeTlsProvider<TlsAcceptor> {
 }
 
 impl TlsProvider for NativeTlsProvider<TlsAcceptor> {
-    type Upgrade = NativeTlsProvider<TlsAcceptor>;
-    fn get(&self) -> Option<Self::Upgrade> {
-        Some(self.clone())
+    fn get(&self) -> Option<Box<dyn TlsUpgrade>> {
+        Some(Box::new(self.clone()))
     }
 }
 
@@ -73,9 +72,8 @@ impl fmt::Debug for NativeTlsProvider<TlsAcceptor> {
 }
 
 impl TlsProvider for NativeTlsProvider<TlsConnector> {
-    type Upgrade = NativeTlsProvider<TlsConnector>;
-    fn get(&self) -> Option<Self::Upgrade> {
-        Some(NativeTlsProvider::clone(&self))
+    fn get(&self) -> Option<Box<dyn TlsUpgrade>> {
+        Some(Box::new(NativeTlsProvider::clone(&self)))
     }
 }
 
@@ -101,5 +99,17 @@ impl TlsUpgrade for NativeTlsProvider<TlsConnector> {
 impl fmt::Debug for NativeTlsProvider<TlsConnector> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("NativeTlsProvider<TlsAcceptor>").finish()
+    }
+}
+
+impl MailSetup for NativeTlsProvider<TlsConnector> {
+    fn setup(self, builder: &mut samotop_model::mail::Builder) {
+        builder.tls = Box::new(self);
+    }
+}
+
+impl MailSetup for NativeTlsProvider<TlsAcceptor> {
+    fn setup(self, builder: &mut samotop_model::mail::Builder) {
+        builder.tls = Box::new(self);
     }
 }

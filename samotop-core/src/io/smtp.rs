@@ -1,3 +1,5 @@
+use samotop_model::io::tls::{Io, TlsCapable};
+
 use crate::common::*;
 use crate::{
     io::{tls::MayBeTls, ConnectionInfo, IoService},
@@ -53,8 +55,18 @@ where
 
         Box::pin(async move {
             info!("New peer connection {}", connection);
-            let io = io?;
+
+            let mut io = io?;
+
+            if !io.can_encrypt() && !io.is_encrypted() {
+                if let Some(upgrade) = mail_service.get() {
+                    let plain: Box<dyn Io> = Box::new(io);
+                    io = Box::new(TlsCapable::enabled(plain, upgrade, String::default()));
+                }
+            }
+
             let mut sess = SessionInfo::new(connection, "".to_owned());
+
             if io.can_encrypt() && !io.is_encrypted() {
                 sess.extensions.enable(&extension::STARTTLS);
             }

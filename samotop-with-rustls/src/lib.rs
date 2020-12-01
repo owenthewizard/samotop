@@ -1,5 +1,5 @@
 use async_tls::{TlsAcceptor, TlsConnector};
-use samotop_model::common::*;
+use samotop_model::{mail::MailSetup, common::*};
 use samotop_model::io::tls::Io;
 use samotop_model::io::tls::MayBeTls;
 use samotop_model::io::tls::TlsProvider;
@@ -57,16 +57,14 @@ impl TlsUpgrade for RustlsProvider<TlsConnector> {
 }
 
 impl TlsProvider for RustlsProvider<TlsAcceptor> {
-    type Upgrade = RustlsProvider<TlsAcceptor>;
-    fn get(&self) -> Option<Self::Upgrade> {
-        Some(self.clone())
+    fn get(&self) -> Option<Box<dyn TlsUpgrade>> {
+        Some(Box::new(self.clone()))
     }
 }
 
 impl TlsProvider for RustlsProvider<TlsConnector> {
-    type Upgrade = RustlsProvider<TlsConnector>;
-    fn get(&self) -> Option<Self::Upgrade> {
-        Some(self.clone())
+    fn get(&self) -> Option<Box<dyn TlsUpgrade>> {
+        Some(Box::new(self.clone()))
     }
 }
 
@@ -79,5 +77,17 @@ impl fmt::Debug for RustlsProvider<TlsAcceptor> {
 impl fmt::Debug for RustlsProvider<TlsConnector> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("RustlsProvider<TlsConnector>").finish()
+    }
+}
+
+impl MailSetup for RustlsProvider<TlsConnector> {
+    fn setup(self, builder: &mut samotop_model::mail::Builder) {
+        builder.tls = Box::new(self);
+    }
+}
+
+impl MailSetup for RustlsProvider<TlsAcceptor> {
+    fn setup(self, builder: &mut samotop_model::mail::Builder) {
+        builder.tls = Box::new(self);
     }
 }
