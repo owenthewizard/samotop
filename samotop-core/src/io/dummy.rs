@@ -14,6 +14,6 @@ impl IoService for DummyService {
         connection: ConnectionInfo,
     ) -> S3Fut<Result<()>> {
         info!("Received connection {}", connection);
-        Box::pin(future::ready(Ok(())))
+        Box::pin(ready(Ok(())))
     }
 }

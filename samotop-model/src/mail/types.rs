@@ -1,7 +1,10 @@
 use crate::common::{Pin, Write};
 use crate::io::ConnectionInfo;
 use crate::smtp::*;
-use std::fmt;
+use std::{
+    fmt,
+    time::{Duration, Instant},
+};
 
 /// Mail envelope before sending mail data
 #[derive(Default)]
@@ -29,6 +32,10 @@ pub struct SessionInfo {
     pub service_name: String,
     /// The SMTP helo sent by peer
     pub smtp_helo: Option<SmtpHelo>,
+    /// records the last instant a command was received
+    pub last_command_at: Option<Instant>,
+    /// How long in total do we wait for a command?
+    pub command_timeout: Duration,
 }
 
 impl Transaction {
@@ -81,8 +88,7 @@ impl SessionInfo {
         Self {
             connection,
             service_name,
-            extensions: ExtensionSet::new(),
-            smtp_helo: None,
+            ..Default::default()
         }
     }
 }

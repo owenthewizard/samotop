@@ -29,6 +29,7 @@ path = "../samotop-model"
 [dependencies]
 log = "0.4"
 futures = { version = "0.3", default-features = false, features = ["std"] }
+async-std = {version = "1.7", default-features = false, features = []}
 pin-project = "1.0"
 bytes = "0.6"
 memchr = "2.3"

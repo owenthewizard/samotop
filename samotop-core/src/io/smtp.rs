@@ -7,7 +7,10 @@ use crate::{
     protocol::smtp::SmtpCodec,
     smtp::*,
 };
-use std::sync::Arc;
+use std::{
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 /// `SmtpService` provides a stateful SMTP service on a TCP, Unix or other asyn IO conection.
 ///
@@ -58,6 +61,7 @@ where
 
             let mut io = io?;
             let mut sess = SessionInfo::new(connection, "".to_owned());
+            sess.command_timeout = Duration::from_secs(10);
 
             // Add tls if needed and available
             if !io.can_encrypt() && !io.is_encrypted() {
@@ -77,19 +81,25 @@ where
 
             // send connection info
             state = sess.apply(state).await;
-
+            let mut last = Instant::now();
             loop {
+                // fetch and apply commands
+                match timeout(Duration::from_secs(1), codec.next()).await {
+                    Ok(Some(command)) => {
+                        state.session.last_command_at = Some(last);
+                        state = command.apply(state).await;
+                        last = Instant::now();
+                    }
+                    Err(_timeouterror) => state = Timeout::new(last).apply(state).await,
+                    Ok(None) => {
+                        // client went silent, we're done!
+                        SessionShutdown.apply(state).await;
+                        break Ok(());
+                    }
+                }
                 // write all pending responses
                 for response in state.writes.drain(..) {
                     codec.send(response).await?;
-                }
-                // fetch and apply commands
-                if let Some(command) = codec.next().await {
-                    state = command.apply(state).await;
-                } else {
-                    // client went silent, we're done!
-                    SessionShutdown.apply(state).await;
-                    return Ok(());
                 }
             }
         })

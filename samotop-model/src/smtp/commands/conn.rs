@@ -3,6 +3,7 @@ use crate::{
     mail::SessionInfo,
     smtp::{SmtpSessionCommand, SmtpState},
 };
+use std::time::{Duration, Instant};
 
 impl SmtpSessionCommand for SessionInfo {
     fn verb(&self) -> &str {
@@ -49,6 +50,30 @@ impl SmtpSessionCommand for SessionShutdown {
     fn apply(&self, mut state: SmtpState) -> S2Fut<SmtpState> {
         state.reset();
         state.session = SessionInfo::default();
+        Box::pin(ready(state))
+    }
+}
+
+#[derive(Eq, PartialEq, Debug, Clone)]
+pub struct Timeout {
+    last: Instant,
+}
+impl Timeout {
+    pub fn new(last: Instant) -> Self {
+        Self { last }
+    }
+}
+impl SmtpSessionCommand for Timeout {
+    fn verb(&self) -> &str {
+        ""
+    }
+
+    fn apply(&self, mut state: SmtpState) -> S2Fut<SmtpState> {
+        let timeout = state.session.command_timeout;
+        if timeout > Duration::default() && self.last.elapsed() > timeout {
+            state.say_shutdown_err("Timeout expired.".to_owned());
+        }
+
         Box::pin(ready(state))
     }
 }

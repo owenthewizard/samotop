@@ -79,11 +79,11 @@ impl<'a> TcpServer<'a> {
             .into_iter()
             .map(|a| Self::serve_port(svc.clone(), a))
             .collect::<FuturesUnordered<_>>()
-            .skip_while(|r| futures::future::ready(r.is_ok()))
+            .skip_while(|r| r.is_ok())
             .take(1)
             .fold(Ok(()), |acc, cur| match cur {
-                Err(e) => futures::future::err(e),
-                Ok(()) => futures::future::ready(acc),
+                Err(e) => Err(e),
+                Ok(()) => acc,
             })
             .await
     }

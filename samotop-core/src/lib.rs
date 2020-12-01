@@ -6,11 +6,9 @@ pub mod mail;
 pub mod protocol;
 
 pub mod common {
-    pub use futures::{
-        future, future::BoxFuture, ready, stream, AsyncRead as Read, AsyncReadExt as ReadExt,
-        AsyncWrite as Write, AsyncWriteExt as WriteExt, Future, FutureExt, Stream, StreamExt,
-        TryFutureExt,
-    };
+    pub use async_std::future::timeout;
+    pub use async_std::prelude::{Stream, StreamExt};
+    pub use async_std::task::ready;
     pub use pin_project::pin_project;
     pub use samotop_model::{common::*, Error, Result};
     pub use std::sync::Arc;

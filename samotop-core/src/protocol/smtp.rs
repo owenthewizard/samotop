@@ -13,7 +13,7 @@ use std::collections::VecDeque;
 pub struct SmtpCodec<IO> {
     /// the underlying IO, such as TcpStream
     #[pin]
-    io: IO,
+    io: Option<IO>,
     /// server to client encoded responses buffer
     s2c_pending: VecDeque<PendingWrite>,
     /// client to server reading buffer
@@ -21,7 +21,6 @@ pub struct SmtpCodec<IO> {
     read_data: Option<bool>,
     sink: Sender<WriteControl>,
     recv: Receiver<WriteControl>,
-    closed: bool,
 }
 
 impl<IO: Read + Write + MayBeTls> SmtpCodec<IO> {
@@ -31,13 +30,12 @@ impl<IO: Read + Write + MayBeTls> SmtpCodec<IO> {
     pub fn with_capacity(io: IO, c2s_buffer_size: usize) -> Self {
         let (sink, recv) = futures::channel::mpsc::channel(1);
         SmtpCodec {
-            io,
+            io: Some(io),
             c2s_buffer: BytesMut::with_capacity(c2s_buffer_size),
             read_data: None,
             s2c_pending: vec![].into(),
             sink,
             recv,
-            closed: false,
         }
     }
     pub fn get_sender(&self) -> Sender<WriteControl> {
@@ -45,12 +43,14 @@ impl<IO: Read + Write + MayBeTls> SmtpCodec<IO> {
     }
 
     fn poll_read_buffer(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        if self.closed {
-            return Poll::Ready(Ok(()));
-        }
-
-        let projection = self.project();
-
+        let mut projection = self.project();
+        let io = match projection.io.as_mut().as_pin_mut() {
+            None => {
+                trace!("Reading closed IO");
+                return Poll::Ready(Ok(()));
+            }
+            Some(io) => io,
+        };
         // fill the read buffer if all is read
         if projection.c2s_buffer.remaining() == 0 {
             // read more and decode new values
@@ -64,7 +64,7 @@ impl<IO: Read + Write + MayBeTls> SmtpCodec<IO> {
             // TODO: What's the story with clippy::transmute_ptr_to_ptr?
             #[allow(clippy::transmute_ptr_to_ptr)]
             let buf = unsafe { std::mem::transmute(buf) };
-            let len = ready!(projection.io.poll_read(cx, buf))?;
+            let len = ready!(io.poll_read(cx, buf))?;
             trace!("Read {} bytes.", len);
             // this is safe as long as poll_read fulfills the contract
             unsafe { projection.c2s_buffer.advance_mut(len) };
@@ -176,14 +176,26 @@ impl<IO: Read + Write + MayBeTls> SmtpCodec<IO> {
         }
     }
     fn close_io(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        let mut proj = self.project();
-        *proj.closed = true;
-        proj.io.as_mut().poll_close(cx).map_err(|e| e.into())
+        let mut projection = self.project();
+        let io = match projection.io.as_mut().as_pin_mut() {
+            None => {
+                trace!("Closing closed IO");
+                return Poll::Ready(Ok(()));
+            }
+            Some(io) => io,
+        };
+        ready!(io.poll_close(cx))?;
+        projection.io.set(None);
+        Poll::Ready(Ok(()))
     }
     fn write(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
         let mut projection = self.as_mut().project();
+        let mut io = match projection.io.as_mut().as_pin_mut() {
+            None => return Poll::Ready(Err("Writing to a closed IO".into())),
+            Some(io) => io,
+        };
         loop {
-            break match projection.recv.poll_next_unpin(cx) {
+            break match Pin::new(&mut projection.recv).poll_next(cx) {
                 Poll::Ready(None) => Poll::Ready(Err("Other side shut down".into())),
                 Poll::Ready(Some(c)) => {
                     trace!("Writing {:?}", c);
@@ -233,13 +245,13 @@ impl<IO: Read + Write + MayBeTls> SmtpCodec<IO> {
                             }
                             PendingWrite::StartTls => {
                                 trace!("starting TLS");
-                                projection.io.as_mut().encrypt();
+                                io.as_mut().encrypt();
                                 continue;
                             }
                             PendingWrite::Data(mut pending) => {
                                 // write data to the IO
                                 trace!("writing {} bytes", pending.len());
-                                match projection.io.as_mut().poll_write(cx, &pending[..])? {
+                                match io.as_mut().poll_write(cx, &pending[..])? {
                                     Poll::Pending => {
                                         trace!("write not ready");
                                         // not ready, return the whole buffer to the queue
