@@ -91,7 +91,7 @@ mod tests {
     #[async_test]
     async fn transaction_gets_reset() {
         let mut set = SmtpState::new(Builder::default());
-        set.session.smtp_helo = Some(SmtpHelo::Helo(SmtpHost::Domain("xx.io".to_owned())));
+        set=SmtpHelo::Helo(SmtpHost::Domain("xx.io".to_owned())).apply(set).await;
         set.transaction.id = "someid".to_owned();
         set.transaction.mail = Some(SmtpMail::Mail(SmtpPath::Null, vec![]));
         set.transaction.rcpts.push(SmtpPath::Null);
@@ -110,7 +110,7 @@ mod tests {
     #[async_test]
     async fn mail_is_set() {
         let mut set = SmtpState::new(Builder::default());
-        set.session.smtp_helo = Some(SmtpHelo::Helo(SmtpHost::Domain("xx.io".to_owned())));
+        set= SmtpHelo::Helo(SmtpHost::Domain("xx.io".to_owned())).apply(set).await;
         let sut = SmtpMail::Mail(SmtpPath::Postmaster, vec![]);
         let mut res = sut.apply(set).await;
         match res.writes.pop_front() {

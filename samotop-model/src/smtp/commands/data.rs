@@ -59,7 +59,9 @@ mod tests {
     #[async_test]
     async fn sink_gets_set() {
         let mut set = SmtpState::new(Builder::default());
-        set.session.smtp_helo = Some(SmtpHelo::Helo(SmtpHost::Domain("xx.io".to_owned())));
+        set = SmtpHelo::Helo(SmtpHost::Domain("xx.io".to_owned()))
+            .apply(set)
+            .await;
         set.transaction.id = "someid".to_owned();
         set.transaction.mail = Some(SmtpMail::Mail(SmtpPath::Null, vec![]));
         set.transaction.rcpts.push(SmtpPath::Null);
@@ -90,7 +92,9 @@ mod tests {
     #[async_test]
     async fn command_sequence_is_assured_missing_mail() {
         let mut set = SmtpState::new(Builder::default());
-        set.session.smtp_helo = Some(SmtpHelo::Helo(SmtpHost::Domain("xx.io".to_owned())));
+        set = SmtpHelo::Helo(SmtpHost::Domain("xx.io".to_owned()))
+            .apply(set)
+            .await;
         let sut = SmtpData;
         let mut res = sut.apply(set).await;
         assert_eq!(
@@ -102,7 +106,9 @@ mod tests {
     #[async_test]
     async fn command_sequence_is_assured_missing_rcpt() {
         let mut set = SmtpState::new(Builder::default());
-        set.session.smtp_helo = Some(SmtpHelo::Helo(SmtpHost::Domain("xx.io".to_owned())));
+        set = SmtpHelo::Helo(SmtpHost::Domain("xx.io".to_owned()))
+            .apply(set)
+            .await;
         set.transaction.mail = Some(SmtpMail::Mail(SmtpPath::Null, vec![]));
         let sut = SmtpData;
         let mut res = sut.apply(set).await;

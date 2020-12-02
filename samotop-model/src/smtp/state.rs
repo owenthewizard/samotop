@@ -4,6 +4,8 @@ use crate::{
 };
 use std::collections::VecDeque;
 
+use super::SmtpSessionCommand;
+
 pub struct SmtpState {
     pub service: Box<dyn SyncMailService>,
     pub session: SessionInfo,
@@ -24,7 +26,8 @@ impl SmtpState {
     }
     pub fn reset_helo(&mut self, helo: SmtpHelo) {
         self.reset();
-        self.session.smtp_helo = Some(helo);
+        self.session.smtp_helo = Some(helo.verb().to_owned());
+        self.session.peer_name = Some(helo.name());
     }
 
     pub fn reset(&mut self) {

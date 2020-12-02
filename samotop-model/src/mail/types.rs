@@ -30,8 +30,10 @@ pub struct SessionInfo {
     pub extensions: ExtensionSet,
     /// The name of the service serving this session
     pub service_name: String,
-    /// The SMTP helo sent by peer
-    pub smtp_helo: Option<SmtpHelo>,
+    /// The SMTP helo sent by peer - only the command verb, such as HELO, EHLO, LHLO
+    pub smtp_helo: Option<String>,
+    /// The name of the peer as introduced by the HELO command
+    pub peer_name: Option<String>,
     /// records the last instant a command was received
     pub last_command_at: Option<Instant>,
     /// How long in total do we wait for a command?
@@ -97,11 +99,12 @@ impl std::fmt::Display for SessionInfo {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
         write!(
             f,
-            "Client {:?} using service {} with extensions {}. {}",
+            "Client {:?} using service ({}) {} with extensions {}. {}",
+            self.peer_name,
             self.smtp_helo
                 .as_ref()
-                .map(|h| h.name())
-                .unwrap_or_else(|| "without helo".to_owned()),
+                .map(String::as_str)
+                .unwrap_or_else(|| "without helo"),
             self.service_name,
             self.extensions
                 .iter()
