@@ -2,8 +2,14 @@ use crate::{common::*, parser::Parser};
 use crate::{io::tls::TlsProvider, mail::*};
 use std::fmt::Debug;
 
-pub trait MailService: TlsProvider + Parser + EsmtpService + MailGuard + MailDispatch {}
-impl<T> MailService for T where T: TlsProvider + Parser + EsmtpService + MailGuard + MailDispatch {}
+pub trait MailService:
+    TlsProvider + ParserProvider + EsmtpService + MailGuard + MailDispatch
+{
+}
+impl<T> MailService for T where
+    T: TlsProvider + ParserProvider + EsmtpService + MailGuard + MailDispatch
+{
+}
 
 /**
 The service which implements this trait delivers ESMTP extensions.
@@ -68,12 +74,29 @@ pub trait MailDispatch: Debug {
         's: 'f;
 }
 
+pub trait ParserProvider: Debug {
+    fn get_parser_for_data(&self) -> Box<dyn Parser + Sync + Send>;
+    fn get_parser_for_commands(&self) -> Box<dyn Parser + Sync + Send>;
+}
+
 impl<T> EsmtpService for Arc<T>
 where
     T: EsmtpService,
 {
     fn prepare_session(&self, session: &mut SessionInfo) {
         T::prepare_session(self, session)
+    }
+}
+
+impl<T> ParserProvider for Arc<T>
+where
+    T: ParserProvider,
+{
+    fn get_parser_for_data(&self) -> Box<dyn Parser + Sync + Send> {
+        T::get_parser_for_data(self)
+    }
+    fn get_parser_for_commands(&self) -> Box<dyn Parser + Sync + Send> {
+        T::get_parser_for_commands(self)
     }
 }
 

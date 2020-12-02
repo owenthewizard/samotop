@@ -1,18 +1,21 @@
 use crate::{
     common::*,
-    smtp::{SmtpSessionCommand, SmtpState},
+    parser::Parser,
+    smtp::{SmtpSessionCommand, SmtpState, WriteControl},
 };
 use std::fmt;
 
 /// A chunk of the mail body
 #[derive(Default, Eq, PartialEq, Debug, Clone)]
-pub struct MailBodyChunk<B>(pub B);
+pub struct MailBodyChunk<B, P>(pub B, pub P);
 
 /// The mail body is finished. Mail should be queued.
 #[derive(Default, Eq, PartialEq, Debug, Clone)]
 pub struct MailBodyEnd;
 
-impl<B: AsRef<[u8]> + Sync + Send + fmt::Debug> SmtpSessionCommand for MailBodyChunk<B> {
+impl<B: AsRef<[u8]> + Sync + Send + fmt::Debug, P: Parser + Clone + Sync + Send + 'static>
+    SmtpSessionCommand for MailBodyChunk<B, P>
+{
     fn verb(&self) -> &str {
         ""
     }
@@ -36,11 +39,13 @@ impl<B: AsRef<[u8]> + Sync + Send + fmt::Debug> SmtpSessionCommand for MailBodyC
             match write_all.await {
                 Ok(()) => {
                     state.transaction.sink = Some(sink);
+                    state.say(WriteControl::Parser(Box::new(self.1.clone())));
                     state
                 }
                 Err(e) => {
                     warn!("Failed to write mail data for {} - {}", mailid, e);
                     state.reset();
+                    state.say(WriteControl::Parser(Box::new(self.1.clone())));
                     // CheckMe: following this reset, we are not sending any response yet. MailBodyEnd should do that.
                     state
                 }
@@ -79,6 +84,9 @@ impl SmtpSessionCommand for MailBodyEnd {
                 state.say_mail_queue_failed_temporarily();
             }
             state.reset();
+            state.say(WriteControl::Parser(
+                state.service.get_parser_for_commands(),
+            ));
             state
         };
         Box::pin(fut)

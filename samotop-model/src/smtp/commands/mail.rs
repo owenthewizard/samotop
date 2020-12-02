@@ -84,14 +84,16 @@ mod tests {
     use super::*;
     use crate::{
         mail::Builder,
-        smtp::{SmtpHelo, SmtpHost, SmtpMail, SmtpPath, SmtpReply, WriteControl},
+        smtp::{SmtpHelo, SmtpHost, SmtpMail, SmtpPath, WriteControl},
     };
     use futures_await_test::async_test;
 
     #[async_test]
     async fn transaction_gets_reset() {
         let mut set = SmtpState::new(Builder::default());
-        set=SmtpHelo::Helo(SmtpHost::Domain("xx.io".to_owned())).apply(set).await;
+        set = SmtpHelo::Helo(SmtpHost::Domain("xx.io".to_owned()))
+            .apply(set)
+            .await;
         set.transaction.id = "someid".to_owned();
         set.transaction.mail = Some(SmtpMail::Mail(SmtpPath::Null, vec![]));
         set.transaction.rcpts.push(SmtpPath::Null);
@@ -99,8 +101,8 @@ mod tests {
         let sut = SmtpMail::Mail(SmtpPath::Postmaster, vec![]);
         let mut res = sut.apply(set).await;
         match res.writes.pop_front() {
-            Some(WriteControl::Reply(SmtpReply::OkMessageInfo(_))) => {}
-            otherwise => panic!("Expected OK message, got {:?}", otherwise),
+            Some(WriteControl::Response(bytes)) if bytes.starts_with(b"250 ") => {}
+            otherwise => panic!("Expected OK, got {:?}", otherwise),
         }
         assert_ne!(res.transaction.id, "someid");
         assert!(res.transaction.rcpts.is_empty());
@@ -110,12 +112,14 @@ mod tests {
     #[async_test]
     async fn mail_is_set() {
         let mut set = SmtpState::new(Builder::default());
-        set= SmtpHelo::Helo(SmtpHost::Domain("xx.io".to_owned())).apply(set).await;
+        set = SmtpHelo::Helo(SmtpHost::Domain("xx.io".to_owned()))
+            .apply(set)
+            .await;
         let sut = SmtpMail::Mail(SmtpPath::Postmaster, vec![]);
         let mut res = sut.apply(set).await;
         match res.writes.pop_front() {
-            Some(WriteControl::Reply(SmtpReply::OkMessageInfo(_))) => {}
-            otherwise => panic!("Expected OK message, got {:?}", otherwise),
+            Some(WriteControl::Response(bytes)) if bytes.starts_with(b"250 ") => {}
+            otherwise => panic!("Expected OK, got {:?}", otherwise),
         }
         assert_eq!(
             res.transaction.mail,
@@ -129,10 +133,10 @@ mod tests {
         let set = SmtpState::new(Builder::default());
         let sut = SmtpMail::Mail(SmtpPath::Postmaster, vec![]);
         let mut res = sut.apply(set).await;
-        assert_eq!(
-            res.writes.pop_front(),
-            Some(WriteControl::Reply(SmtpReply::CommandSequenceFailure))
-        );
+        match res.writes.pop_front() {
+            Some(WriteControl::Response(bytes)) if bytes.starts_with(b"503 ") => {}
+            otherwise => panic!("Expected command sequence failure, got {:?}", otherwise),
+        }
         assert_eq!(res.transaction.mail, None);
     }
 }

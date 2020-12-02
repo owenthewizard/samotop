@@ -1,5 +1,5 @@
 pub use super::commands::*;
-use super::{SmtpReply, WriteControl};
+use super::SmtpReply;
 use crate::{common::*, smtp::state::SmtpState};
 use std::fmt;
 use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
@@ -81,7 +81,7 @@ where
             Ok(command) => Box::pin(async move { command.apply(state).await }),
             Err(e) => {
                 error!("reading SMTP input failed: {:?}", e);
-                state.say(WriteControl::Shutdown(SmtpReply::ProcesingError));
+                state.say_shutdown(SmtpReply::ProcesingError);
                 Box::pin(ready(state))
             }
         }

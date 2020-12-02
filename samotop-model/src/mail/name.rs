@@ -1,4 +1,4 @@
-use super::{EsmtpService, MailSetup};
+use super::{EsmtpService, MailSetup, SessionInfo};
 
 #[derive(Debug)]
 pub struct Name {
@@ -12,7 +12,7 @@ impl Name {
     }
 }
 impl EsmtpService for Name {
-    fn prepare_session(&self, session: &mut super::SessionInfo) {
+    fn prepare_session(&self, session: &mut SessionInfo) {
         session.service_name = self.name.clone();
     }
 }

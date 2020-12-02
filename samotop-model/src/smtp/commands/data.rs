@@ -30,7 +30,7 @@ impl SmtpSessionCommand for SmtpData {
                     state.say_mail_queue_failed_temporarily();
                 }
                 Ok(transaction) => {
-                    state.say_start_data_challenge();
+                    state.say_start_data_challenge(state.service.get_parser_for_data());
                     state.transaction = transaction;
                 }
                 Err(DispatchError::Refused) => {
@@ -52,16 +52,15 @@ mod tests {
     use super::*;
     use crate::{
         mail::Builder,
-        smtp::{SmtpHelo, SmtpHost, SmtpMail, SmtpPath, SmtpReply, WriteControl},
+        smtp::{SmtpMail, SmtpPath, WriteControl},
     };
     use futures_await_test::async_test;
 
     #[async_test]
     async fn sink_gets_set() {
         let mut set = SmtpState::new(Builder::default());
-        set = SmtpHelo::Helo(SmtpHost::Domain("xx.io".to_owned()))
-            .apply(set)
-            .await;
+        set.session.smtp_helo = Some("HELO".to_owned());
+        set.session.peer_name = Some("xx.io".to_owned());
         set.transaction.id = "someid".to_owned();
         set.transaction.mail = Some(SmtpMail::Mail(SmtpPath::Null, vec![]));
         set.transaction.rcpts.push(SmtpPath::Null);
@@ -70,10 +69,11 @@ mod tests {
         set.transaction.sink = Some(Box::pin(sink));
         let sut = SmtpData;
         let mut res = sut.apply(set).await;
-        assert_eq!(
-            res.writes.pop_front(),
-            Some(WriteControl::StartData(SmtpReply::StartMailInputChallenge))
-        );
+        match res.writes.pop_front() {
+            Some(WriteControl::Response(bytes)) if bytes.starts_with(b"354 ") => {}
+            otherwise => panic!("Expected mail data input challenge, got {:?}", otherwise),
+        }
+
         assert!(res.transaction.sink.is_some());
     }
 
@@ -82,40 +82,38 @@ mod tests {
         let set = SmtpState::new(Builder::default());
         let sut = SmtpData;
         let mut res = sut.apply(set).await;
-        assert_eq!(
-            res.writes.pop_front(),
-            Some(WriteControl::Reply(SmtpReply::CommandSequenceFailure))
-        );
+        match res.writes.pop_front() {
+            Some(WriteControl::Response(bytes)) if bytes.starts_with(b"503 ") => {}
+            otherwise => panic!("Expected command sequence failure, got {:?}", otherwise),
+        }
         assert!(res.transaction.sink.is_none());
     }
 
     #[async_test]
     async fn command_sequence_is_assured_missing_mail() {
         let mut set = SmtpState::new(Builder::default());
-        set = SmtpHelo::Helo(SmtpHost::Domain("xx.io".to_owned()))
-            .apply(set)
-            .await;
+        set.session.smtp_helo = Some("HELO".to_owned());
+        set.session.peer_name = Some("xx.iu".to_owned());
         let sut = SmtpData;
         let mut res = sut.apply(set).await;
-        assert_eq!(
-            res.writes.pop_front(),
-            Some(WriteControl::Reply(SmtpReply::CommandSequenceFailure))
-        );
+        match res.writes.pop_front() {
+            Some(WriteControl::Response(bytes)) if bytes.starts_with(b"503 ") => {}
+            otherwise => panic!("Expected command sequence failure, got {:?}", otherwise),
+        }
         assert!(res.transaction.sink.is_none());
     }
     #[async_test]
     async fn command_sequence_is_assured_missing_rcpt() {
         let mut set = SmtpState::new(Builder::default());
-        set = SmtpHelo::Helo(SmtpHost::Domain("xx.io".to_owned()))
-            .apply(set)
-            .await;
+        set.session.smtp_helo = Some("HELO".to_owned());
+        set.session.peer_name = Some("xx.iu".to_owned());
         set.transaction.mail = Some(SmtpMail::Mail(SmtpPath::Null, vec![]));
         let sut = SmtpData;
         let mut res = sut.apply(set).await;
-        assert_eq!(
-            res.writes.pop_front(),
-            Some(WriteControl::Reply(SmtpReply::CommandSequenceFailure))
-        );
+        match res.writes.pop_front() {
+            Some(WriteControl::Response(bytes)) if bytes.starts_with(b"503 ") => {}
+            otherwise => panic!("Expected command sequence failure, got {:?}", otherwise),
+        }
         assert!(res.transaction.sink.is_none());
     }
 }

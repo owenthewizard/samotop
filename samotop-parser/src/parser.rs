@@ -1,9 +1,9 @@
 /*
     Aim: wrap generated parser fns in struct
 */
-use crate::grammar::*;
-use memchr::memchr;
+use crate::{data::DataParser, smtp::grammar::*};
 use samotop_model::{
+    common::Arc,
     mail::MailSetup,
     parser::{ParseError, ParseResult, Parser},
     smtp::SmtpPath,
@@ -16,26 +16,21 @@ pub struct SmtpParserPeg;
 
 impl Parser for SmtpParserPeg {
     fn parse_command<'i>(&self, input: &'i [u8]) -> ParseResult<'i, Box<dyn SmtpSessionCommand>> {
-        let eol = memchr(b'\n', input)
-            .map(|lf| lf + 1)
-            .unwrap_or_else(|| input.len());
-        let (line, input) = input.split_at(eol);
-        trace!(
-            "PARSING {}, remains {}. input: {:?}",
-            eol,
-            input.len(),
-            String::from_utf8_lossy(line)
-        );
-        Self::map(
-            command(line).map(|cmd| -> Box<dyn SmtpSessionCommand> { Box::new(cmd) }),
-            input,
-        )
+        if input.is_empty() {
+            return Err(ParseError::Incomplete);
+        }
+        match command(input) {
+            Ok(Ok((input, cmd))) => Ok((input, Box::new(cmd))),
+            Ok(Err(e)) => Err(e),
+            Err(e) => Err(ParseError::Failed(e.into())),
+        }
     }
 }
 
 impl MailSetup for SmtpParserPeg {
     fn setup(self, builder: &mut samotop_model::mail::Builder) {
-        builder.parser.insert(0, Box::new(self))
+        builder.command_parser.insert(0, Arc::new(self));
+        builder.data_parser.insert(0, Arc::new(DataParser));
     }
 }
 

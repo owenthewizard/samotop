@@ -1,3 +1,4 @@
+use samotop_model::parser::{ParseError, ParseResult};
 use samotop_model::smtp::*;
 use std::net::{Ipv4Addr, Ipv6Addr};
 use std::str::FromStr;
@@ -11,51 +12,43 @@ fn utf8s(bytes: &[u8]) -> std::result::Result<String, &'static str> {
 
 peg::parser! {
     pub grammar grammar() for [u8] {
-        pub rule session() -> Vec<ReadControl>
-            = __* i:script()
-            { i }
-
-        pub rule script() -> Vec<ReadControl>
-            = input()+
-
-        pub rule input() -> ReadControl
-            = inp_none() / inp_command() / inp_invalid() /// inp_incomplete()
-        pub rule inp_command() -> ReadControl
-            = start:position!() c:command() end:position!()
-            { ReadControl::Command( Box::new(c), Vec::from(&__input[start..end])) }
-        pub rule inp_none() -> ReadControl
-            =  s:$(NL() / __* NL())
-            { ReadControl::Empty(Vec::from(s)) }
-        pub rule inp_invalid() -> ReadControl
-            =  s:$( quiet!{ str_invalid() / str_incomplete() } / expected!("invalid input") )
-            { ReadControl::Raw( Vec::from(s)) }
-
-        rule str_invalid() = quiet!{ "\n" / (![b'\n'][_]) + "\n" } / expected!("invalid input")
-        rule str_incomplete() = quiet!{ [_]+ } / expected!("incomplete input")
 
         // https://github.com/kevinmehall/rust-peg/issues/216
         rule i(literal: &'static str)
             = input:$([_]*<{literal.len()}>)
             {? if input.eq_ignore_ascii_case(literal.as_bytes()) { Ok(()) } else { Err(literal) } }
 
-        pub rule command() -> SmtpCommand
-            = cmd_starttls() /
-            cmd_helo() /
-            cmd_ehlo() /
-            cmd_lhlo() /
-            cmd_mail() /
-            cmd_send() /
-            cmd_soml() /
-            cmd_saml() /
-            cmd_rcpt() /
-            cmd_data() /
-            cmd_rset() /
-            cmd_quit() /
-            cmd_noop() /
-            cmd_turn() /
-            cmd_vrfy() /
-            cmd_expn() /
-            cmd_help()
+        pub rule command() -> ParseResult<'input, SmtpCommand>
+            = cmd:(valid_command() / invalid_command() / incomplete_command())
+            {cmd}
+
+        pub rule valid_command() -> ParseResult<'input, SmtpCommand>
+            = cmd: (cmd_starttls() /
+                cmd_helo() /
+                cmd_ehlo() /
+                cmd_lhlo() /
+                cmd_mail() /
+                cmd_send() /
+                cmd_soml() /
+                cmd_saml() /
+                cmd_rcpt() /
+                cmd_data() /
+                cmd_rset() /
+                cmd_quit() /
+                cmd_noop() /
+                cmd_turn() /
+                cmd_vrfy() /
+                cmd_expn() /
+                cmd_help()) rest:$([_]*)
+            {Ok((rest, cmd))}
+
+        rule incomplete_command() -> ParseResult<'input, SmtpCommand>
+            = s:$(quiet!{ [_]+ } / expected!("incomplete input"))
+            {Err(ParseError::Incomplete)}
+
+        rule invalid_command() -> ParseResult<'input, SmtpCommand>
+            = s:$(quiet!{ "\n" / (![b'\n'][_]) + "\n" } / expected!("invalid input"))
+            {ParseResult::Err(ParseError::Mismatch("unrecognized command".into()))}
 
         pub rule cmd_starttls() -> SmtpCommand
             = i("starttls") NL()
@@ -80,7 +73,7 @@ peg::parser! {
         pub rule cmd_mail() -> SmtpCommand
             = i("mail from:") p:path_reverse() s:strparam()* NL()
             { SmtpCommand::Mail(SmtpMail::Mail(p, s)) }
-        pub rule cmd_send() -> SmtpCommand
+        pub rule cmd_send() ->SmtpCommand
             = i("send from:") p:path_reverse() s:strparam()* NL()
             { SmtpCommand::Mail(SmtpMail::Send(p, s)) }
         pub rule cmd_soml() -> SmtpCommand
@@ -253,26 +246,26 @@ peg::parser! {
 
 #[cfg(test)]
 mod tests {
-    use super::ReadControl::*;
     use super::*;
     use crate::grammar::*;
     use samotop_model::Result;
 
     #[test]
-    fn script_parses_unknown_command() {
-        let result = script(b"sOmE other command\r\n").unwrap();
-
-        match result.as_slice() {
-            [Raw(bytes)] => assert_eq!(bytes.as_slice(), b"sOmE other command\r\n"),
-            res => panic!("invalid result. Expected Raw, got {:?}", res),
+    fn command_parses_unknown_command() {
+        let result = command(b"sOmE other command\r\n");
+        match result {
+            Ok(Err(ParseError::Mismatch(_))) => { /*OK*/ }
+            otherwise => panic!("Expected mismatch, got {:?}", otherwise),
         }
     }
 
     #[test]
     fn cmd_parses_valid_mail_from() {
-        let result = command(b"mail from:<here.there@everywhere.net>\r\n").unwrap();
+        let result = command(b"mail from:<here.there@everywhere.net>\r\n")
+            .unwrap()
+            .unwrap();
         assert_eq!(
-            result,
+            result.1,
             SmtpCommand::Mail(SmtpMail::Mail(
                 SmtpPath::Direct(SmtpAddress::Mailbox(
                     "here.there".to_owned(),
@@ -297,109 +290,64 @@ mod tests {
 
     #[test]
     fn cmd_parser_starttls() {
-        let result = command(b"STARTTLS\r\n").unwrap();
-        assert_eq!(result, SmtpCommand::StartTls);
+        let result = command(b"STARTTLS\r\n").unwrap().unwrap();
+        assert_eq!(result.1, SmtpCommand::StartTls);
     }
 
     #[test]
     fn script_parses_whitespace_line() {
-        let result = script(b"   \r\n\t\t\r\n").unwrap();
-
-        match result.as_slice() {
-            [Empty(empty1), Empty(empty2)] => {
-                assert_eq!(empty1.as_slice(), b"   \r\n");
-                assert_eq!(empty2.as_slice(), b"\t\t\r\n");
-            }
-            res => panic!("invalid result. Expected 2x empty, got {:?}", res),
-        }
+        let result = command(b"   \r\n\t\t\r\n");
+        assert!(result.is_err());
     }
 
     #[test]
     fn session_parses_helo() {
         let input = b"helo domain.com\r\n";
-        let result = session(input).unwrap();
-
-        match result.as_slice() {
-            [Command(cmd, _)] => assert_eq!(cmd.verb(), "HELO"),
-            res => panic!("invalid result. Expected helo, got {:?}", res),
-        }
+        let cmd = command(input).unwrap().unwrap().1;
+        assert_eq!(cmd.verb(), "HELO");
     }
 
     #[test]
     fn session_parses_data() -> Result<()> {
         let input = "DATA\r\n ěšě\r\nš\nčš".as_bytes();
-        let result = session(input)?;
-        match result.as_slice() {
-            [Command(cmd, _), Raw(b1), Raw(b2), Raw(b3)] => {
-                assert_eq!(cmd.verb(), "DATA");
-                assert_eq!(b1.as_slice(), " ěšě\r\n".as_bytes());
-                assert_eq!(b2.as_slice(), "š\n".as_bytes());
-                assert_eq!(b3.as_slice(), "čš".as_bytes());
-            }
-            res => panic!("invalid result. Expected command and raw, got {:?}", res),
-        }
+        let cmd = command(input)??.1;
+        assert_eq!(cmd.verb(), "DATA");
         Ok(())
     }
 
     #[test]
     fn session_parses_wrong_newline() {
-        let result = session(b"QUIT\nQUIT\r\nquit\r\n").unwrap();
-        match result.as_slice() {
-            [Command(cmd1, _), Command(cmd2, _), Command(cmd3, _)] => {
-                assert_eq!(cmd1.verb(), "QUIT");
-                assert_eq!(cmd2.verb(), "QUIT");
-                assert_eq!(cmd3.verb(), "QUIT");
-            }
-            res => panic!("invalid result. Expected commands, got {:?}", res),
-        }
+        let cmd = command(b"QUIT\nQUIT\r\nquit\r\n").unwrap().unwrap();
+        assert_eq!(cmd, (b"QUIT\r\nquit\r\n".as_ref(), SmtpCommand::Quit));
     }
 
     #[test]
     fn session_parses_incomplete_command() {
-        let result = session(b"QUIT\r\nQUI").unwrap();
-        match result.as_slice() {
-            [Command(cmd1, _), Raw(bytes2)] => {
-                assert_eq!(cmd1.verb(), "QUIT");
-                assert_eq!(bytes2.as_slice(), b"QUI");
-            }
-            res => panic!(
-                "invalid result. Expected command and incomplete, got {:?}",
-                res
-            ),
-        }
+        let cmd = command(b"QUIT\r\nQUI").unwrap().unwrap();
+        assert_eq!(cmd, (b"QUI".as_ref(), SmtpCommand::Quit));
     }
 
     #[test]
     fn session_parses_valid_utf8() {
-        let result = session("Help \"ěščř\"\r\n".as_bytes()).unwrap();
-
-        match result.as_slice() {
-            [Command(cmd1, bytes1)] => {
-                assert_eq!(cmd1.verb(), "HELP");
-                assert_eq!(bytes1.as_slice(), "Help \"ěščř\"\r\n".as_bytes());
-            }
-            res => panic!(
-                "invalid result. Expected command and incomplete, got {:?}",
-                res
-            ),
-        }
+        let cmd = command("Help \"ěščř\"\r\n".as_bytes()).unwrap().unwrap();
+        assert_eq!(
+            cmd,
+            (b"".as_ref(), SmtpCommand::Help(vec!["ěščř".to_owned()]))
+        );
     }
 
     #[test]
     fn session_parses_invalid_utf8() {
-        let result = session(b"Help \"\x80\x80\"\r\n").unwrap();
-
-        match result.as_slice() {
-            [Raw(bytes1)] => {
-                assert_eq!(bytes1.as_slice(), b"Help \"\x80\x80\"\r\n");
-            }
-            res => panic!("invalid result. Expected raw, got {:?}", res),
+        let result = command(b"Help \"\x80\x80\"\r\n");
+        match result {
+            Ok(Err(ParseError::Mismatch(_))) => { /*OK*/ }
+            otherwise => panic!("Expected mismatch, got {:?}", otherwise),
         }
     }
 
     #[test]
     fn session_parses_helo_mail_rcpt_quit() {
-        let result = session(
+        let cmd = command(
             concat!(
                 "helo domain.com\r\n",
                 "mail from:<me@there.net>\r\n",
@@ -408,48 +356,20 @@ mod tests {
             )
             .as_bytes(),
         )
+        .unwrap()
         .unwrap();
-        match result.as_slice() {
-            [Command(cmd1, _), Command(cmd2, _), Command(cmd3, _), Command(cmd4, _)] => {
-                assert_eq!(cmd1.verb(), "HELO");
-                assert_eq!(cmd2.verb(), "MAIL");
-                assert_eq!(cmd3.verb(), "RCPT");
-                assert_eq!(cmd4.verb(), "QUIT");
-            }
-            res => panic!("invalid result. Expected commands, got {:?}", res),
-        }
-        // use super::SmtpCommand::*;
-        // use super::SmtpHost::*;
-        // assert_eq!(
-        //     result,
-        //     vec![
-        //         Command(
-        //             Helo(SmtpHelo::Helo(Domain("domain.com".to_string()))),
-        //             b("helo domain.com\r\n")
-        //         ),
-        //         Command(
-        //             Mail(SmtpMail::Mail(
-        //                 SmtpPath::Direct(SmtpAddress::Mailbox(
-        //                     "me".to_string(),
-        //                     Domain("there.net".to_string()),
-        //                 )),
-        //                 vec![]
-        //             )),
-        //             b("mail from:<me@there.net>\r\n")
-        //         ),
-        //         Command(
-        //             Rcpt(SmtpPath::Relay(
-        //                 vec![Domain("relay.net".to_string())],
-        //                 SmtpAddress::Mailbox(
-        //                     "him".to_string(),
-        //                     Domain("unreachable.local".to_string()),
-        //                 ),
-        //             )),
-        //             b("rcpt to:<@relay.net:him@unreachable.local>\r\n")
-        //         ),
-        //         Command(Quit, b("quit\r\n")),
-        //     ]
-        // );
+        assert_eq!(
+            cmd,
+            (
+                concat!(
+                    "mail from:<me@there.net>\r\n",
+                    "rcpt to:<@relay.net:him@unreachable.local>\r\n",
+                    "quit\r\n"
+                )
+                .as_bytes(),
+                SmtpCommand::Helo(SmtpHelo::Helo(SmtpHost::Domain("domain.com".to_owned())))
+            )
+        );
     }
 
     #[test]
