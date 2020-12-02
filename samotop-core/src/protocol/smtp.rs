@@ -35,7 +35,7 @@ where
                 None => continue,
                 Some(io) => Pin::new(io.get_mut()),
             };
-            trace!("Adding {:?}", write);
+            trace!("Processing codec control {:?}", write);
             match write {
                 WriteControl::Parser(newparser) => *parser = newparser,
                 WriteControl::Response(bytes) => {
@@ -59,6 +59,7 @@ where
                 }
                 WriteControl::Shutdown => match writer.poll_close(cx) {
                     Poll::Ready(Ok(())) => {
+                        trace!("Close complete");
                         *io = None;
                     }
                     Poll::Ready(Err(e)) => {
@@ -66,6 +67,7 @@ where
                         return Poll::Ready(Some(processing_error("Close failed", e)));
                     }
                     Poll::Pending => {
+                        trace!("Close pending");
                         s2c_pending.push_front(WriteControl::Shutdown);
                     }
                 },

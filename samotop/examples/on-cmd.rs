@@ -28,7 +28,7 @@ use futures::AsyncWrite as Write;
 use samotop::{
     io::{smtp::SmtpService, tls::TlsCapable, ConnectionInfo, IoService},
     mail::{Builder, Dir},
-    parser::SmtpParser,
+    parser::LmtpParserPeg,
 };
 use std::pin::Pin;
 use std::sync::Arc;
@@ -45,7 +45,7 @@ async fn main_fut() -> Result<()> {
     let mail_service = Arc::new(
         Builder::default()
             .using(dir_service)
-            .using(SmtpParser::default()),
+            .using(LmtpParserPeg::default()),
     );
     let smtp_service = SmtpService::new(Arc::new(mail_service));
 

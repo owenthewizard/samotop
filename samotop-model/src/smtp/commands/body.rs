@@ -11,7 +11,9 @@ pub struct MailBodyChunk<B, P>(pub B, pub P);
 
 /// The mail body is finished. Mail should be queued.
 #[derive(Default, Eq, PartialEq, Debug, Clone)]
-pub struct MailBodyEnd;
+pub struct MailBodyEnd {
+    pub lmtp: bool,
+}
 
 impl<B: AsRef<[u8]> + Sync + Send + fmt::Debug, P: Parser + Clone + Sync + Send + 'static>
     SmtpSessionCommand for MailBodyChunk<B, P>
@@ -79,7 +81,19 @@ impl SmtpSessionCommand for MailBodyEnd {
                     false
                 }
             } {
-                state.say_mail_queued(mailid.as_str());
+                if self.lmtp {
+                    for msg in state
+                        .transaction
+                        .rcpts
+                        .iter()
+                        .map(|r| format!("{} for {}", mailid, r))
+                        .collect::<Vec<String>>()
+                    {
+                        state.say_mail_queued(msg.as_str());
+                    }
+                } else {
+                    state.say_mail_queued(mailid.as_str());
+                }
             } else {
                 state.say_mail_queue_failed_temporarily();
             }

@@ -1,7 +1,64 @@
+use crate::data::DataParserPeg;
 use samotop_model::parser::{ParseError, ParseResult};
 use samotop_model::smtp::*;
+use samotop_model::{
+    common::Arc, mail::MailSetup, parser::Parser, smtp::SmtpPath, smtp::SmtpSessionCommand, Error,
+};
 use std::net::{Ipv4Addr, Ipv6Addr};
 use std::str::FromStr;
+
+pub mod grammar {
+    pub(crate) use super::smtp_grammar::*;
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+pub struct SmtpParserPeg;
+
+impl Parser for SmtpParserPeg {
+    fn parse_command<'i>(&self, input: &'i [u8]) -> ParseResult<'i, Box<dyn SmtpSessionCommand>> {
+        if input.is_empty() {
+            return Err(ParseError::Incomplete);
+        }
+        match grammar::command(input) {
+            Err(e) => Err(ParseError::Failed(e.into())),
+            Ok(Err(e)) => Err(e),
+            Ok(Ok((i, cmd))) => Ok((
+                i,
+                match cmd {
+                    SmtpCommand::Helo(helo) => match helo {
+                        trad @ SmtpHelo::Ehlo(_) | trad @ SmtpHelo::Helo(_) => Box::new(trad),
+                        _ => Box::new(SmtpUnknownCommand::default()),
+                    },
+                    _ => Box::new(cmd),
+                },
+            )),
+        }
+    }
+}
+
+impl MailSetup for SmtpParserPeg {
+    fn setup(self, builder: &mut samotop_model::mail::Builder) {
+        builder.command_parser.insert(0, Arc::new(self));
+        builder
+            .data_parser
+            .insert(0, Arc::new(DataParserPeg { lmtp: false }));
+    }
+}
+
+impl SmtpParserPeg {
+    pub fn forward_path<'i>(&self, input: &'i [u8]) -> ParseResult<'i, SmtpPath> {
+        Self::map(grammar::path_forward(input), b"")
+    }
+    fn map<T, E>(myres: std::result::Result<T, E>, input: &[u8]) -> ParseResult<T>
+    where
+        E: Into<Error>,
+    {
+        match myres {
+            Ok(item) => Ok((input, item)),
+            Err(e) => Err(ParseError::Mismatch(e.into())),
+        }
+    }
+}
 
 fn utf8(bytes: &[u8]) -> std::result::Result<&str, &'static str> {
     std::str::from_utf8(bytes).map_err(|_e| "Invalid UTF-8")
@@ -11,7 +68,7 @@ fn utf8s(bytes: &[u8]) -> std::result::Result<String, &'static str> {
 }
 
 peg::parser! {
-    pub grammar grammar() for [u8] {
+    grammar smtp_grammar() for [u8] {
 
         // https://github.com/kevinmehall/rust-peg/issues/216
         rule i(literal: &'static str)
@@ -246,8 +303,8 @@ peg::parser! {
 
 #[cfg(test)]
 mod tests {
+    use super::grammar::*;
     use super::*;
-    use crate::grammar::*;
     use samotop_model::Result;
 
     #[test]

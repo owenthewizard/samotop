@@ -6,17 +6,19 @@ use samotop_model::{
 };
 
 #[derive(Clone, Copy, Debug, Default)]
-pub struct DataParser;
+pub struct DataParserPeg {
+    pub lmtp: bool,
+}
 
-impl MailSetup for DataParser {
+impl MailSetup for DataParserPeg {
     fn setup(self, builder: &mut samotop_model::mail::Builder) {
         builder.data_parser.insert(0, Arc::new(self))
     }
 }
 
-impl Parser for DataParser {
+impl Parser for DataParserPeg {
     fn parse_command<'i>(&self, input: &'i [u8]) -> ParseResult<'i, Box<dyn SmtpSessionCommand>> {
-        let res = map_cmd(grammar::data(input, true));
+        let res = map_cmd(self.lmtp, grammar::data(input, true));
         trace!(
             "Parsed fresh {:?} from {:?}",
             res,
@@ -27,11 +29,13 @@ impl Parser for DataParser {
 }
 
 #[derive(Clone, Copy, Debug, Default)]
-struct DataParserMidWay;
+struct DataParserMidWayPeg {
+    lmtp: bool,
+}
 
-impl Parser for DataParserMidWay {
+impl Parser for DataParserMidWayPeg {
     fn parse_command<'i>(&self, input: &'i [u8]) -> ParseResult<'i, Box<dyn SmtpSessionCommand>> {
-        let res = map_cmd(grammar::data(input, false));
+        let res = map_cmd(self.lmtp, grammar::data(input, false));
         trace!(
             "Parsed midway {:?} from {:?}",
             res,
@@ -42,14 +46,18 @@ impl Parser for DataParserMidWay {
 }
 
 fn map_cmd<'i>(
+    lmtp: bool,
     res: std::result::Result<ParseResult<'i, Vec<u8>>, peg::error::ParseError<usize>>,
 ) -> ParseResult<'i, Box<dyn SmtpSessionCommand>> {
     match res {
-        Ok(Ok((i, data))) if data.is_empty() => Ok((i, Box::new(MailBodyEnd))),
+        Ok(Ok((i, data))) if data.is_empty() => Ok((i, Box::new(MailBodyEnd { lmtp }))),
         Ok(Ok((i, data))) if data.ends_with(b"\r\n") => {
-            Ok((i, Box::new(MailBodyChunk(data, DataParser))))
+            Ok((i, Box::new(MailBodyChunk(data, DataParserPeg { lmtp }))))
         }
-        Ok(Ok((i, data))) => Ok((i, Box::new(MailBodyChunk(data, DataParserMidWay)))),
+        Ok(Ok((i, data))) => Ok((
+            i,
+            Box::new(MailBodyChunk(data, DataParserMidWayPeg { lmtp })),
+        )),
         Ok(Err(e)) => Err(e),
         Err(e) => Err(ParseError::Failed(e.into())),
     }
@@ -67,7 +75,7 @@ peg::parser! {
     /// This state is passed as an argument. Caller detects CR LF end from output.
     /// The parser treats CR LF before final dot as part of the data
     ///    as otherwise the scheme is terribly ambiguous and complex.
-    pub grammar grammar() for [u8] {
+    grammar grammar() for [u8] {
 
         pub rule data(crlf:bool) -> ParseResult<'input, Vec<u8>>
             = complete(crlf) / incomplete(crlf)
