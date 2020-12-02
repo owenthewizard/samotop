@@ -41,8 +41,12 @@ impl Transport for FileTransport {
         let dir = self.path.clone();
 
         let mut headers = String::new();
-        headers += format!("X-Samotop-From: {:?}\r\n", envelope.from()).as_str();
-        headers += format!("X-Samotop-To: {:?}\r\n", envelope.to()).as_str();
+        if let Some(sender) = envelope.from() {
+            headers += format!("X-Samotop-From: {}\r\n", sender).as_str();
+        }
+        for rcpt in envelope.to() {
+            headers += format!("X-Samotop-To: {}\r\n", rcpt).as_str();
+        }
 
         let target_dir = dir.join("new");
         let tmp_dir = dir.join("tmp");

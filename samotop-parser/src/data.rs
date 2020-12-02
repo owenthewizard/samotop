@@ -89,7 +89,7 @@ peg::parser! {
             {Err(ParseError::Incomplete)}
 
         rule eof(crlf:bool) ->  Vec<u8>
-            =  b:$(".\r\n") rest:$([_]*)
+            =  b:$(".\r\n")
             { if crlf {vec![]} else {b.to_vec()} }
 
         rule data_part(crlf:bool) ->  Vec<u8>
@@ -284,6 +284,15 @@ mod after_crlf {
         match grammar::data(b"abcd", CRLF)? {
             Ok(([], b)) => assert_eq!(b, b"abcd".to_vec()),
             otherwise => panic!("Expected body chunk, got {:?}", otherwise),
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn ignores_command() -> Result<()> {
+        match grammar::data(b".\r\nquit\r\n\r\n", CRLF)? {
+            Ok((b"quit\r\n\r\n", b)) => assert_eq!(b, b"".to_vec()),
+            otherwise => panic!("Expected end, got {:?}", otherwise),
         }
         Ok(())
     }
