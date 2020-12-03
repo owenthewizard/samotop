@@ -81,10 +81,8 @@ mod tests {
         let set = SmtpState::new(Builder::default());
         let sut = SmtpHelo::Helo(SmtpHost::Domain("wex.xor.ro".to_owned()));
         let res = sut.apply(set).await;
-        assert_eq!(
-            res.session.smtp_helo,
-            Some(SmtpHelo::Helo(SmtpHost::Domain("wex.xor.ro".to_owned())))
-        );
+        assert_eq!(res.session.smtp_helo, Some("HELO".to_owned()));
+        assert_eq!(res.session.peer_name, Some("wex.xor.ro".to_owned()));
     }
 
     #[test]

@@ -24,4 +24,3 @@ path = "../samotop-model"
 [dependencies]
 log = "0.4"
 peg = "0.6"
-memchr = "2.3"

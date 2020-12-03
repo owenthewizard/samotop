@@ -25,7 +25,7 @@ use std::{
 /// are `apply()`d to the `SmtpState`.
 ///
 /// Internally it uses the `SmtpCodec` responsible for extracting `ReadControl`
-/// and serializing `WriteControl` items.
+/// and serializing `CodecControl` items.
 ///
 /// It is effectively a composition and setup of components required to serve SMTP.
 ///
@@ -76,8 +76,10 @@ where
                 sess.extensions.enable(&extension::STARTTLS);
             }
 
+            let parser = mail_service.get_parser_for_commands();
             let mut state = SmtpState::new(mail_service);
             let mut codec = SmtpCodec::new(io);
+            codec.send(CodecControl::Parser(parser));
 
             // send connection info
             state = sess.apply(state).await;
@@ -99,7 +101,7 @@ where
                 }
                 // write all pending responses
                 for response in state.writes.drain(..) {
-                    codec.send(response).await?;
+                    codec.send(response);
                 }
             }
         })

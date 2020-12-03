@@ -154,7 +154,9 @@ example-cmd:
       sed -e 's/$/\r/' <<EOF | cargo run --example ${EXAMPLE:?}
       lhlo boogie
       mail from:<from@spf.org>
+      rcpt to:<komu@makesh.info>
       rcpt to:<to@mikesh.info>
+      rcpt to:<za@mukesh.info>
       data
       From: Moohoo <moo@hoo.com>
       To: Yeeehaw <ye@haw.com>

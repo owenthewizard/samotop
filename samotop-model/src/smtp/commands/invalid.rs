@@ -30,7 +30,7 @@ mod tests {
     use super::*;
     use crate::{
         mail::Builder,
-        smtp::{SmtpMail, SmtpPath, SmtpReply, WriteControl},
+        smtp::{CodecControl, SmtpMail, SmtpPath},
     };
     use futures_await_test::async_test;
 
@@ -43,9 +43,9 @@ mod tests {
         set.transaction.extra_headers.insert_str(0, "feeeha");
         let sut = SmtpInvalidCommand::new(b"HOOO".to_vec());
         let mut res = sut.apply(set).await;
-        assert_eq!(
-            res.writes.pop_front(),
-            Some(WriteControl::Reply(SmtpReply::CommandSyntaxFailure))
-        );
+        match res.writes.pop_front() {
+            Some(CodecControl::Response(bytes)) if bytes.starts_with(b"500 ") => {}
+            otherwise => panic!("Expected syntax failure, got {:?}", otherwise),
+        }
     }
 }

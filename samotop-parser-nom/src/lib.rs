@@ -25,6 +25,7 @@ use rustyknife::{
     types::DomainPart,
 };
 use samotop_model::{
+    common::Arc,
     mail::MailSetup,
     parser::{ParseError, ParseResult, Parser},
     smtp::*,
@@ -36,7 +37,7 @@ pub struct SmtpParserNom;
 
 impl MailSetup for SmtpParserNom {
     fn setup(self, builder: &mut samotop_model::mail::Builder) {
-        builder.parser.insert(0, Box::new(self))
+        builder.command_parser.insert(0, Arc::new(self))
     }
 }
 

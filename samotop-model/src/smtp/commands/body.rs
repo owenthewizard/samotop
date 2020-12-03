@@ -1,18 +1,23 @@
 use crate::{
     common::*,
-    smtp::{SmtpSessionCommand, SmtpState},
+    parser::Parser,
+    smtp::{CodecControl, SmtpSessionCommand, SmtpState},
 };
 use std::fmt;
 
 /// A chunk of the mail body
 #[derive(Default, Eq, PartialEq, Debug, Clone)]
-pub struct MailBodyChunk<B>(pub B);
+pub struct MailBodyChunk<B, P>(pub B, pub P);
 
 /// The mail body is finished. Mail should be queued.
 #[derive(Default, Eq, PartialEq, Debug, Clone)]
-pub struct MailBodyEnd;
+pub struct MailBodyEnd {
+    pub lmtp: bool,
+}
 
-impl<B: AsRef<[u8]> + Sync + Send + fmt::Debug> SmtpSessionCommand for MailBodyChunk<B> {
+impl<B: AsRef<[u8]> + Sync + Send + fmt::Debug, P: Parser + Clone + Sync + Send + 'static>
+    SmtpSessionCommand for MailBodyChunk<B, P>
+{
     fn verb(&self) -> &str {
         ""
     }
@@ -36,11 +41,13 @@ impl<B: AsRef<[u8]> + Sync + Send + fmt::Debug> SmtpSessionCommand for MailBodyC
             match write_all.await {
                 Ok(()) => {
                     state.transaction.sink = Some(sink);
+                    state.say(CodecControl::Parser(Box::new(self.1.clone())));
                     state
                 }
                 Err(e) => {
                     warn!("Failed to write mail data for {} - {}", mailid, e);
                     state.reset();
+                    state.say(CodecControl::Parser(Box::new(self.1.clone())));
                     // CheckMe: following this reset, we are not sending any response yet. MailBodyEnd should do that.
                     state
                 }
@@ -74,11 +81,26 @@ impl SmtpSessionCommand for MailBodyEnd {
                     false
                 }
             } {
-                state.say_mail_queued(mailid.as_str());
+                if self.lmtp {
+                    for msg in state
+                        .transaction
+                        .rcpts
+                        .iter()
+                        .map(|r| format!("{} for {}", mailid, r))
+                        .collect::<Vec<String>>()
+                    {
+                        state.say_mail_queued(msg.as_str());
+                    }
+                } else {
+                    state.say_mail_queued(mailid.as_str());
+                }
             } else {
                 state.say_mail_queue_failed_temporarily();
             }
             state.reset();
+            state.say(CodecControl::Parser(
+                state.service.get_parser_for_commands(),
+            ));
             state
         };
         Box::pin(fut)

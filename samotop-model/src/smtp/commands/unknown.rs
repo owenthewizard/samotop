@@ -31,7 +31,7 @@ mod tests {
     use super::*;
     use crate::{
         mail::Builder,
-        smtp::{SmtpMail, SmtpPath, SmtpReply, SmtpState, WriteControl},
+        smtp::{CodecControl, SmtpMail, SmtpPath, SmtpState},
     };
     use futures_await_test::async_test;
 
@@ -44,9 +44,9 @@ mod tests {
         set.transaction.extra_headers.insert_str(0, "feeeha");
         let sut = SmtpUnknownCommand::new("HOOO".to_owned(), vec![]);
         let mut res = sut.apply(set).await;
-        assert_eq!(
-            res.writes.pop_front(),
-            Some(WriteControl::Reply(SmtpReply::CommandNotImplementedFailure))
-        );
+        match res.writes.pop_front() {
+            Some(CodecControl::Response(bytes)) if bytes.starts_with(b"502 ") => {}
+            otherwise => panic!("Expected command not implemented, got {:?}", otherwise),
+        }
     }
 }
