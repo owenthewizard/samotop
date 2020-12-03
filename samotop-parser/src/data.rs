@@ -45,10 +45,10 @@ impl Parser for DataParserMidWayPeg {
     }
 }
 
-fn map_cmd<'i>(
+fn map_cmd(
     lmtp: bool,
-    res: std::result::Result<ParseResult<'i, Vec<u8>>, peg::error::ParseError<usize>>,
-) -> ParseResult<'i, Box<dyn SmtpSessionCommand>> {
+    res: std::result::Result<ParseResult<Vec<u8>>, peg::error::ParseError<usize>>,
+) -> ParseResult<Box<dyn SmtpSessionCommand>> {
     match res {
         Ok(Ok((i, data))) if data.is_empty() => Ok((i, Box::new(MailBodyEnd { lmtp }))),
         Ok(Ok((i, data))) if data.ends_with(b"\r\n") => {
