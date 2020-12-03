@@ -4,7 +4,6 @@ use crate::common::*;
 use crate::{
     io::{tls::MayBeTls, ConnectionInfo, IoService},
     mail::{MailService, SessionInfo},
-    protocol::smtp::SmtpCodec,
     smtp::*,
 };
 use std::{

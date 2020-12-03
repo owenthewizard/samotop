@@ -191,9 +191,7 @@ extern crate log;
 
 pub mod mail;
 pub mod server;
-pub mod protocol {
-    pub use samotop_core::protocol::*;
-}
+
 pub mod smtp {
     pub use samotop_core::smtp::*;
 }

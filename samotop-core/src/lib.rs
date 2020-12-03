@@ -3,7 +3,7 @@ extern crate log;
 
 pub mod io;
 pub mod mail;
-pub mod protocol;
+pub mod smtp;
 
 pub mod common {
     pub use async_std::future::timeout;
@@ -13,9 +13,7 @@ pub mod common {
     pub use samotop_model::{common::*, Error, Result};
     pub use std::sync::Arc;
 }
-pub mod smtp {
-    pub use samotop_model::smtp::*;
-}
+
 pub mod parser {
     pub use samotop_model::parser::*;
 }
