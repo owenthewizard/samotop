@@ -1,19 +1,21 @@
 use crate::{
-    common::S2Fut,
+    common::*,
     io::tls::{NoTls, TlsProvider, TlsUpgrade},
     mail::{
         AddRecipientRequest, AddRecipientResult, DispatchResult, EsmtpService, MailDispatch,
         MailGuard, MailSetup, SessionInfo, StartMailRequest, StartMailResult, Transaction,
     },
-    parser::{ParseError, ParseResult, Parser},
-    smtp::SmtpSessionCommand,
+    parser::Parser,
 };
+
+use super::ParserProvider;
 
 #[derive(Debug)]
 pub struct Builder {
     pub id: String,
     pub tls: Box<dyn TlsProvider + Sync + Send + 'static>,
-    pub parser: Vec<Box<dyn Parser + Sync + Send + 'static>>,
+    pub data_parser: Vec<Arc<dyn Parser + Sync + Send + 'static>>,
+    pub command_parser: Vec<Arc<dyn Parser + Sync + Send + 'static>>,
     pub dispatch: Vec<Box<dyn MailDispatch + Sync + Send + 'static>>,
     pub guard: Vec<Box<dyn MailGuard + Sync + Send + 'static>>,
     pub esmtp: Vec<Box<dyn EsmtpService + Sync + Send + 'static>>,
@@ -32,7 +34,8 @@ impl Default for Builder {
         Self {
             id: Default::default(),
             tls: Box::new(NoTls),
-            parser: Default::default(),
+            data_parser: Default::default(),
+            command_parser: Default::default(),
             dispatch: Default::default(),
             guard: Default::default(),
             esmtp: Default::default(),
@@ -139,37 +142,18 @@ impl EsmtpService for Builder {
     }
 }
 
-impl Parser for Builder {
-    fn parse_command<'i>(&self, input: &'i [u8]) -> ParseResult<'i, Box<dyn SmtpSessionCommand>> {
-        debug!(
-            "Parser {} with {} parsers munching on {} bytes",
-            self.id,
-            self.parser.len(),
-            input.len()
-        );
-        for (idx, parser) in self.parser.iter().enumerate() {
-            trace!(
-                "Parser {}/{} parse_command calling {:?}",
-                self.id,
-                idx,
-                parser
-            );
-            match parser.parse_command(input) {
-                Err(ParseError::Mismatch(e)) => {
-                    debug!(
-                        "Parser {}/{} - {:?} did not recognize the input: {:?}",
-                        self.id, idx, parser, e
-                    );
-                }
-                otherwise => return otherwise,
-            }
-        }
-        Err(ParseError::Mismatch("No parser can parse this".into()))
-    }
-}
-
 impl TlsProvider for Builder {
     fn get_tls_upgrade(&self) -> Option<Box<dyn TlsUpgrade>> {
         self.tls.get_tls_upgrade()
+    }
+}
+
+impl ParserProvider for Builder {
+    fn get_parser_for_data(&self) -> Box<dyn Parser + Sync + Send> {
+        Box::new(self.data_parser.clone())
+    }
+
+    fn get_parser_for_commands(&self) -> Box<dyn Parser + Sync + Send> {
+        Box::new(self.command_parser.clone())
     }
 }

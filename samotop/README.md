@@ -41,6 +41,7 @@ The [samotop crate is published on crates.io](https://crates.io/crates/samotop).
 - [x] MDA: Store mail in Maildir (through LMTP to another LDA)
 - [x] MDA: Smart mailbox - multiple mailbox addresses by convention
 - [x] Integration: LMTP socket - can deliver to LDA over unix or network sockets using LMTP
+- [x] LDA: Can process LMTP session (LHLO + delivery status per rcpt) with `LmtpParserPeg`
 - [x] Antispam: SPF (through viaspf, todo:async)
 
 ### To do
@@ -77,16 +78,17 @@ There are a few interesting provisions one could take away from Samotop:
 * The TCP server (`TcpServer`) - it takes IP:port's to listen `on()` and you can then `serve()` your own implementation of a `IoService`.
 * The Unix socket server (`UnixServer`) - it takes socket file path to listen `on()` and you can then `serve()` the same as with the `TcpServer`.
 * The SMTP service (`SmtpService`) - it takes an async IO and provides an SMTP service defined by `MailService`.
-* The low level `SmtpCodec` - it translates between IO and a `Stram` of `ReadControl` and a `Sink` of `WriteControl`. It handles SMTP mail data as well.
+* The low level `SmtpCodec` - it translates between IO and a `Stram` of `SmtpSessionCommand`s and accepts `CodecControl`s.
 * The SMTP session parser (`SmtpParser`) - it takes `&[u8]` and returns parsed commands or session.
 * The SMTP session and domain model (in `samotop-model`) - these describe the domain and behavior.
+* The mail delivery abstraction in `samotop-delivery` includes an SMTP/LMTP client over TCP/Unix socket, simple maildir, eventually also child process integration.
 * Extensible design - you can plug in or compose your own solution.
 
 ### SMTP Server (with STARTTLS)
 
 Running an SMTP server with STARTTLS support is a bit more involved
 regarding setting up the TLS configuration. The library includes a `TlsProvider`
-implementation for async-tls (rustls) and async-native-tls(native-tls).
+implementation for async-tls (rustls) and async-native-tls (native-tls).
 The samotop-server is a working reference for this TLS setup
 where you need to provide only the cert and key.
 You can also implement your own `TlsProvider` and plug it in.
@@ -149,6 +151,9 @@ fn main() {
 }
 ```
 
+### Stdio server
+You can serve the same on a command line IO. See the on-cmd example.
+
 ## Development
 
 * The usual rustup + cargo setup is required.
@@ -178,6 +183,7 @@ In Rust world I have so far found mostly SMTP clients.
 * [rust-smtp](https://github.com/synlestidae/rust-smtp) fork of the above with progress by **synlestidae** in 2016
 
 ### Other
+* [async-smtp](https://github.com/async-email/async-smtp) is an SMTP client. I've forked it as samotop-delivery.
 * [lettre](https://github.com/lettre/lettre) is an SMTP client, it seems to be alive and well!
 * [segimap](https://github.com/uiri/SEGIMAP) by **uiri**, that's actually an IMAP server.
 * [ferric-mail](https://github.com/wraithan/ferric-mail) by **wraithan**, looks abandoned since 2014.

@@ -8,7 +8,9 @@ It stores the mail in a dir tmp/samotop/spool/
 sed -e 's/$/\r/' <<EOF | time cargo run --example on-cmd
 lhlo boogie
 mail from:<from@spf.org>
+rcpt to:<komu@makesh.info>
 rcpt to:<to@mikesh.info>
+rcpt to:<za@mukesh.info>
 data
 From: Moohoo <moo@hoo.com>
 To: Yeeehaw <ye@haw.com>
@@ -27,11 +29,12 @@ use futures::AsyncRead as Read;
 use futures::AsyncWrite as Write;
 use samotop::{
     io::{smtp::SmtpService, tls::TlsCapable, ConnectionInfo, IoService},
-    mail::{Builder, Dir},
-    parser::SmtpParser,
+    mail::MailSetup,
+    mail::{Builder, Dir, EsmtpService},
+    parser::LmtpParserPeg,
 };
-use std::pin::Pin;
 use std::sync::Arc;
+use std::{pin::Pin, time::Duration};
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
@@ -45,7 +48,8 @@ async fn main_fut() -> Result<()> {
     let mail_service = Arc::new(
         Builder::default()
             .using(dir_service)
-            .using(SmtpParser::default()),
+            .using(LmtpParserPeg::default())
+            .using(NoTimeout),
     );
     let smtp_service = SmtpService::new(Arc::new(mail_service));
 
@@ -57,6 +61,21 @@ async fn main_fut() -> Result<()> {
     let conn = ConnectionInfo::default();
 
     smtp_service.handle(Ok(Box::new(stream)), conn).await
+}
+
+#[derive(Debug)]
+struct NoTimeout;
+
+impl EsmtpService for NoTimeout {
+    fn prepare_session(&self, session: &mut samotop::mail::SessionInfo) {
+        session.command_timeout = Duration::default();
+    }
+}
+
+impl MailSetup for NoTimeout {
+    fn setup(self, builder: &mut Builder) {
+        builder.esmtp.insert(0, Box::new(self))
+    }
 }
 
 struct MyIo<R, W> {

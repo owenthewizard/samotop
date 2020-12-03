@@ -52,10 +52,7 @@ impl MailDispatch for SpfService {
             Err(_) => std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED),
             Ok(ip) => ip,
         };
-        let peer_name = match session.smtp_helo.as_ref().map(|m| m.host().domain()) {
-            None => String::new(),
-            Some(s) => s,
-        };
+        let peer_name = session.smtp_helo.clone().unwrap_or_default();
         let sender = match transaction.mail.as_ref().map(|m| m.path()) {
             None | Some(SmtpPath::Null) | Some(SmtpPath::Postmaster) => String::new(),
             Some(SmtpPath::Direct(SmtpAddress::Mailbox(_account, host))) => host.domain(),

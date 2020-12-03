@@ -1,7 +1,7 @@
 use crate::{
     common::*,
     mail::SessionInfo,
-    smtp::{SmtpSessionCommand, SmtpState},
+    smtp::{SmtpReply, SmtpSessionCommand, SmtpState},
 };
 use std::time::{Duration, Instant};
 
@@ -74,6 +74,20 @@ impl SmtpSessionCommand for Timeout {
             state.say_shutdown_err("Timeout expired.".to_owned());
         }
 
+        Box::pin(ready(state))
+    }
+}
+
+#[derive(Default, Eq, PartialEq, Debug, Clone)]
+pub struct ProcessingError;
+
+impl SmtpSessionCommand for ProcessingError {
+    fn verb(&self) -> &str {
+        ""
+    }
+
+    fn apply(&self, mut state: SmtpState) -> S2Fut<SmtpState> {
+        state.say_shutdown(SmtpReply::ProcesingError);
         Box::pin(ready(state))
     }
 }
