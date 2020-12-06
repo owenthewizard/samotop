@@ -69,7 +69,7 @@ fn map_error(e: Err<()>) -> ParseError {
 fn map_cmd(cmd: Command) -> SmtpCommand {
     match cmd {
         Command::HELO(domain) => {
-            SmtpCommand::Helo(SmtpHelo::Ehlo(SmtpHost::Domain(domain.to_string())))
+            SmtpCommand::Helo(SmtpHelo::Helo(SmtpHost::Domain(domain.to_string())))
         }
         Command::EHLO(host) => SmtpCommand::Helo(SmtpHelo::Ehlo(map_host(host))),
         Command::MAIL(path, params) => SmtpCommand::Mail(SmtpMail::Mail(
