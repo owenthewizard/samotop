@@ -1,3 +1,6 @@
+#[macro_use]
+extern crate log;
+
 use async_native_tls::TlsAcceptor;
 use async_native_tls::TlsConnector;
 use samotop_model::io::tls::Io;
@@ -43,6 +46,17 @@ impl TlsUpgrade for NativeTlsProvider<TlsAcceptor> {
         let fut = async move {
             match acceptor.accept(io).await {
                 Ok(encrypted) => {
+                    match encrypted.peer_certificate() {
+                        Err(e) => trace!("peer cert error: {:?}", e),
+                        Ok(None) => trace!("peer cert None."),
+                        Ok(Some(cert)) => {
+                            let cert = cert.to_der().unwrap();
+                            trace!("peer cert present: {:?}", cert.len());
+                            let mut f = std::fs::File::create("client.crt")?;
+                            use std::io::Write;
+                            f.write(cert.as_slice())?;
+                        }
+                    }
                     let encrypted: Box<dyn Io> = Box::new(encrypted);
                     Ok(encrypted)
                 }

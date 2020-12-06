@@ -8,6 +8,7 @@ members = [
     "samotop-with-rustls",
     "samotop-with-native-tls",
     "samotop-with-spf",
+    "samotop-enc",
     "samotop",
     "samotop-server",
 ]

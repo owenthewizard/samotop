@@ -20,7 +20,7 @@ gitlab = { repository = "BrightOpen/BackYard/Samotop", branch = "develop" }
 [dependencies.samotop]
 version = "0.12.0"
 path = "../samotop"
-features = ["rust-tls", "spf"]
+features = ["native-tls", "spf"]
 default-features = false
 
 [dependencies]
@@ -31,4 +31,5 @@ hostname = "0.3"
 async-std = "1.7"
 async-tls = "0.10"
 rustls = "0.19"
+async-native-tls = "0.3"
 regex = "1.4"

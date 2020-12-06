@@ -83,18 +83,32 @@ Debug with STARTTLS:
 ```bash
 openssl s_client -connect localhost:25 -debug -starttls smtp
 ```
+
+## Other useful hints for TLS
+
+For native-tls, you'd convert to pfx:
+```bash
+openssl pkcs12 -export -out Samotop.pfx -inkey Samotop.key -in Samotop.crt
+```
+
+Extracting pub key from cert:
+```bash
+openssl x509 -pubkey -noout -in Samotop.crt  > Samotop.pem
+```
+
  */
 
 #[macro_use]
 extern crate log;
 
-use async_std::fs::File;
+use async_std::{fs::File, io::Read};
 use async_std::io::ReadExt;
 use async_std::task;
-use async_tls::TlsAcceptor;
+use async_native_tls::TlsAcceptor;
 use rustls::ServerConfig;
 use samotop::io::smtp::SmtpService;
 use samotop::io::tls::RustlsProvider;
+use samotop::io::tls::NativeTlsProvider;
 use samotop::mail::{Builder, Dir, Name};
 use samotop::parser::SmtpParser;
 use samotop::server::TcpServer;
@@ -120,11 +134,9 @@ async fn main_fut() -> Result<()> {
         .using(samotop::mail::spf::provide_viaspf())
         .using(SmtpParser::default());
 
-    if let Some(cfg) = setup.get_tls_config().await? {
-        mail_service = mail_service.using(RustlsProvider::from(TlsAcceptor::from(
-            std::sync::Arc::new(cfg),
-        )));
-    }
+    let tls_provider = NativeTlsProvider::from(TlsAcceptor::new(setup.get_id_file().await?,"").await?);
+
+    mail_service = mail_service.using(tls_provider);
 
     let smtp_service = SmtpService::new(Arc::new(mail_service));
 
@@ -141,6 +153,16 @@ impl Setup {
         Setup {
             opt: Opt::from_args(),
         }
+    }
+
+    pub async fn get_id_file(&self) -> Result<impl Read>{
+        let id_path = self.absolute_path(
+            &self.opt.identity_file
+                .as_ref()
+                .expect("identity-file must be set unless --no-tls"),
+        );
+        let id_file= File::open(&id_path).await?;
+        Ok(id_file)
     }
 
     pub async fn get_tls_config(&self) -> Result<Option<ServerConfig>> {

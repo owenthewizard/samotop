@@ -22,6 +22,7 @@ version = "0.12.0"
 path = "../samotop-model"
 
 [dependencies]
+log = "0.4"
 async-native-tls = "0.3"
 
 [features]

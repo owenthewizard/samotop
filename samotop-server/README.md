@@ -84,7 +84,7 @@ openssl s_client -connect localhost:25 -starttls smtp
 
 Debug with STARTTLS:
 ```bash
-openssl s_client -connect localhost:25 -debug -starttls smtp
+openssl s_client -connect localhost:25 -debug -silent -starttls smtp
 ```
 
 ## License
