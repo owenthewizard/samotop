@@ -101,14 +101,14 @@ openssl x509 -pubkey -noout -in Samotop.crt  > Samotop.pem
 #[macro_use]
 extern crate log;
 
-use async_std::{fs::File, io::Read};
+use async_native_tls::TlsAcceptor;
 use async_std::io::ReadExt;
 use async_std::task;
-use async_native_tls::TlsAcceptor;
+use async_std::{fs::File, io::Read};
 use rustls::ServerConfig;
 use samotop::io::smtp::SmtpService;
-use samotop::io::tls::RustlsProvider;
 use samotop::io::tls::NativeTlsProvider;
+use samotop::io::tls::RustlsProvider;
 use samotop::mail::{Builder, Dir, Name};
 use samotop::parser::SmtpParser;
 use samotop::server::TcpServer;
@@ -134,7 +134,8 @@ async fn main_fut() -> Result<()> {
         .using(samotop::mail::spf::provide_viaspf())
         .using(SmtpParser::default());
 
-    let tls_provider = NativeTlsProvider::from(TlsAcceptor::new(setup.get_id_file().await?,"").await?);
+    let tls_provider =
+        NativeTlsProvider::from(TlsAcceptor::new(setup.get_id_file().await?, "").await?);
 
     mail_service = mail_service.using(tls_provider);
 
@@ -155,13 +156,15 @@ impl Setup {
         }
     }
 
-    pub async fn get_id_file(&self) -> Result<impl Read>{
+    pub async fn get_id_file(&self) -> Result<impl Read> {
         let id_path = self.absolute_path(
-            &self.opt.identity_file
+            &self
+                .opt
+                .identity_file
                 .as_ref()
                 .expect("identity-file must be set unless --no-tls"),
         );
-        let id_file= File::open(&id_path).await?;
+        let id_file = File::open(&id_path).await?;
         Ok(id_file)
     }
 

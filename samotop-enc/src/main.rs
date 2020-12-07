@@ -7,7 +7,7 @@ use ring::error::Unspecified;
 use ring::pbkdf2::*;
 use ring::rand::{SecureRandom, SystemRandom};
 use rsa::{PaddingScheme, PublicKey, RSAPrivateKey, RSAPublicKey};
-use std::{num::NonZeroU32, sync::Arc};
+use std::{io::Write, num::NonZeroU32, sync::Arc};
 
 fn main() {
     // // The password will be used to generate a key
@@ -130,6 +130,8 @@ fn enc() -> Result<(), Box<dyn std::error::Error>> {
     let pkcs7 = Pkcs7::encrypt(&certs.as_ref(), message, Cipher::aes_256_cbc(), flags)?;
 
     let encrypted = pkcs7.to_smime(message, flags).expect("should succeed");
+
+    std::fs::File::create("test/enc")?.write_all(encrypted.as_slice())?;
 
     let (pkcs7_decoded, _) = Pkcs7::from_smime(encrypted.as_slice()).expect("should succeed");
 
