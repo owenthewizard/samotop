@@ -1,8 +1,5 @@
-use async_macros::{join, ready};
-use async_std::io;
-use log::*;
-use std::task::{Context, Poll};
-use std::{future::Future, pin::Pin};
+use futures_lite::io::AsyncWriteExt;
+use samotop_smime::SMime;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
@@ -16,216 +13,22 @@ async fn main_fut() -> Result<(), Box<dyn std::error::Error>> {
         t
     }
 
-    let sign_encrypt = is(SMime::sign_and_encrypt(
-        &mut encrypted,
-        "../samotop-server/Samotop.key",
-        "../samotop-server/Samotop.crt",
-        "../samotop-server/Samotop.crt",
-    )?);
+    {
+        let mut sign_encrypt = is(SMime::sign_and_encrypt(
+            &mut encrypted,
+            "../samotop-server/Samotop.key",
+            "../samotop-server/Samotop.crt",
+            "../samotop-server/Samotop.crt",
+        )?);
 
-    let mut inp = b"secret stuff".as_ref();
-    CopyAndClose::new(&mut inp, sign_encrypt).await?;
+        let mut inp = b"secret stuff".as_ref();
+        async_std::io::copy(&mut inp, &mut sign_encrypt).await?;
+        sign_encrypt.close().await?;
+    }
 
     println!("encrypted: {:?}", encrypted);
 
     Ok(())
-}
-
-#[pin_project::pin_project]
-pub struct SMime<'a> {
-    #[pin]
-    input: Option<Pin<Box<dyn io::Write + Sync + Send>>>,
-    #[pin]
-    copy: Pin<Box<dyn Future<Output = io::Result<()>> + Sync + Send + 'a>>,
-}
-
-impl<'a> SMime<'a> {
-    pub fn encrypt_and_sign<W: io::Write + Sync + Send + 'a>(
-        target: W,
-        my_key: &str,
-        my_cert: &str,
-        her_cert: &str,
-    ) -> Result<Self, Box<dyn std::error::Error>> {
-        Self::both(target, my_key, my_cert, her_cert, false)
-    }
-    pub fn sign_and_encrypt<W: io::Write + Sync + Send + 'a>(
-        target: W,
-        my_key: &str,
-        my_cert: &str,
-        her_cert: &str,
-    ) -> Result<Self, Box<dyn std::error::Error>> {
-        Self::both(target, my_key, my_cert, her_cert, true)
-    }
-    fn both<W: io::Write + Sync + Send + 'a>(
-        target: W,
-        my_key: &str,
-        my_cert: &str,
-        her_cert: &str,
-        sign_first: bool,
-    ) -> Result<Self, Box<dyn std::error::Error>> {
-        let mut sign = async_process::Command::new("openssl")
-            .arg("smime")
-            .arg("-stream")
-            .arg("-sign")
-            .arg("-inkey")
-            .arg(my_key)
-            .arg("-signer")
-            .arg(my_cert)
-            .kill_on_drop(true)
-            .reap_on_drop(true)
-            .stdin(async_process::Stdio::piped())
-            .stdout(async_process::Stdio::piped())
-            .spawn()?;
-
-        let mut encrypt = async_process::Command::new("openssl")
-            .arg("smime")
-            .arg("-stream")
-            .arg("-encrypt")
-            .arg(her_cert)
-            .kill_on_drop(true)
-            .reap_on_drop(true)
-            .stdin(async_process::Stdio::piped())
-            .stdout(async_process::Stdio::piped())
-            .spawn()?;
-
-        let sign_in = sign.stdin.take().expect("sign input");
-        let sign_out = sign.stdout.take().expect("sign output");
-        let encrypt_in = encrypt.stdin.take().expect("encrypt input");
-        let encrypt_out = encrypt.stdout.take().expect("encrypt output");
-
-        let (input, cp1, cp2) = if sign_first {
-            (
-                sign_in,
-                CopyAndClose::new(sign_out, encrypt_in),
-                CopyAndClose::new(encrypt_out, target),
-            )
-        } else {
-            (
-                encrypt_in,
-                CopyAndClose::new(encrypt_out, sign_in),
-                CopyAndClose::new(sign_out, target),
-            )
-        };
-
-        let copy = async move {
-            let (res1, res2) = join!(cp1, cp2).await;
-            res1?;
-            res2?;
-            debug!("sign: {:?}", sign.status().await?);
-            debug!("encrypt: {:?}", encrypt.status().await?);
-            Ok(())
-        };
-        let writer = SMime {
-            input: Some(Box::pin(input)),
-            copy: Box::pin(copy),
-        };
-
-        Ok(writer)
-    }
-}
-
-impl<'a> io::Write for SMime<'a> {
-    fn poll_write(
-        self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &[u8],
-    ) -> Poll<io::Result<usize>> {
-        let this = self.project();
-        debug!("poll_write {}", buf.len());
-        if let Some(i) = this.input.as_pin_mut() {
-            debug!("poll_write input");
-            let written = ready!(i.poll_write(cx, buf))?;
-            Poll::Ready(Ok(written))
-        } else {
-            Poll::Ready(Err(io::ErrorKind::NotConnected.into()))
-        }
-    }
-
-    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        let mut this = self.project();
-        debug!("poll_flush");
-        if let Some(i) = this.input.as_mut().as_pin_mut() {
-            debug!("poll_flush input");
-            ready!(i.poll_flush(cx))?;
-        }
-        ready!(this.input.as_pin_mut().expect("input").poll_flush(cx))?;
-        debug!("poll copy...");
-        let copied = ready!(this.copy.poll(cx))?;
-        debug!("poll copy = {:?}", copied);
-        Poll::Ready(Ok(()))
-    }
-
-    fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        let mut this = self.project();
-        if let Some(i) = this.input.as_mut().as_pin_mut() {
-            debug!("poll_close input");
-            ready!(i.poll_close(cx))?;
-        }
-
-        // must drop input to finish processing
-        this.input.set(None);
-        debug!("closed input");
-
-        debug!("close poll copy...");
-        let copied = ready!(this.copy.poll(cx))?;
-        debug!("close poll copy = {:?}", copied);
-
-        Poll::Ready(Ok(()))
-    }
-}
-
-#[pin_project::pin_project]
-struct CopyAndClose<R, W> {
-    #[pin]
-    reader: R,
-    #[pin]
-    writer: W,
-    amt: u64,
-}
-
-impl<R, W> CopyAndClose<io::BufReader<R>, W>
-where
-    R: io::Read,
-    W: io::Write,
-{
-    pub fn new(reader: R, writer: W) -> Self {
-        CopyAndClose {
-            reader: io::BufReader::new(reader),
-            writer,
-            amt: 0,
-        }
-    }
-}
-
-impl<R, W> async_std::future::Future for CopyAndClose<R, W>
-where
-    R: io::BufRead,
-    W: io::Write,
-{
-    type Output = io::Result<u64>;
-
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let mut this = self.project();
-        loop {
-            debug!("copy poll_fill_buf...");
-            let buffer = ready!(this.reader.as_mut().poll_fill_buf(cx))?;
-            debug!("copy poll_fill_buf => {}", buffer.len());
-            if buffer.is_empty() {
-                debug!("copy poll_close...");
-                ready!(this.writer.as_mut().poll_close(cx))?;
-                return Poll::Ready(Ok(*this.amt));
-            }
-
-            debug!("copy poll_write...");
-            let i = ready!(this.writer.as_mut().poll_write(cx, buffer))?;
-            debug!("copy poll_write => {}", i);
-            if i == 0 {
-                return Poll::Ready(Err(io::ErrorKind::WriteZero.into()));
-            }
-            *this.amt += i as u64;
-            this.reader.as_mut().consume(i);
-        }
-    }
 }
 
 /*
