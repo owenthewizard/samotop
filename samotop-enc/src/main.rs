@@ -1,5 +1,5 @@
 use async_macros::{join, ready};
-use async_process::ChildStdin;
+use async_std::io;
 use log::*;
 use std::task::{Context, Poll};
 use std::{future::Future, pin::Pin};
@@ -12,11 +12,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 async fn main_fut() -> Result<(), Box<dyn std::error::Error>> {
     let mut encrypted = Vec::new();
 
-    fn is<T: Unpin>(t: T) -> T {
+    fn is<T: Unpin + Sync + Send>(t: T) -> T {
         t
     }
 
-    let sign_encrypt = is(SignEncrypt::sign_and_encrypt(
+    let sign_encrypt = is(SMime::sign_and_encrypt(
         &mut encrypted,
         "../samotop-server/Samotop.key",
         "../samotop-server/Samotop.crt",
@@ -32,19 +32,36 @@ async fn main_fut() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 #[pin_project::pin_project]
-pub struct SignEncrypt<'a> {
+pub struct SMime<'a> {
     #[pin]
-    input: Option<Pin<Box<dyn async_std::io::Write>>>,
+    input: Option<Pin<Box<dyn io::Write + Sync + Send>>>,
     #[pin]
-    copy: Pin<Box<dyn Future<Output = async_std::io::Result<()>> + 'a>>,
+    copy: Pin<Box<dyn Future<Output = io::Result<()>> + Sync + Send + 'a>>,
 }
 
-impl<'a> SignEncrypt<'a> {
-    pub fn sign_and_encrypt<W: async_std::io::Write + 'a>(
+impl<'a> SMime<'a> {
+    pub fn encrypt_and_sign<W: io::Write + Sync + Send + 'a>(
         target: W,
         my_key: &str,
         my_cert: &str,
         her_cert: &str,
+    ) -> Result<Self, Box<dyn std::error::Error>> {
+        Self::both(target, my_key, my_cert, her_cert, false)
+    }
+    pub fn sign_and_encrypt<W: io::Write + Sync + Send + 'a>(
+        target: W,
+        my_key: &str,
+        my_cert: &str,
+        her_cert: &str,
+    ) -> Result<Self, Box<dyn std::error::Error>> {
+        Self::both(target, my_key, my_cert, her_cert, true)
+    }
+    fn both<W: io::Write + Sync + Send + 'a>(
+        target: W,
+        my_key: &str,
+        my_cert: &str,
+        her_cert: &str,
+        sign_first: bool,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         let mut sign = async_process::Command::new("openssl")
             .arg("smime")
@@ -75,19 +92,31 @@ impl<'a> SignEncrypt<'a> {
         let sign_out = sign.stdout.take().expect("sign output");
         let encrypt_in = encrypt.stdin.take().expect("encrypt input");
         let encrypt_out = encrypt.stdout.take().expect("encrypt output");
-        let copy_signed = CopyAndClose::new(sign_out, encrypt_in);
-        let copy_encrypted = CopyAndClose::new(encrypt_out, target);
+
+        let (input, cp1, cp2) = if sign_first {
+            (
+                sign_in,
+                CopyAndClose::new(sign_out, encrypt_in),
+                CopyAndClose::new(encrypt_out, target),
+            )
+        } else {
+            (
+                encrypt_in,
+                CopyAndClose::new(encrypt_out, sign_in),
+                CopyAndClose::new(sign_out, target),
+            )
+        };
 
         let copy = async move {
-            let (res1, res2) = join!(copy_signed, copy_encrypted).await;
+            let (res1, res2) = join!(cp1, cp2).await;
             res1?;
             res2?;
             debug!("sign: {:?}", sign.status().await?);
             debug!("encrypt: {:?}", encrypt.status().await?);
             Ok(())
         };
-        let writer = SignEncrypt {
-            input: Some(Box::pin(sign_in)),
+        let writer = SMime {
+            input: Some(Box::pin(input)),
             copy: Box::pin(copy),
         };
 
@@ -95,12 +124,12 @@ impl<'a> SignEncrypt<'a> {
     }
 }
 
-impl<'a> async_std::io::Write for SignEncrypt<'a> {
+impl<'a> io::Write for SMime<'a> {
     fn poll_write(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
         buf: &[u8],
-    ) -> Poll<std::io::Result<usize>> {
+    ) -> Poll<io::Result<usize>> {
         let this = self.project();
         debug!("poll_write {}", buf.len());
         if let Some(i) = this.input.as_pin_mut() {
@@ -108,11 +137,11 @@ impl<'a> async_std::io::Write for SignEncrypt<'a> {
             let written = ready!(i.poll_write(cx, buf))?;
             Poll::Ready(Ok(written))
         } else {
-            Poll::Ready(Err(std::io::ErrorKind::NotConnected.into()))
+            Poll::Ready(Err(io::ErrorKind::NotConnected.into()))
         }
     }
 
-    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         let mut this = self.project();
         debug!("poll_flush");
         if let Some(i) = this.input.as_mut().as_pin_mut() {
@@ -126,7 +155,7 @@ impl<'a> async_std::io::Write for SignEncrypt<'a> {
         Poll::Ready(Ok(()))
     }
 
-    fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+    fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         let mut this = self.project();
         if let Some(i) = this.input.as_mut().as_pin_mut() {
             debug!("poll_close input");
@@ -145,41 +174,6 @@ impl<'a> async_std::io::Write for SignEncrypt<'a> {
     }
 }
 
-// #[pin_project::pin_project]
-// struct WriteAll<'a, W> {
-//     pub from: &'a [u8],
-//     #[pin]
-//     pub to: W,
-// }
-
-// impl<W> async_std::future::Future for WriteAll<'_, W>
-// where
-//     W: async_std::io::Write,
-// {
-//     type Output = std::io::Result<()>;
-
-//     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-//         let mut this = self.project();
-//         while !this.from.is_empty() {
-//             debug!("WAF poll_write {}", this.from.len());
-//             let n = match this.to.as_mut().poll_write(cx, this.from)? {
-//                 Poll::Pending => return Poll::Pending,
-//                 Poll::Ready(len) => len,
-//             };
-//             debug!("WAF poll_write => {}", n);
-//             {
-//                 let (_, rest) = std::mem::replace(this.from, &[]).split_at(n);
-//                 *this.from = &rest[..];
-//             }
-//             if n == 0 {
-//                 return Poll::Ready(Err(std::io::ErrorKind::WriteZero.into()));
-//             }
-//         }
-
-//         debug!("WAF poll_close...");
-//         this.to.as_mut().poll_close(cx)
-//     }
-// }
 #[pin_project::pin_project]
 struct CopyAndClose<R, W> {
     #[pin]
@@ -189,14 +183,14 @@ struct CopyAndClose<R, W> {
     amt: u64,
 }
 
-impl<R, W> CopyAndClose<async_std::io::BufReader<R>, W>
+impl<R, W> CopyAndClose<io::BufReader<R>, W>
 where
-    R: async_std::io::Read,
-    W: async_std::io::Write,
+    R: io::Read,
+    W: io::Write,
 {
     pub fn new(reader: R, writer: W) -> Self {
         CopyAndClose {
-            reader: async_std::io::BufReader::new(reader),
+            reader: io::BufReader::new(reader),
             writer,
             amt: 0,
         }
@@ -205,10 +199,10 @@ where
 
 impl<R, W> async_std::future::Future for CopyAndClose<R, W>
 where
-    R: async_std::io::BufRead,
-    W: async_std::io::Write,
+    R: io::BufRead,
+    W: io::Write,
 {
-    type Output = async_std::io::Result<u64>;
+    type Output = io::Result<u64>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let mut this = self.project();
@@ -226,7 +220,7 @@ where
             let i = ready!(this.writer.as_mut().poll_write(cx, buffer))?;
             debug!("copy poll_write => {}", i);
             if i == 0 {
-                return Poll::Ready(Err(async_std::io::ErrorKind::WriteZero.into()));
+                return Poll::Ready(Err(io::ErrorKind::WriteZero.into()));
             }
             *this.amt += i as u64;
             this.reader.as_mut().consume(i);
