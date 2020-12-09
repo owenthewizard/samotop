@@ -27,20 +27,21 @@ impl<B: AsRef<[u8]> + Sync + Send + fmt::Debug, P: Parser + Clone + Sync + Send 
             // CheckMe: silence. handle_data_end should respond with error.
             return Box::pin(ready(state));
         }
-        let mut sink = state
+        let sink = state
             .transaction
             .sink
             .take()
             .expect("Checked presence above");
         let mailid = state.transaction.id.clone();
         let fut = async move {
-            let write_all = WriteAll {
+            let mut write_all = WriteAll {
                 from: self.0.as_ref(),
-                to: &mut sink,
+                to: Box::pin(sink),
             };
-            match write_all.await {
+            match (&mut write_all).await {
                 Ok(()) => {
-                    state.transaction.sink = Some(sink);
+                    let WriteAll { to, .. } = write_all;
+                    state.transaction.sink = Some(to);
                     state.say(CodecControl::Parser(Box::new(self.1.clone())));
                     state
                 }
@@ -109,12 +110,12 @@ impl SmtpSessionCommand for MailBodyEnd {
 
 struct WriteAll<'a, W> {
     pub from: &'a [u8],
-    pub to: W,
+    pub to: Pin<Box<W>>,
 }
 
 impl<W> Future for WriteAll<'_, W>
 where
-    W: Write + Unpin,
+    W: Write,
 {
     type Output = std::io::Result<()>;
 
