@@ -87,6 +87,19 @@ Debug with STARTTLS:
 openssl s_client -connect localhost:25 -debug -starttls smtp
 ```
 
+### Other useful hints for TLS
+
+For native-tls, you'd convert to pfx:
+```bash
+openssl pkcs12 -export -out Samotop.pfx -inkey Samotop.key -in Samotop.crt
+```
+
+Extracting pub key from cert:
+```bash
+openssl x509 -pubkey -noout -in Samotop.crt  > Samotop.pem
+```
+
+
 ## License
 MIT OR Apache-2.0
 

@@ -1,6 +1,6 @@
 use super::dispatch::DispatchMail;
 use crate::smtp::{net::Connector, ConnectionReuseParameters, SmtpClient};
-use samotop_model::{common::*, mail::*};
+use samotop_core::{common::*, mail::*};
 
 #[derive(Debug)]
 pub struct LmtpDispatch<C: Connector> {

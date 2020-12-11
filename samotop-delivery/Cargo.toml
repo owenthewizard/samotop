@@ -36,9 +36,9 @@ potential = "2.2"
 bytes = "0.6"
 memchr = "2.3"
 
-[dependencies.samotop-model]
+[dependencies.samotop-core]
 version = "0.12.0"
-path = "../samotop-model"
+path = "../samotop-core"
 
 [dev-dependencies]
 env_logger = "^0.8"

@@ -1,6 +1,6 @@
 use super::dispatch::DispatchMail;
 use crate::dir::FileTransport;
-use samotop_model::{common::*, mail::*};
+use samotop_core::{common::*, mail::*};
 use std::path::PathBuf;
 
 #[derive(Debug)]

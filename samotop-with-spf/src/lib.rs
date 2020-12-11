@@ -4,9 +4,9 @@ extern crate log;
 mod lookup;
 
 use self::lookup::*;
-use samotop_model::common::*;
-use samotop_model::mail::*;
-use samotop_model::smtp::*;
+use samotop_core::common::*;
+use samotop_core::mail::*;
+use samotop_core::smtp::*;
 pub use viaspf::Config;
 use viaspf::{evaluate_spf, SpfResult};
 
@@ -52,11 +52,10 @@ impl MailDispatch for SpfService {
             Err(_) => std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED),
             Ok(ip) => ip,
         };
-        let peer_name = session.smtp_helo.clone().unwrap_or_default();
-        let sender = match transaction.mail.as_ref().map(|m| m.path()) {
+        let peer_name = session.peer_name.clone().unwrap_or_default();
+        let sender = match transaction.mail.as_ref().map(|m| m.sender()) {
             None | Some(SmtpPath::Null) | Some(SmtpPath::Postmaster) => String::new(),
-            Some(SmtpPath::Direct(SmtpAddress::Mailbox(_account, host))) => host.domain(),
-            Some(SmtpPath::Relay(_path, SmtpAddress::Mailbox(_account, host))) => host.domain(),
+            Some(SmtpPath::Mailbox { host, .. }) => host.domain(),
         };
         let fut = async move {
             // TODO: improve privacy - a) encrypt DNS, b) do DNS servers need to know who is receiving mail from whom?
@@ -94,7 +93,7 @@ impl MailDispatch for SpfService {
 
 #[cfg(test)]
 mod tests {
-    use samotop_model::io::ConnectionInfo;
+    use samotop_core::io::ConnectionInfo;
 
     use super::*;
 

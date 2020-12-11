@@ -3,7 +3,7 @@ use crate::{
     MailDataStream,
 };
 use futures::TryFutureExt;
-use samotop_model::{common::*, mail::*};
+use samotop_core::{common::*, mail::*};
 use std::{error::Error as StdError, fmt};
 
 #[derive(Debug)]
@@ -39,12 +39,12 @@ where
             let sender = transaction
                 .mail
                 .as_ref()
-                .map(|sender| EmailAddress::new(sender.path().address()))
+                .map(|mail| EmailAddress::new(mail.sender().address()))
                 .transpose()?;
             let recipients: std::result::Result<Vec<_>, _> = transaction
                 .rcpts
                 .iter()
-                .map(|rcpt| EmailAddress::new(rcpt.address()))
+                .map(|rcpt| EmailAddress::new(rcpt.address.address()))
                 .collect();
 
             let envelope =
