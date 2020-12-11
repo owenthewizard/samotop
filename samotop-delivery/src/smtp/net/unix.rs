@@ -5,8 +5,8 @@ use crate::smtp::net::TlsMode;
 use crate::{smtp::net::ConnectionConfiguration, SyncFuture};
 use async_std::io;
 use async_std::os::unix::net::UnixStream;
-use samotop_model::common::Pin;
-use samotop_model::io::tls::MayBeTls;
+use samotop_core::common::Pin;
+use samotop_core::io::tls::MayBeTls;
 
 #[derive(Debug)]
 pub struct UnixConnector<TLS> {

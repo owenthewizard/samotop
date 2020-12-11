@@ -15,7 +15,7 @@ use crate::smtp::extension::ServerInfo;
 use crate::ClientSecurity;
 use crate::{smtp::authentication::Authentication, SyncFuture};
 use async_std::io::{self, Read, Write};
-use samotop_model::io::tls::MayBeTls;
+use samotop_core::io::tls::MayBeTls;
 use std::fmt;
 use std::time::Duration;
 

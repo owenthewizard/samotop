@@ -1,9 +1,12 @@
 use async_native_tls::TlsAcceptor;
 use async_native_tls::TlsConnector;
-use samotop_model::io::tls::Io;
-use samotop_model::io::tls::TlsProvider;
-use samotop_model::io::tls::TlsUpgrade;
-use samotop_model::{common::*, mail::MailSetup};
+use samotop_core::io::tls::TlsProvider;
+use samotop_core::io::tls::TlsUpgrade;
+use samotop_core::{
+    common::*,
+    io::tls::Io,
+    mail::{Builder, MailSetup},
+};
 use std::fmt;
 
 pub struct NativeTlsProvider<T> {
@@ -43,6 +46,17 @@ impl TlsUpgrade for NativeTlsProvider<TlsAcceptor> {
         let fut = async move {
             match acceptor.accept(io).await {
                 Ok(encrypted) => {
+                    // match encrypted.peer_certificate() {
+                    //     Err(e) => trace!("peer cert error: {:?}", e),
+                    //     Ok(None) => trace!("peer cert None."),
+                    //     Ok(Some(cert)) => {
+                    //         let cert = cert.to_der().unwrap();
+                    //         trace!("peer cert present: {:?}", cert.len());
+                    //         let mut f = std::fs::File::create("client.crt")?;
+                    //         use std::io::Write;
+                    //         f.write_all(cert.as_slice())?;
+                    //     }
+                    // }
                     let encrypted: Box<dyn Io> = Box::new(encrypted);
                     Ok(encrypted)
                 }
@@ -100,13 +114,13 @@ impl fmt::Debug for NativeTlsProvider<TlsConnector> {
 }
 
 impl MailSetup for NativeTlsProvider<TlsConnector> {
-    fn setup(self, builder: &mut samotop_model::mail::Builder) {
+    fn setup(self, builder: &mut Builder) {
         builder.tls = Box::new(self);
     }
 }
 
 impl MailSetup for NativeTlsProvider<TlsAcceptor> {
-    fn setup(self, builder: &mut samotop_model::mail::Builder) {
+    fn setup(self, builder: &mut Builder) {
         builder.tls = Box::new(self);
     }
 }

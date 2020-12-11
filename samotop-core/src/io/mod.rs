@@ -1,5 +1,6 @@
-pub mod dummy;
-pub mod smtp;
 pub mod tls;
+mod traits;
+mod types;
 
-pub use samotop_model::io::*;
+pub use self::traits::*;
+pub use self::types::*;

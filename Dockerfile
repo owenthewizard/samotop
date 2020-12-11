@@ -27,7 +27,6 @@ FROM builder as dev
 
 RUN USER=root cargo new --lib app
 WORKDIR /app
-COPY samotop-model/Cargo.toml samotop-model/Cargo.toml
 COPY samotop-core/Cargo.toml samotop-core/Cargo.toml
 COPY samotop-parser/Cargo.toml samotop-parser/Cargo.toml
 COPY samotop-delivery/Cargo.toml samotop-delivery/Cargo.toml

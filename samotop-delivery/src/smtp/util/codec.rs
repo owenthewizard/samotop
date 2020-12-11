@@ -1,5 +1,6 @@
 use async_std::io::{self, Read, Write};
 use async_std::prelude::*;
+use memchr::memchr2;
 use pin_project::pin_project;
 use std::{
     pin::Pin,
@@ -69,7 +70,7 @@ impl SmtpDataCodec {
                 }
             }
             // write the rest and manage state
-            if let Some(pos) = memchr::memchr2(b'\n', b'\r', frame) {
+            if let Some(pos) = memchr2(b'\n', b'\r', frame) {
                 self.state = match frame[pos] {
                     // watch out, \n may follow
                     b'\r' => State::AfterCR,

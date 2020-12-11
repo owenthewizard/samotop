@@ -80,7 +80,7 @@ There are a few interesting provisions one could take away from Samotop:
 * The SMTP service (`SmtpService`) - it takes an async IO and provides an SMTP service defined by `MailService`.
 * The low level `SmtpCodec` - it translates between IO and a `Stram` of `SmtpSessionCommand`s and accepts `CodecControl`s.
 * The SMTP session parser (`SmtpParser`) - it takes `&[u8]` and returns parsed commands or session.
-* The SMTP session and domain model (in `samotop-model`) - these describe the domain and behavior.
+* The SMTP session and domain model (in `samotop-core`) - these describe the domain and behavior.
 * The mail delivery abstraction in `samotop-delivery` includes an SMTP/LMTP client over TCP/Unix socket, simple maildir, eventually also child process integration.
 * Extensible design - you can plug in or compose your own solution.
 

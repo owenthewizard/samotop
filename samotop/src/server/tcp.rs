@@ -2,6 +2,7 @@ use crate::common::*;
 use crate::io::tls::{Io, MayBeTls, TlsCapable};
 use crate::io::*;
 use async_std::net::{TcpListener, ToSocketAddrs};
+use async_std::stream::StreamExt;
 use async_std::task;
 use futures::{
     future::{BoxFuture, TryFutureExt},

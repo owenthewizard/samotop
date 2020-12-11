@@ -1,0 +1,9 @@
+From: "ABC" <A@B.C>
+Subject: xyz
+
+cat msg |
+openssl smime -stream -sign -inkey ../../samotop-server/Samotop.key -signer ../../samotop-server/Samotop.crt |
+openssl smime -stream -encrypt ../../samotop-server/Samotop.crt |
+openssl smime -stream -decrypt -inkey ../../samotop-server/Samotop.key |
+openssl smime -stream -verify -noverify |
+tee msg
