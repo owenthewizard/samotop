@@ -23,10 +23,9 @@ impl SmtpState {
             session: Default::default(),
         }
     }
-    pub fn reset_helo(&mut self, helo: SmtpHelo) {
+    pub fn reset_helo(&mut self, peer_name: String) {
         self.reset();
-        self.session.smtp_helo = Some(helo.verb().to_owned());
-        self.session.peer_name = Some(helo.name());
+        self.session.peer_name = Some(peer_name);
     }
 
     pub fn reset(&mut self) {
@@ -155,7 +154,7 @@ impl<T> SyncMailService for T where T: MailService + Sync + Send {}
 mod tests {
     use super::*;
     use crate::{
-        mail::Builder,
+        mail::{Builder, Recipient},
         smtp::{SmtpMail, SmtpPath},
     };
     use futures_await_test::async_test;
@@ -165,7 +164,7 @@ mod tests {
         let mut sut = SmtpState::new(Builder::default());
         sut.transaction.id = "someid".to_owned();
         sut.transaction.mail = Some(SmtpMail::Mail(SmtpPath::Null, vec![]));
-        sut.transaction.rcpts.push(SmtpPath::Null);
+        sut.transaction.rcpts.push(Recipient::null());
         sut.transaction.extra_headers.insert_str(0, "feeeha");
         sut.reset();
         assert!(sut.transaction.is_empty());

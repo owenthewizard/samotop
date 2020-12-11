@@ -21,7 +21,7 @@ impl SmtpSessionCommand for SmtpQuit {
 mod tests {
     use super::*;
     use crate::{
-        mail::Builder,
+        mail::{Builder, Recipient},
         smtp::{SmtpMail, SmtpPath},
     };
     use futures_await_test::async_test;
@@ -31,7 +31,7 @@ mod tests {
         let mut set = SmtpState::new(Builder::default());
         set.transaction.id = "someid".to_owned();
         set.transaction.mail = Some(SmtpMail::Mail(SmtpPath::Null, vec![]));
-        set.transaction.rcpts.push(SmtpPath::Null);
+        set.transaction.rcpts.push(Recipient::null());
         set.transaction.extra_headers.insert_str(0, "feeeha");
         let sut = SmtpQuit;
         let res = sut.apply(set).await;

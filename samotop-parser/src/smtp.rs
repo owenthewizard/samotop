@@ -1,8 +1,9 @@
 use crate::data::DataParserPeg;
-use samotop_model::parser::{ParseError, ParseResult};
-use samotop_model::smtp::*;
-use samotop_model::{
-    common::Arc, mail::MailSetup, parser::Parser, smtp::SmtpPath, smtp::SmtpSessionCommand, Error,
+use samotop_core::{
+    common::{Arc, Error},
+    mail::{Builder, MailSetup, Rfc5321},
+    parser::{ParseError, ParseResult, Parser},
+    smtp::*,
 };
 use std::net::{Ipv4Addr, Ipv6Addr};
 use std::str::FromStr;
@@ -22,22 +23,13 @@ impl Parser for SmtpParserPeg {
         match grammar::command(input) {
             Err(e) => Err(ParseError::Failed(e.into())),
             Ok(Err(e)) => Err(e),
-            Ok(Ok((i, cmd))) => Ok((
-                i,
-                match cmd {
-                    SmtpCommand::Helo(helo) => match helo {
-                        trad @ SmtpHelo::Ehlo(_) | trad @ SmtpHelo::Helo(_) => Box::new(trad),
-                        _ => Box::new(SmtpUnknownCommand::default()),
-                    },
-                    _ => Box::new(cmd),
-                },
-            )),
+            Ok(Ok((i, cmd))) => Ok((i, Box::new(Rfc5321::new(cmd)))),
         }
     }
 }
 
 impl MailSetup for SmtpParserPeg {
-    fn setup(self, builder: &mut samotop_model::mail::Builder) {
+    fn setup(self, builder: &mut Builder) {
         builder.command_parser.insert(0, Arc::new(self));
         builder
             .data_parser
@@ -82,8 +74,6 @@ peg::parser! {
         pub rule valid_command() -> ParseResult<'input, SmtpCommand>
             = cmd: (cmd_starttls() /
                 cmd_helo() /
-                cmd_ehlo() /
-                cmd_lhlo() /
                 cmd_mail() /
                 cmd_send() /
                 cmd_soml() /
@@ -145,16 +135,8 @@ peg::parser! {
             { SmtpCommand::Rcpt(SmtpRcpt(p, s)) }
 
         pub rule cmd_helo() -> SmtpCommand
-            = i("helo") _ h:host() NL()
-            { SmtpCommand::Helo(SmtpHelo::Helo(h)) }
-
-        pub rule cmd_ehlo() -> SmtpCommand
-            = i("ehlo") _ h:host() NL()
-            { SmtpCommand::Helo(SmtpHelo::Ehlo(h)) }
-
-        pub rule cmd_lhlo() -> SmtpCommand
-            = i("lhlo") _ h:host() NL()
-            { SmtpCommand::Helo(SmtpHelo::Lhlo(h)) }
+            = verb:$(i("helo") / i("ehlo") / i("lhlo")) _ host:host() NL()
+            { SmtpCommand::Helo(SmtpHelo{verb:String::from_utf8_lossy(verb).to_uppercase(), host}) }
 
         pub rule cmd_vrfy() -> SmtpCommand
             = i("vrfy") s:strparam() NL()
@@ -173,17 +155,13 @@ peg::parser! {
             { SmtpCommand::Help(s) }
 
         pub rule path_forward() -> SmtpPath
-            = path_relay() / path_direct() / path_postmaster()
+            = path_relay() / path_postmaster()
         pub rule path_reverse() -> SmtpPath
-            = path_relay() / path_direct() / path_null()
+            = path_relay() / path_null()
 
         rule path_relay() -> SmtpPath
-            = "<" h:athost()+ a:address() ">"
-            { SmtpPath::Relay(h, a) }
-
-        rule path_direct() -> SmtpPath
-            = "<" a:address() ">"
-            { SmtpPath::Direct(a) }
+            = "<" relays:athost()* name:dot_string() "@" host:host() ">"
+            { SmtpPath::Mailbox{name,host,relays} }
 
         rule path_postmaster() -> SmtpPath
             = i("<postmaster>")
@@ -192,10 +170,6 @@ peg::parser! {
         rule path_null() -> SmtpPath
             = "<>"
             { SmtpPath::Null }
-
-        pub rule address() -> SmtpAddress
-            = s:dot_string() "@" h:host()
-            { SmtpAddress::Mailbox (s, h) }
 
         rule athost() -> SmtpHost
             = "@" h:host() (&",@" "," / ":")
@@ -305,7 +279,7 @@ peg::parser! {
 mod tests {
     use super::grammar::*;
     use super::*;
-    use samotop_model::Result;
+    use samotop_core::common::Result;
 
     #[test]
     fn command_parses_unknown_command() {
@@ -324,10 +298,11 @@ mod tests {
         assert_eq!(
             result.1,
             SmtpCommand::Mail(SmtpMail::Mail(
-                SmtpPath::Direct(SmtpAddress::Mailbox(
-                    "here.there".to_owned(),
-                    SmtpHost::Domain("everywhere.net".to_owned())
-                )),
+                SmtpPath::Mailbox {
+                    name: "here.there".to_owned(),
+                    host: SmtpHost::Domain("everywhere.net".to_owned()),
+                    relays: vec![]
+                },
                 vec![]
             ))
         );
@@ -424,7 +399,10 @@ mod tests {
                     "quit\r\n"
                 )
                 .as_bytes(),
-                SmtpCommand::Helo(SmtpHelo::Helo(SmtpHost::Domain("domain.com".to_owned())))
+                SmtpCommand::Helo(SmtpHelo {
+                    verb: "HELO".to_owned(),
+                    host: SmtpHost::Domain("domain.com".to_owned())
+                })
             )
         );
     }

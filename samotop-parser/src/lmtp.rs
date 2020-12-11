@@ -1,7 +1,7 @@
 use crate::DataParserPeg;
-use samotop_model::{
+use samotop_core::{
     common::*,
-    mail::MailSetup,
+    mail::{Builder, MailSetup, Rfc2033},
     parser::{ParseError, ParseResult, Parser},
     smtp::*,
 };
@@ -10,7 +10,7 @@ use samotop_model::{
 pub struct LmtpParserPeg;
 
 impl MailSetup for LmtpParserPeg {
-    fn setup(self, builder: &mut samotop_model::mail::Builder) {
+    fn setup(self, builder: &mut Builder) {
         builder.command_parser.insert(0, Arc::new(self));
         builder
             .data_parser
@@ -26,16 +26,7 @@ impl Parser for LmtpParserPeg {
         match crate::smtp::grammar::command(input) {
             Err(e) => Err(ParseError::Failed(e.into())),
             Ok(Err(e)) => Err(e),
-            Ok(Ok((i, cmd))) => Ok((
-                i,
-                match cmd {
-                    SmtpCommand::Helo(helo) => match helo {
-                        lhlo @ SmtpHelo::Lhlo(_) => Box::new(lhlo),
-                        _ => Box::new(SmtpUnknownCommand::default()),
-                    },
-                    _ => Box::new(cmd),
-                },
-            )),
+            Ok(Ok((i, cmd))) => Ok((i, Box::new(Rfc2033::new(cmd)))),
         }
     }
 }

@@ -10,7 +10,7 @@ impl SmtpSessionCommand for StartTls {
     }
 
     fn apply(&self, mut state: SmtpState) -> S3Fut<SmtpState> {
-        if state.session.smtp_helo.is_none() {
+        if state.session.peer_name.is_none() {
             state.say_command_sequence_fail()
         } else {
             // you cannot STARTTLS twice so we only advertise it before first use

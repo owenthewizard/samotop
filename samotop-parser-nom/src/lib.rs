@@ -24,9 +24,9 @@ use rustyknife::{
     types::AddressLiteral,
     types::DomainPart,
 };
-use samotop_model::{
+use samotop_core::{
     common::Arc,
-    mail::MailSetup,
+    mail::{Builder, MailSetup, Rfc5321},
     parser::{ParseError, ParseResult, Parser},
     smtp::*,
 };
@@ -36,7 +36,7 @@ use std::net::IpAddr;
 pub struct SmtpParserNom;
 
 impl MailSetup for SmtpParserNom {
-    fn setup(self, builder: &mut samotop_model::mail::Builder) {
+    fn setup(self, builder: &mut Builder) {
         builder.command_parser.insert(0, Arc::new(self))
     }
 }
@@ -44,7 +44,7 @@ impl MailSetup for SmtpParserNom {
 impl Parser for SmtpParserNom {
     fn parse_command<'i>(&self, input: &'i [u8]) -> ParseResult<'i, Box<dyn SmtpSessionCommand>> {
         match rustyknife::rfc5321::command::<rustyknife::behaviour::Intl>(input) {
-            Ok((i, cmd)) => Ok((i, Box::new(map_cmd(cmd)))),
+            Ok((i, cmd)) => Ok((i, Box::new(Rfc5321::new(map_cmd(cmd))))),
             Err(e) => Err(map_error(e)),
         }
     }
@@ -68,10 +68,14 @@ fn map_error(e: Err<()>) -> ParseError {
 }
 fn map_cmd(cmd: Command) -> SmtpCommand {
     match cmd {
-        Command::HELO(domain) => {
-            SmtpCommand::Helo(SmtpHelo::Helo(SmtpHost::Domain(domain.to_string())))
-        }
-        Command::EHLO(host) => SmtpCommand::Helo(SmtpHelo::Ehlo(map_host(host))),
+        Command::HELO(domain) => SmtpCommand::Helo(SmtpHelo {
+            verb: "HELO".to_owned(),
+            host: SmtpHost::Domain(domain.to_string()),
+        }),
+        Command::EHLO(host) => SmtpCommand::Helo(SmtpHelo {
+            verb: "EHLO".to_owned(),
+            host: map_host(host),
+        }),
         Command::MAIL(path, params) => SmtpCommand::Mail(SmtpMail::Mail(
             map_reverse_path(path),
             params.into_iter().map(|p| p.to_string()).collect(),
@@ -97,10 +101,11 @@ fn map_forward_path(path: ForwardPath) -> SmtpPath {
     match path {
         ForwardPath::Path(path) => map_path(path),
         ForwardPath::PostMaster(None) => SmtpPath::Postmaster,
-        ForwardPath::PostMaster(Some(domain)) => SmtpPath::Direct(SmtpAddress::Mailbox(
-            "postmaster".to_string(),
-            SmtpHost::Domain(domain.to_string()),
-        )),
+        ForwardPath::PostMaster(Some(domain)) => SmtpPath::Mailbox {
+            name: "postmaster".to_string(),
+            host: SmtpHost::Domain(domain.to_string()),
+            relays: vec![],
+        },
     }
 }
 fn map_reverse_path(path: ReversePath) -> SmtpPath {
@@ -112,13 +117,14 @@ fn map_reverse_path(path: ReversePath) -> SmtpPath {
 fn map_path(path: Path) -> SmtpPath {
     let Path(mailbox, domains) = path;
     let (local, domain) = mailbox.into_parts();
-    SmtpPath::Relay(
-        domains
+    SmtpPath::Mailbox {
+        name: local.to_string(),
+        host: map_host(domain),
+        relays: domains
             .into_iter()
             .map(|d| SmtpHost::Domain(d.to_string()))
             .collect(),
-        SmtpAddress::Mailbox(local.to_string(), map_host(domain)),
-    )
+    }
 }
 fn map_host(host: DomainPart) -> SmtpHost {
     match host {

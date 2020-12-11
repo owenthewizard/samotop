@@ -29,7 +29,7 @@ impl MailGuard for Mapper {
     where
         'a: 'f,
     {
-        let mut rcpt = request.rcpt.address();
+        let mut rcpt = request.rcpt.address.address();
         for conversion in self.map.iter() {
             rcpt = conversion
                 .0
@@ -40,15 +40,15 @@ impl MailGuard for Mapper {
 
         match SmtpParser::default().forward_path(rcpt.as_bytes()) {
             Ok((i, new_path)) => {
-                trace!("Converted {} into {}", request.rcpt, rcpt);
+                trace!("Converted {} into {}", request.rcpt.address, rcpt);
                 assert_eq!(i.len(), 0);
-                request.rcpt = new_path;
+                request.rcpt.address = new_path;
                 Box::pin(ready(AddRecipientResult::Inconclusive(request)))
             }
             Err(e) => {
                 let err = format!(
                     "Map conversions of {:?} produced invalid forward path {:?}. Error: {}",
-                    request.rcpt.to_string(),
+                    request.rcpt.address.to_string(),
                     rcpt,
                     e
                 );
@@ -76,7 +76,6 @@ impl MailGuard for Mapper {
 
 #[cfg(test)]
 mod tests {
-    use crate::smtp::SmtpAddress;
     use crate::smtp::SmtpHost;
     use crate::smtp::SmtpPath;
     use futures_await_test::async_test;
@@ -93,16 +92,17 @@ mod tests {
         ]);
         let req = AddRecipientRequest {
             transaction: Transaction::default(),
-            rcpt: SmtpPath::Direct(SmtpAddress::Mailbox(
-                "user".to_owned(),
-                SmtpHost::Domain("example.org".to_owned()),
-            )),
+            rcpt: Recipient::new(SmtpPath::Mailbox {
+                name: "user".to_owned(),
+                host: SmtpHost::Domain("example.org".to_owned()),
+                relays: vec![],
+            }),
         };
 
         let res = sut.add_recipient(req).await;
         match res {
             AddRecipientResult::Inconclusive(request) => {
-                assert_eq!(request.rcpt.address(), "example-org@localhost")
+                assert_eq!(request.rcpt.address.address(), "example-org@localhost")
             }
             other => panic!("Unexpected {:?}", other),
         }

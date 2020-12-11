@@ -2,11 +2,15 @@ mod command;
 mod commands;
 pub mod extension;
 mod extensions;
+mod host;
+mod path;
 mod reply;
 mod state;
 
 pub use self::command::*;
 pub use self::extensions::*;
+pub use self::host::*;
+pub use self::path::*;
 pub use self::reply::*;
 pub use self::state::*;
 use crate::parser::Parser;

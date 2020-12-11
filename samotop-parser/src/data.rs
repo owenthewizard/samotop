@@ -1,9 +1,11 @@
-use samotop_model::{
+use samotop_core::{
     common::*,
-    mail::MailSetup,
+    mail::{Builder, MailSetup, Rfc2033, Rfc5321},
     parser::{ParseError, ParseResult, Parser},
     smtp::*,
 };
+
+use crate::SwitchParser;
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct DataParserPeg {
@@ -11,7 +13,7 @@ pub struct DataParserPeg {
 }
 
 impl MailSetup for DataParserPeg {
-    fn setup(self, builder: &mut samotop_model::mail::Builder) {
+    fn setup(self, builder: &mut Builder) {
         builder.data_parser.insert(0, Arc::new(self))
     }
 }
@@ -50,13 +52,27 @@ fn map_cmd(
     res: std::result::Result<ParseResult<Vec<u8>>, peg::error::ParseError<usize>>,
 ) -> ParseResult<Box<dyn SmtpSessionCommand>> {
     match res {
-        Ok(Ok((i, data))) if data.is_empty() => Ok((i, Box::new(MailBodyEnd { lmtp }))),
-        Ok(Ok((i, data))) if data.ends_with(b"\r\n") => {
-            Ok((i, Box::new(MailBodyChunk(data, DataParserPeg { lmtp }))))
-        }
+        Ok(Ok((i, data))) if data.is_empty() => Ok((
+            i,
+            if lmtp {
+                Box::new(Rfc2033::new(MailBodyEnd)) as Box<dyn SmtpSessionCommand>
+            } else {
+                Box::new(Rfc5321::new(MailBodyEnd)) as Box<dyn SmtpSessionCommand>
+            },
+        )),
+        Ok(Ok((i, data))) if data.ends_with(b"\r\n") => Ok((
+            i,
+            Box::new(SwitchParser {
+                command: Rfc5321::new(MailBodyChunk(data)),
+                parser: DataParserPeg { lmtp },
+            }),
+        )),
         Ok(Ok((i, data))) => Ok((
             i,
-            Box::new(MailBodyChunk(data, DataParserMidWayPeg { lmtp })),
+            Box::new(SwitchParser {
+                command: Rfc5321::new(MailBodyChunk(data)),
+                parser: DataParserMidWayPeg { lmtp },
+            }),
         )),
         Ok(Err(e)) => Err(e),
         Err(e) => Err(ParseError::Failed(e.into())),
@@ -114,7 +130,7 @@ peg::parser! {
 #[cfg(test)]
 mod without_crlf {
     use super::*;
-    use samotop_model::Result;
+    use samotop_core::common::Result;
     const CRLF: bool = false;
     #[test]
     fn plain_chunk() -> Result<()> {
@@ -262,7 +278,7 @@ mod without_crlf {
 #[cfg(test)]
 mod after_crlf {
     use super::*;
-    use samotop_model::Result;
+    use samotop_core::common::Result;
     const CRLF: bool = true;
     #[test]
     fn complex() {

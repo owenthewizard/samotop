@@ -5,8 +5,8 @@ use crate::{
 
 #[derive(Default, Eq, PartialEq, Debug, Clone)]
 pub struct SmtpUnknownCommand {
-    verb: String,
-    params: Vec<String>,
+    pub verb: String,
+    pub params: Vec<String>,
 }
 
 impl SmtpSessionCommand for SmtpUnknownCommand {
@@ -30,7 +30,7 @@ impl SmtpUnknownCommand {
 mod tests {
     use super::*;
     use crate::{
-        mail::Builder,
+        mail::{Builder, Recipient},
         smtp::{CodecControl, SmtpMail, SmtpPath, SmtpState},
     };
     use futures_await_test::async_test;
@@ -40,7 +40,7 @@ mod tests {
         let mut set = SmtpState::new(Builder::default());
         set.transaction.id = "someid".to_owned();
         set.transaction.mail = Some(SmtpMail::Mail(SmtpPath::Null, vec![]));
-        set.transaction.rcpts.push(SmtpPath::Null);
+        set.transaction.rcpts.push(Recipient::null());
         set.transaction.extra_headers.insert_str(0, "feeeha");
         let sut = SmtpUnknownCommand::new("HOOO".to_owned(), vec![]);
         let mut res = sut.apply(set).await;

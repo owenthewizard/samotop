@@ -7,18 +7,16 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-ring = "0.16"
-rsa = "0.3"
-rand = "0.7"
-openssl = "0.10"
 async-process = "1.0"
 async-std = "1.8"
 async-macros = "2.0"
 pin-project = "1.0"
 log = "0.4"
-env_logger = "0.8"
-futures-lite = "1.11"
 
+[dependencies.samotop-model]
+version = "0.12.0"
+path = "../samotop-model"
 
 [dev-dependencies]
 futures-await-test = "0.3"
+futures-lite = "1.11"

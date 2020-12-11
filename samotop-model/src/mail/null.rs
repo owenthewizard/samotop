@@ -1,4 +1,4 @@
-use super::{MailDispatch, MailSetup};
+use super::{DispatchResult, MailDispatch, MailSetup};
 use crate::common::*;
 
 #[derive(Debug)]
@@ -9,7 +9,7 @@ impl MailDispatch for NullDispatch {
         &'a self,
         _session: &'s super::SessionInfo,
         mut transaction: super::Transaction,
-    ) -> crate::common::S2Fut<'f, super::DispatchResult>
+    ) -> crate::common::S2Fut<'f, DispatchResult>
     where
         'a: 'f,
         's: 'f,

@@ -52,11 +52,10 @@ impl MailDispatch for SpfService {
             Err(_) => std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED),
             Ok(ip) => ip,
         };
-        let peer_name = session.smtp_helo.clone().unwrap_or_default();
-        let sender = match transaction.mail.as_ref().map(|m| m.path()) {
+        let peer_name = session.peer_name.clone().unwrap_or_default();
+        let sender = match transaction.mail.as_ref().map(|m| m.sender()) {
             None | Some(SmtpPath::Null) | Some(SmtpPath::Postmaster) => String::new(),
-            Some(SmtpPath::Direct(SmtpAddress::Mailbox(_account, host))) => host.domain(),
-            Some(SmtpPath::Relay(_path, SmtpAddress::Mailbox(_account, host))) => host.domain(),
+            Some(SmtpPath::Mailbox { host, .. }) => host.domain(),
         };
         let fut = async move {
             // TODO: improve privacy - a) encrypt DNS, b) do DNS servers need to know who is receiving mail from whom?

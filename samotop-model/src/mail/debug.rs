@@ -45,7 +45,7 @@ impl MailGuard for DebugMailService {
     {
         info!(
             "{}: RCPT {} from {:?} (mailid: {:?}).",
-            self.id, request.rcpt, request.transaction.mail, request.transaction.id
+            self.id, request.rcpt.address, request.transaction.mail, request.transaction.id
         );
         Box::pin(ready(AddRecipientResult::Inconclusive(request)))
     }
@@ -85,12 +85,13 @@ impl MailDispatch for DebugMailService {
         info!(
             "Mail from {:?} for {} (mailid: {:?}). {}",
             mail.as_ref()
-                .map(|m| m.path().to_string())
+                .map(|m| m.sender().to_string())
                 .unwrap_or_else(|| "nobody".to_owned()),
-            rcpts
-                .iter()
-                .fold(String::new(), |s, r| s + format!("{:?}, ", r.to_string())
-                    .as_ref()),
+            rcpts.iter().fold(String::new(), |s, r| s + format!(
+                "{:?}, ",
+                r.address.to_string()
+            )
+            .as_ref()),
             id,
             session
         );

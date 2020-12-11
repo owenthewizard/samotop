@@ -1,6 +1,6 @@
 use crate::{
     common::*,
-    mail::{AddRecipientRequest, AddRecipientResult},
+    mail::{AddRecipientRequest, AddRecipientResult, Recipient},
     smtp::{SmtpPath, SmtpSessionCommand, SmtpState},
 };
 
@@ -20,7 +20,7 @@ impl SmtpSessionCommand for SmtpRcpt {
         let transaction = std::mem::take(&mut state.transaction);
         let request = AddRecipientRequest {
             transaction,
-            rcpt: self.0.clone(),
+            rcpt: Recipient::new(self.0.clone()),
         };
         let fut = async move {
             match state.service.add_recipient(request).await {
@@ -65,11 +65,11 @@ mod tests {
     use futures_await_test::async_test;
 
     #[async_test]
-    async fn transaction_gets_reset() {
+    async fn recipient_is_added() {
         let mut set = SmtpState::new(Builder::default());
         set.transaction.id = "someid".to_owned();
         set.transaction.mail = Some(SmtpMail::Mail(SmtpPath::Null, vec![]));
-        set.transaction.rcpts.push(SmtpPath::Null);
+        set.transaction.rcpts.push(Recipient::null());
         set.transaction.extra_headers.insert_str(0, "feeeha");
         let sut = SmtpRcpt(SmtpPath::Postmaster, vec![]);
         let res = sut.apply(set).await;
