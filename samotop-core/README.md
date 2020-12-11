@@ -3,4 +3,6 @@
 
 # samotop-core
 
+The domain model of Samotop and core functionality. A base crate for samotop extensions.
+
 License: MIT OR Apache-2.0
