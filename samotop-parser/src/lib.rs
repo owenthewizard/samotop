@@ -6,7 +6,7 @@ mod command;
 mod smtp;
 pub use self::data::*;
 pub use self::lmtp::*;
-pub use self::command::*;
+pub(crate) use self::command::*;
 pub use self::smtp::*;
 pub use samotop_core::parser::Parser;
 

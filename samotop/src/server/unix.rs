@@ -1,6 +1,7 @@
 use crate::common::*;
 use crate::io::tls::{Io, MayBeTls, TlsCapable};
 use crate::io::*;
+use async_std::stream::StreamExt;
 use async_std::task;
 use async_std::{os::unix::net::UnixListener, path::PathBuf};
 use futures::{future::BoxFuture, stream::FuturesUnordered};

@@ -76,7 +76,7 @@ There are a few interesting provisions one could take away from Samotop:
 * The SMTP service (`SmtpService`) - it takes an async IO and provides an SMTP service defined by `MailService`.
 * The low level `SmtpCodec` - it translates between IO and a `Stram` of `SmtpSessionCommand`s and accepts `CodecControl`s.
 * The SMTP session parser (`SmtpParser`) - it takes `&[u8]` and returns parsed commands or session.
-* The SMTP session and domain model (in `samotop-model`) - these describe the domain and behavior.
+* The SMTP session and domain model (in `samotop-core`) - these describe the domain and behavior.
 * The mail delivery abstraction in `samotop-delivery` includes an SMTP/LMTP client over TCP/Unix socket, simple maildir, eventually also child process integration.
 * Extensible design - you can plug in or compose your own solution.
 
@@ -189,6 +189,7 @@ In Rust world I have so far found mostly SMTP clients.
 #[macro_use]
 extern crate log;
 
+pub mod io;
 pub mod mail;
 pub mod server;
 
@@ -215,22 +216,3 @@ pub mod parser {
     #[cfg(all(feature = "parser-peg", not(feature = "parser-nom")))]
     pub type SmtpParser = samotop_parser::SmtpParserPeg;
 }
-
-pub mod io {
-    pub use samotop_core::io::*;
-
-    pub use samotop_delivery::smtp::net as client;
-
-    pub mod tls {
-        pub use samotop_core::io::tls::*;
-
-        #[cfg(feature = "rust-tls")]
-        pub use samotop_with_rustls::*;
-
-        #[cfg(feature = "native-tls")]
-        pub use samotop_with_native_tls::*;
-    }
-}
-
-#[cfg(test)]
-pub use samotop_core::test_util;

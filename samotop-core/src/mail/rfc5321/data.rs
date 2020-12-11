@@ -1,22 +1,19 @@
-use samotop_model::smtp::SmtpData;
-
-use super::Rfc5321;
-use crate::smtp::{SmtpSessionCommand, SmtpState};
+use super::{ESMTPCommand, Rfc5321};
+use crate::smtp::{ApplyCommand, SmtpData, SmtpSessionCommand, SmtpState};
 use crate::{common::*, mail::DispatchError};
 
-impl SmtpSessionCommand for Rfc5321<SmtpData> {
+impl SmtpSessionCommand for ESMTPCommand<SmtpData> {
     fn verb(&self) -> &str {
         "DATA"
     }
 
     fn apply(&self, state: SmtpState) -> S2Fut<SmtpState> {
-        Self::apply_data(state)
+        Rfc5321::apply_cmd(&self.instruction, state)
     }
 }
 
-impl<I> Rfc5321<I> {
-    /// Applies data command to the state
-    pub(crate) fn apply_data(mut state: SmtpState) -> S2Fut<'static, SmtpState> {
+impl ApplyCommand<SmtpData> for Rfc5321 {
+    fn apply_cmd(_cmd: &SmtpData, mut state: SmtpState) -> S2Fut<SmtpState> {
         if state.transaction.id.is_empty()
             || state.session.peer_name.is_none()
             || state.transaction.mail.is_none()
@@ -52,6 +49,7 @@ impl<I> Rfc5321<I> {
         Box::pin(fut)
     }
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;

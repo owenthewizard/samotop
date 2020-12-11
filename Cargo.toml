@@ -1,14 +1,15 @@
 [workspace]
 members = [
     "samotop-delivery",
-    "samotop-model",
     "samotop-core",
+    "samotop-model",
     "samotop-parser",
     "samotop-parser-nom",
     "samotop-with-rustls",
     "samotop-with-native-tls",
     "samotop-with-spf",
     "samotop-smime",
+    "samotop-tests",
     "samotop",
     "samotop-server",
 ]

@@ -1,0 +1,27 @@
+[package]
+name = "samotop-tests"
+version = "0.12.0"
+authors = ["jocutajar <tellnoone@robajz.info>"]
+license = "MIT OR Apache-2.0"
+description = "Samotop test utils"
+documentation = "https://docs.rs/samotop/"
+homepage = "https://gitlab.com/BrightOpen/BackYard/Samotop/-/tree/develop/samotop-tests"
+repository = "https://gitlab.com/BrightOpen/BackYard/Samotop/"
+keywords = ["test"]
+edition = "2018"
+
+# see crates.io/category_slugs 
+categories = []
+
+[dependencies.samotop-core]
+version = "0.12.0"
+path = "../samotop-core"
+
+[dependencies]
+log = "0.4"
+futures-lite = { version = "1", default-features = false, features = ["std"] }
+pin-project = "1"
+waker-fn = "1"
+
+[dev-dependencies]
+futures-await-test = "0.3"

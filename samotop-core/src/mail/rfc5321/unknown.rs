@@ -1,15 +1,21 @@
-use super::Rfc5321;
+use super::{ESMTPCommand, Rfc5321};
 use crate::{
     common::*,
-    smtp::{SmtpSessionCommand, SmtpState, SmtpUnknownCommand},
+    smtp::{ApplyCommand, SmtpSessionCommand, SmtpState, SmtpUnknownCommand},
 };
 
-impl SmtpSessionCommand for Rfc5321<SmtpUnknownCommand> {
+impl SmtpSessionCommand for ESMTPCommand<SmtpUnknownCommand> {
     fn verb(&self) -> &str {
         self.instruction.verb.as_str()
     }
 
-    fn apply(&self, mut state: SmtpState) -> S3Fut<SmtpState> {
+    fn apply(&self, state: SmtpState) -> S2Fut<SmtpState> {
+        Rfc5321::apply_cmd(&self.instruction, state)
+    }
+}
+
+impl ApplyCommand<SmtpUnknownCommand> for Rfc5321 {
+    fn apply_cmd(_cmd: &SmtpUnknownCommand, mut state: SmtpState) -> S2Fut<SmtpState> {
         state.say_not_implemented();
         Box::pin(ready(state))
     }
@@ -31,7 +37,7 @@ mod tests {
         set.transaction.mail = Some(SmtpMail::Mail(SmtpPath::Null, vec![]));
         set.transaction.rcpts.push(Recipient::null());
         set.transaction.extra_headers.insert_str(0, "feeeha");
-        let sut = SmtpUnknownCommand::new("HOOO".to_owned(), vec![]);
+        let sut = Rfc5321::new(SmtpUnknownCommand::new("HOOO".to_owned(), vec![]));
         let mut res = sut.apply(set).await;
         match res.writes.pop_front() {
             Some(CodecControl::Response(bytes)) if bytes.starts_with(b"502 ") => {}

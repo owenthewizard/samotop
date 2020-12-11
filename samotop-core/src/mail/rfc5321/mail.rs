@@ -1,11 +1,11 @@
-use super::Rfc5321;
+use super::{ESMTPCommand, Rfc5321};
 use crate::{
     common::*,
     mail::{StartMailFailure, StartMailResult, Transaction},
-    smtp::{SmtpMail, SmtpSessionCommand, SmtpState},
+    smtp::{ApplyCommand, SmtpMail, SmtpSessionCommand, SmtpState},
 };
 
-impl SmtpSessionCommand for Rfc5321<SmtpMail> {
+impl SmtpSessionCommand for ESMTPCommand<SmtpMail> {
     fn verb(&self) -> &str {
         match self.instruction {
             SmtpMail::Mail(_, _) => "MAIL",
@@ -15,12 +15,13 @@ impl SmtpSessionCommand for Rfc5321<SmtpMail> {
         }
     }
 
-    fn apply(&self, mut state: SmtpState) -> S2Fut<SmtpState> {
-        Self::apply_mail(&self.instruction, state)
+    fn apply(&self, state: SmtpState) -> S2Fut<SmtpState> {
+        Rfc5321::apply_cmd(&self.instruction, state)
     }
 }
-impl<I> Rfc5321<I> {
-    pub(crate) fn apply_mail(mail: &SmtpMail, mut state: SmtpState) -> S2Fut<SmtpState> {
+
+impl ApplyCommand<SmtpMail> for Rfc5321 {
+    fn apply_cmd(cmd: &SmtpMail, mut state: SmtpState) -> S2Fut<SmtpState> {
         if state.session.peer_name.is_none() {
             state.say_command_sequence_fail();
             return Box::pin(ready(state));
@@ -28,7 +29,7 @@ impl<I> Rfc5321<I> {
         state.reset();
 
         let transaction = Transaction {
-            mail: Some(mail.clone()),
+            mail: Some(cmd.clone()),
             ..Transaction::default()
         };
 

@@ -1,13 +1,21 @@
-use super::Rfc3207;
+use super::ESMTPStartTls;
 use crate::common::*;
-use crate::smtp::{extension, SmtpSessionCommand, SmtpState, StartTls};
+use crate::smtp::{extension, ApplyCommand, SmtpSessionCommand, SmtpState};
 
-impl SmtpSessionCommand for Rfc3207<StartTls> {
+impl SmtpSessionCommand for ESMTPStartTls {
     fn verb(&self) -> &str {
         "STARTTLS"
     }
 
-    fn apply(&self, mut state: SmtpState) -> S3Fut<SmtpState> {
+    fn apply(&self, state: SmtpState) -> S2Fut<SmtpState> {
+        ESMTPStartTls::apply_cmd(&self, state)
+    }
+}
+
+impl ApplyCommand<ESMTPStartTls> for ESMTPStartTls {
+    /// Applies given helo to the state
+    /// It asserts the right HELO/EHLO variant
+    fn apply_cmd(_cmd: &ESMTPStartTls, mut state: SmtpState) -> S2Fut<SmtpState> {
         if state.session.peer_name.is_none() {
             state.say_command_sequence_fail()
         } else {

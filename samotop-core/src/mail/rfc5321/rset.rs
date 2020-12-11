@@ -1,13 +1,19 @@
-use super::Rfc5321;
+use super::{ESMTPCommand, Rfc5321};
 use crate::common::*;
-use crate::smtp::{SmtpRset, SmtpSessionCommand, SmtpState};
+use crate::smtp::{ApplyCommand, SmtpRset, SmtpSessionCommand, SmtpState};
 
-impl SmtpSessionCommand for Rfc5321<SmtpRset> {
+impl SmtpSessionCommand for ESMTPCommand<SmtpRset> {
     fn verb(&self) -> &str {
         "RSET"
     }
 
-    fn apply(&self, mut state: SmtpState) -> S2Fut<SmtpState> {
+    fn apply(&self, state: SmtpState) -> S2Fut<SmtpState> {
+        Rfc5321::apply_cmd(&self.instruction, state)
+    }
+}
+
+impl ApplyCommand<SmtpRset> for Rfc5321 {
+    fn apply_cmd(_cmd: &SmtpRset, mut state: SmtpState) -> S2Fut<SmtpState> {
         state.reset();
         state.say_ok();
         Box::pin(ready(state))
@@ -30,7 +36,7 @@ mod tests {
         set.transaction.mail = Some(SmtpMail::Mail(SmtpPath::Null, vec![]));
         set.transaction.rcpts.push(Recipient::null());
         set.transaction.extra_headers.insert_str(0, "feeeha");
-        let sut = SmtpRset;
+        let sut = Rfc5321::new(SmtpRset);
         let res = sut.apply(set).await;
         assert!(res.transaction.is_empty())
     }

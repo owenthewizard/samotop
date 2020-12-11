@@ -2,4 +2,4 @@
 
 use super::ESMTP;
 
-pub type Rfc821<I> = ESMTP<I>;
+pub type Rfc821 = ESMTP;

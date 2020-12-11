@@ -1,16 +1,24 @@
 use crate::{
     common::*,
-    smtp::{CodecControl, MailBodyChunk, MailBodyEnd, SmtpSessionCommand, SmtpState},
+    smtp::{ApplyCommand, CodecControl, MailBodyChunk, MailBodyEnd, SmtpSessionCommand, SmtpState},
 };
 
-use super::Rfc5321;
+use super::{ESMTPCommand, Rfc5321};
 
-impl<B: AsRef<[u8]> + Sync + Send + fmt::Debug> SmtpSessionCommand for Rfc5321<MailBodyChunk<B>> {
+impl<B: AsRef<[u8]> + Sync + Send + fmt::Debug> SmtpSessionCommand
+    for ESMTPCommand<MailBodyChunk<B>>
+{
     fn verb(&self) -> &str {
         ""
     }
 
-    fn apply(&self, mut state: SmtpState) -> S2Fut<SmtpState> {
+    fn apply(&self, state: SmtpState) -> S2Fut<SmtpState> {
+        Rfc5321::apply_cmd(&self.instruction, state)
+    }
+}
+
+impl<B: AsRef<[u8]> + Sync + Send + fmt::Debug> ApplyCommand<MailBodyChunk<B>> for Rfc5321 {
+    fn apply_cmd(data: &MailBodyChunk<B>, mut state: SmtpState) -> S2Fut<SmtpState> {
         if state.transaction.sink.is_none() {
             // CheckMe: silence. handle_data_end should respond with error.
             return Box::pin(ready(state));
@@ -23,7 +31,7 @@ impl<B: AsRef<[u8]> + Sync + Send + fmt::Debug> SmtpSessionCommand for Rfc5321<M
         let mailid = state.transaction.id.clone();
         let fut = async move {
             let mut write_all = WriteAll {
-                from: self.instruction.0.as_ref(),
+                from: data.0.as_ref(),
                 to: Box::pin(sink),
             };
             match (&mut write_all).await {
@@ -42,12 +50,18 @@ impl<B: AsRef<[u8]> + Sync + Send + fmt::Debug> SmtpSessionCommand for Rfc5321<M
         Box::pin(fut)
     }
 }
-impl SmtpSessionCommand for Rfc5321<MailBodyEnd> {
+
+impl SmtpSessionCommand for ESMTPCommand<MailBodyEnd> {
     fn verb(&self) -> &str {
         ""
     }
+    fn apply(&self, state: SmtpState) -> S2Fut<SmtpState> {
+        Rfc5321::apply_cmd(&self.instruction, state)
+    }
+}
 
-    fn apply(&self, mut state: SmtpState) -> S2Fut<SmtpState> {
+impl ApplyCommand<MailBodyEnd> for Rfc5321 {
+    fn apply_cmd(_data: &MailBodyEnd, mut state: SmtpState) -> S2Fut<SmtpState> {
         if state.transaction.sink.is_none() {
             // CheckMe: silence. handle_data_end should respond with error.
             return Box::pin(ready(state));

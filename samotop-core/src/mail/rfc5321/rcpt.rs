@@ -1,16 +1,22 @@
-use super::Rfc5321;
+use super::{ESMTPCommand, Rfc5321};
 use crate::{
     common::*,
     mail::{AddRecipientRequest, AddRecipientResult, Recipient},
-    smtp::{SmtpRcpt, SmtpSessionCommand, SmtpState},
+    smtp::{ApplyCommand, SmtpRcpt, SmtpSessionCommand, SmtpState},
 };
 
-impl SmtpSessionCommand for Rfc5321<SmtpRcpt> {
+impl SmtpSessionCommand for ESMTPCommand<SmtpRcpt> {
     fn verb(&self) -> &str {
         "RCPT"
     }
 
-    fn apply(&self, mut state: SmtpState) -> S2Fut<SmtpState> {
+    fn apply(&self, state: SmtpState) -> S2Fut<SmtpState> {
+        Rfc5321::apply_cmd(&self.instruction, state)
+    }
+}
+
+impl ApplyCommand<SmtpRcpt> for Rfc5321 {
+    fn apply_cmd(cmd: &SmtpRcpt, mut state: SmtpState) -> S2Fut<SmtpState> {
         if state.transaction.mail.is_none() {
             state.say_command_sequence_fail();
             return Box::pin(ready(state));
@@ -18,7 +24,7 @@ impl SmtpSessionCommand for Rfc5321<SmtpRcpt> {
         let transaction = std::mem::take(&mut state.transaction);
         let request = AddRecipientRequest {
             transaction,
-            rcpt: Recipient::new(self.instruction.0.clone()),
+            rcpt: Recipient::new(cmd.0.clone()),
         };
         let fut = async move {
             match state.service.add_recipient(request).await {
@@ -69,7 +75,7 @@ mod tests {
         set.transaction.mail = Some(SmtpMail::Mail(SmtpPath::Null, vec![]));
         set.transaction.rcpts.push(Recipient::null());
         set.transaction.extra_headers.insert_str(0, "feeeha");
-        let sut = SmtpRcpt(SmtpPath::Postmaster, vec![]);
+        let sut = Rfc5321::new(SmtpRcpt(SmtpPath::Postmaster, vec![]));
         let res = sut.apply(set).await;
         assert_eq!(res.transaction.rcpts.len(), 2);
     }

@@ -3,7 +3,7 @@ use crate::{
     MailDataStream,
 };
 use futures::TryFutureExt;
-use samotop_model::{common::*, mail::*};
+use samotop_core::{common::*, mail::*};
 use std::{error::Error as StdError, fmt};
 
 #[derive(Debug)]

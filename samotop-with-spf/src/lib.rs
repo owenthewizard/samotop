@@ -4,9 +4,9 @@ extern crate log;
 mod lookup;
 
 use self::lookup::*;
-use samotop_model::common::*;
-use samotop_model::mail::*;
-use samotop_model::smtp::*;
+use samotop_core::common::*;
+use samotop_core::mail::*;
+use samotop_core::smtp::*;
 pub use viaspf::Config;
 use viaspf::{evaluate_spf, SpfResult};
 
@@ -93,7 +93,7 @@ impl MailDispatch for SpfService {
 
 #[cfg(test)]
 mod tests {
-    use samotop_model::io::ConnectionInfo;
+    use samotop_core::io::ConnectionInfo;
 
     use super::*;
 

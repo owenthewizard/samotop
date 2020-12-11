@@ -1,17 +1,21 @@
+use super::{LMTPCommand, Rfc2033};
 use crate::{
     common::*,
-    parser::Parser,
-    smtp::{CodecControl, MailBodyChunk, MailBodyEnd, SmtpSessionCommand, SmtpState},
+    smtp::{ApplyCommand, CodecControl, MailBodyEnd, SmtpSessionCommand, SmtpState},
 };
 
-use super::Rfc2033;
-
-impl SmtpSessionCommand for Rfc2033<MailBodyEnd> {
+impl SmtpSessionCommand for LMTPCommand<MailBodyEnd> {
     fn verb(&self) -> &str {
         ""
     }
 
-    fn apply(&self, mut state: SmtpState) -> S2Fut<SmtpState> {
+    fn apply(&self, state: SmtpState) -> S2Fut<SmtpState> {
+        Rfc2033::apply_cmd(&self.instruction, state)
+    }
+}
+
+impl ApplyCommand<MailBodyEnd> for Rfc2033 {
+    fn apply_cmd(_data: &MailBodyEnd, mut state: SmtpState) -> S2Fut<SmtpState> {
         if state.transaction.sink.is_none() {
             // CheckMe: silence. handle_data_end should respond with error.
             return Box::pin(ready(state));

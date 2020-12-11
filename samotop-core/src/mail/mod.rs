@@ -1,16 +1,45 @@
+mod builder;
+mod debug;
+mod dispatch;
+mod esmtp;
+mod guard;
+mod mail;
+mod name;
+mod null;
+mod parser;
+mod recipient;
 mod rfc2033;
 mod rfc3207;
 mod rfc5321;
 mod rfc821;
+mod session;
+mod setup;
+mod tls;
+mod transaction;
 
+pub use self::builder::*;
+pub use self::debug::*;
+pub use self::dispatch::*;
+pub use self::esmtp::*;
+pub use self::guard::*;
+pub use self::mail::*;
+pub use self::name::*;
+pub use self::null::*;
+pub use self::parser::*;
+pub use self::recipient::*;
 pub use self::rfc2033::*;
 pub use self::rfc5321::*;
 pub use self::rfc5321::*;
 pub use self::rfc821::*;
-pub use samotop_model::mail::*;
+pub use self::session::*;
+pub use self::setup::*;
+pub use self::tls::*;
+pub use self::transaction::*;
 
-use crate::common::*;
-use crate::smtp::*;
+use crate::{
+    common::{ready, S2Fut},
+    smtp::{SmtpHelo, SmtpState},
+};
 
 /// Applies given helo to the state
 /// It assumes it is the right HELO/EHLO/LHLO variant

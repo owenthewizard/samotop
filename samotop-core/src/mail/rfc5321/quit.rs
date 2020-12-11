@@ -1,13 +1,19 @@
-use super::Rfc5321;
+use super::{ESMTPCommand, Rfc5321};
 use crate::common::*;
-use crate::smtp::{SmtpQuit, SmtpSessionCommand, SmtpState};
+use crate::smtp::{ApplyCommand, SmtpQuit, SmtpSessionCommand, SmtpState};
 
-impl SmtpSessionCommand for Rfc5321<SmtpQuit> {
+impl SmtpSessionCommand for ESMTPCommand<SmtpQuit> {
     fn verb(&self) -> &str {
         "QUIT"
     }
 
-    fn apply(&self, mut state: SmtpState) -> S2Fut<SmtpState> {
+    fn apply(&self, state: SmtpState) -> S2Fut<SmtpState> {
+        Rfc5321::apply_cmd(&self.instruction, state)
+    }
+}
+
+impl ApplyCommand<SmtpQuit> for Rfc5321 {
+    fn apply_cmd(_cmd: &SmtpQuit, mut state: SmtpState) -> S2Fut<SmtpState> {
         let name = state.session.service_name.clone();
         state.reset();
         state.say_shutdown_ok(name);
@@ -31,7 +37,7 @@ mod tests {
         set.transaction.mail = Some(SmtpMail::Mail(SmtpPath::Null, vec![]));
         set.transaction.rcpts.push(Recipient::null());
         set.transaction.extra_headers.insert_str(0, "feeeha");
-        let sut = SmtpQuit;
+        let sut = Rfc5321::new(SmtpQuit);
         let res = sut.apply(set).await;
         assert!(res.transaction.is_empty())
     }
