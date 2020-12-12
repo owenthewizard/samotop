@@ -23,7 +23,6 @@ where
     IO: MayBeTls,
 {
     type Item = Box<dyn SmtpSessionCommand>;
-    #[allow(clippy::transmute_ptr_to_ptr)]
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let SmtpCodec {
             io,
@@ -98,25 +97,24 @@ where
                     // This is unsafe because BytesMut does not initialize the buffer.
                     // Malicious reader could get access to random / interesting data!
                     // Accepting unsafe here we assume the reader is not malicious and
-                    // only writes, doesn't read
+                    // only writes, doesn't read the buffer
+                    // TODO: check clippy::transmute-ptr-to-ptr complaint
+                    #[allow(clippy::transmute_ptr_to_ptr)]
                     let buff = unsafe { std::mem::transmute(buff) };
                     match ready!(reader.poll_read(cx, buff)) {
-                        Ok(0) => {
-                            break Poll::Ready(Some(processing_error(
-                                "Incomplete and finished",
-                                String::from_utf8_lossy(buffer.bytes()),
-                            )));
-                        }
+                        Ok(0) => Poll::Ready(Some(processing_error(
+                            "Incomplete and finished",
+                            String::from_utf8_lossy(buffer.bytes()),
+                        ))),
                         Ok(len) => {
                             // This is unsafe because badly behaved reader could return a different
                             // len than actually written into the buffer or write at an offset.
                             // This would cause us to receive random data and treat it as SMTP input!
                             // Accepting unsafe here we assume that the reader is well behaved and works correctly.
-                            // TODO: check clippy::transmute-ptr-to-ptr complaint
                             unsafe { buffer.advance_mut(len) };
                             continue;
                         }
-                        Err(e) => break Poll::Ready(Some(processing_error("Read failed", e))),
+                        Err(e) => Poll::Ready(Some(processing_error("Read failed", e))),
                     }
                 }
                 Err(e) => Poll::Ready(Some(processing_error("Parsing failed", e))),

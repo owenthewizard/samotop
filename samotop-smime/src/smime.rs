@@ -2,6 +2,7 @@ use async_macros::{join, ready};
 use async_process::{Command, Stdio};
 use async_std::io;
 use log::*;
+use samotop_core::common::Result;
 use std::task::{Context, Poll};
 use std::{future::Future, pin::Pin};
 
@@ -19,27 +20,29 @@ impl<'a> SMime<'a> {
         my_key: &str,
         my_cert: &str,
         her_cert: &str,
-    ) -> Result<Self, Box<dyn std::error::Error>> {
-        Self::seal(target, my_key, my_cert, her_cert, false)
+        their_certs: Vec<&str>,
+    ) -> Result<Self> {
+        Self::seal(target, my_key, my_cert, her_cert, their_certs, false)
     }
     pub fn sign_and_encrypt<W: io::Write + Sync + Send + 'a>(
         target: W,
         my_key: &str,
         my_cert: &str,
         her_cert: &str,
-    ) -> Result<Self, Box<dyn std::error::Error>> {
-        Self::seal(target, my_key, my_cert, her_cert, true)
+        their_certs: Vec<&str>,
+    ) -> Result<Self> {
+        Self::seal(target, my_key, my_cert, her_cert, their_certs, true)
     }
     pub fn decrypt_and_verify<W: io::Write + Sync + Send + 'a>(
         target: W,
         her_key: &str,
-    ) -> Result<Self, Box<dyn std::error::Error>> {
+    ) -> Result<Self> {
         Self::open(target, her_key, true)
     }
     pub fn verify_and_decrypt<W: io::Write + Sync + Send + 'a>(
         target: W,
         her_key: &str,
-    ) -> Result<Self, Box<dyn std::error::Error>> {
+    ) -> Result<Self> {
         Self::open(target, her_key, false)
     }
     fn seal<W: io::Write + Sync + Send + 'a>(
@@ -47,8 +50,9 @@ impl<'a> SMime<'a> {
         my_key: &str,
         my_cert: &str,
         her_cert: &str,
+        their_certs: Vec<&str>,
         sign_first: bool,
-    ) -> Result<Self, Box<dyn std::error::Error>> {
+    ) -> Result<Self> {
         let mut sign = Command::new("openssl")
             .arg("smime")
             .arg("-stream")
@@ -63,11 +67,18 @@ impl<'a> SMime<'a> {
             .stdout(Stdio::piped())
             .spawn()?;
 
-        let mut encrypt = Command::new("openssl")
+        let mut encrypt = Command::new("openssl");
+        encrypt
             .arg("smime")
             .arg("-stream")
             .arg("-encrypt")
-            .arg(her_cert)
+            .arg(her_cert);
+
+        for crt in their_certs {
+            encrypt.arg(crt);
+        }
+
+        let mut encrypt = encrypt
             .kill_on_drop(true)
             .reap_on_drop(true)
             .stdin(Stdio::piped())
@@ -82,14 +93,14 @@ impl<'a> SMime<'a> {
         let (input, cp1, cp2) = if sign_first {
             (
                 sign_in,
-                Copy::new(sign_out, encrypt_in),
-                Copy::new(encrypt_out, target),
+                CopyAndClose::new(sign_out, encrypt_in),
+                CopyAndClose::new(encrypt_out, target),
             )
         } else {
             (
                 encrypt_in,
-                Copy::new(encrypt_out, sign_in),
-                Copy::new(sign_out, target),
+                CopyAndClose::new(encrypt_out, sign_in),
+                CopyAndClose::new(sign_out, target),
             )
         };
 
@@ -113,7 +124,7 @@ impl<'a> SMime<'a> {
         target: W,
         her_key: &str,
         sign_first: bool,
-    ) -> Result<Self, Box<dyn std::error::Error>> {
+    ) -> Result<Self> {
         let mut verify = Command::new("openssl")
             .arg("smime")
             .arg("-stream")
@@ -145,14 +156,14 @@ impl<'a> SMime<'a> {
         let (input, cp1, cp2) = if sign_first {
             (
                 decrypt_in,
-                Copy::new(decrypt_out, verify_in),
-                Copy::new(verify_out, target),
+                CopyAndClose::new(decrypt_out, verify_in),
+                CopyAndClose::new(verify_out, target),
             )
         } else {
             (
                 verify_in,
-                Copy::new(verify_out, decrypt_in),
-                Copy::new(decrypt_out, target),
+                CopyAndClose::new(verify_out, decrypt_in),
+                CopyAndClose::new(decrypt_out, target),
             )
         };
 
@@ -229,7 +240,7 @@ impl<'a> io::Write for SMime<'a> {
 }
 
 #[pin_project::pin_project]
-struct Copy<R, W> {
+struct CopyAndClose<R, W> {
     #[pin]
     reader: R,
     #[pin]
@@ -237,13 +248,13 @@ struct Copy<R, W> {
     amt: u64,
 }
 
-impl<R, W> Copy<io::BufReader<R>, W>
+impl<R, W> CopyAndClose<io::BufReader<R>, W>
 where
     R: io::Read,
     W: io::Write,
 {
     pub fn new(reader: R, writer: W) -> Self {
-        Copy {
+        CopyAndClose {
             reader: io::BufReader::new(reader),
             writer,
             amt: 0,
@@ -251,7 +262,7 @@ where
     }
 }
 
-impl<R, W> async_std::future::Future for Copy<R, W>
+impl<R, W> async_std::future::Future for CopyAndClose<R, W>
 where
     R: io::BufRead,
     W: io::Write,
@@ -266,7 +277,7 @@ where
             trace!("copy poll_fill_buf => {}", buffer.len());
             if buffer.is_empty() {
                 trace!("copy poll_close...");
-                ready!(this.writer.as_mut().poll_flush(cx))?;
+                ready!(this.writer.as_mut().poll_close(cx))?;
                 return Poll::Ready(Ok(*this.amt));
             }
 
