@@ -1,3 +1,5 @@
+//! The domain model of Samotop and core functionality. A base crate for samotop extensions.
+
 #[macro_use]
 extern crate log;
 

@@ -1,9 +1,10 @@
 use futures_await_test::async_test;
 use futures_lite::AsyncWriteExt;
+use samotop_core::common::Result;
 use samotop_smime::SMime;
 
 #[async_test]
-async fn sign_and_encrypt() -> Result<(), Box<dyn std::error::Error>> {
+async fn sign_and_encrypt() -> Result<()> {
     let secret = b"secret stuff";
     let mut encrypted = Vec::new();
     let mut decrypted = Vec::new();
@@ -18,6 +19,7 @@ async fn sign_and_encrypt() -> Result<(), Box<dyn std::error::Error>> {
             "tests/data/my.key",
             "tests/data/my.crt",
             "tests/data/her.crt",
+            vec![],
         )?);
 
         async_std::io::copy(&mut secret.as_ref(), &mut sign_encrypt).await?;

@@ -7,3 +7,6 @@ pub use samotop_core::mail::*;
 pub use samotop_delivery::delivery::*;
 #[cfg(feature = "spf")]
 pub use samotop_with_spf as spf;
+
+#[cfg(feature = "smime")]
+pub use samotop_smime as smime;
