@@ -1,3 +1,17 @@
+//! Example of encription at rest using S/MIME
+//!
+//! The accounts folder must have a "certificate" for each recipient.
+//! E-mails received over SMTP are encrypted on the fly for all recipients
+//! before being passed to another `MailDispatch` - here the simple maildir
+//! - but could be also the LMTP delivery or your own `MailDispatch` implementation.
+//! Thus, the e-mail is never stored on disk in plaintext except perhaps through a swap file.
+//!
+//! The server will refuse e-mail (temporarily) for recipients who do not have a certificate.
+//!
+//! A specific `MailGuard` could rewrite rcpt addresses in such a way (hash) to hide the recipient's
+//! e-mail address as well and still link it to a specific user who is possibly only identified
+//! by having the private key to his cert.
+
 #[macro_use]
 extern crate log;
 
@@ -27,20 +41,19 @@ async fn main_fut() -> Result<()> {
 
     let ports = setup.get_service_ports();
 
-    let mut mail_service = Builder::default()
+    let mail_service = Builder::default()
         .using(Name::new(setup.get_my_name()))
         .using(Accounts::new(setup.absolute_path("accounts")))
         .using(SMimeMail::new(
-            setup.get_id_file_path().expect("id file"),
-            setup.get_cert_file_path().expect("cert file"),
+            setup.get_id_file_path(),
+            setup.get_cert_file_path(),
         ))
         .using(Dir::new(setup.get_mail_dir())?)
         .using(samotop::mail::spf::provide_viaspf())
-        .using(SmtpParser::default());
-
-    if let Some(cfg) = setup.get_tls_config().await? {
-        mail_service = mail_service.using(RustlsProvider::from(TlsAcceptor::from(cfg)));
-    }
+        .using(SmtpParser::default())
+        .using(RustlsProvider::from(TlsAcceptor::from(
+            setup.get_tls_config().await?,
+        )));
 
     let smtp_service = SmtpService::new(Arc::new(mail_service));
 
@@ -59,27 +72,17 @@ impl Setup {
         }
     }
 
-    pub fn get_id_file_path(&self) -> Option<PathBuf> {
-        let path = self.absolute_path(self.opt.identity_file.as_ref()?);
-        Some(path)
+    pub fn get_id_file_path(&self) -> PathBuf {
+        self.absolute_path(&self.opt.identity_file)
     }
 
-    pub fn get_cert_file_path(&self) -> Option<PathBuf> {
-        let path = self.absolute_path(self.opt.cert_file.as_ref()?);
-        Some(path)
+    pub fn get_cert_file_path(&self) -> PathBuf {
+        self.absolute_path(&self.opt.cert_file)
     }
 
-    pub async fn get_tls_config(&self) -> Result<Option<ServerConfig>> {
-        let opt = &self.opt;
-
-        if opt.no_tls {
-            return Ok(None);
-        }
-
+    pub async fn get_tls_config(&self) -> Result<ServerConfig> {
         let key = {
-            let id_path = self
-                .get_id_file_path()
-                .expect("identity-file must be set unless --no-tls");
+            let id_path = self.get_id_file_path();
             let mut idfile = File::open(&id_path)
                 .await
                 .map_err(|e| format!("Could not load identity: {}", e))?;
@@ -95,9 +98,7 @@ impl Setup {
         };
 
         let certs = {
-            let cert_path = self
-                .get_cert_file_path()
-                .expect("cert-file must be set unless --no-tls");
+            let cert_path = self.get_cert_file_path();
             let mut certfile = File::open(&cert_path)
                 .await
                 .map_err(|e| format!("Could not load certs: {}", e))?;
@@ -114,7 +115,7 @@ impl Setup {
 
         let mut config = ServerConfig::new(rustls::NoClientAuth::new());
         config.set_single_cert(certs, key)?;
-        Ok(Some(config))
+        Ok(config)
     }
 
     /// Get all TCP ports to serve the service on
@@ -171,20 +172,15 @@ struct Opt {
     #[structopt(short = "p", long = "port", name = "port")]
     ports: Vec<String>,
 
-    /// Disable TLS suport.
-    /// It is enabled by default to reduce accidents and remind operators of misconfiguration.
-    #[structopt(long = "no-tls")]
-    no_tls: bool,
-
     /// Use this identity file for TLS. Disabled with --no-tls.
     /// If a relative path is given, it will be relative to base-dir.
     #[structopt(
         short = "i",
         long = "identity-file",
         name = "identity file path",
-        required_unless = "no-tls"
+        required = true
     )]
-    identity_file: Option<String>,
+    identity_file: PathBuf,
 
     /// Use this cert file for TLS. Disabled with --no-tls.
     /// If a relative path is given, it will be relative to base-dir.
@@ -192,9 +188,9 @@ struct Opt {
         short = "c",
         long = "cert-file",
         name = "cert file path",
-        required_unless = "no-tls"
+        required = true
     )]
-    cert_file: Option<String>,
+    cert_file: PathBuf,
 
     /// Use the given name in SMTP greetings, or if absent, use hostname.
     #[structopt(short = "n", long = "name", name = "SMTP service name")]
