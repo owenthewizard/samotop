@@ -20,7 +20,7 @@ gitlab = { repository = "BrightOpen/BackYard/Samotop", branch = "develop" }
 [dependencies.samotop]
 version = "0.12.0"
 path = "../samotop"
-features = ["spf"]
+features = []
 default-features = false
 
 [dependencies]
