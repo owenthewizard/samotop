@@ -1,6 +1,6 @@
 pub mod tls;
-mod traits;
-mod types;
+mod service;
+mod connection;
 
-pub use self::traits::*;
-pub use self::types::*;
+pub use self::service::*;
+pub use self::connection::*;

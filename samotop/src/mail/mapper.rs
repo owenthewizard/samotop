@@ -1,9 +1,11 @@
 //! Reference implementation of a mail guard
 //! converting recipient addresses according to a regex map.
+
 use crate::mail::*;
 use crate::{common::*, parser::SmtpParser};
 use regex::Regex;
 
+/// A mail guard that converts recipient addresses according to a regex map.
 #[derive(Clone, Debug, Default)]
 pub struct Mapper {
     map: Vec<(Regex, String)>,

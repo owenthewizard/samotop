@@ -1,5 +1,6 @@
 use std::time::{Duration, Instant};
 
+/// Carries connection infromation (TCP, unix socket, ...) so that remaining code can abstract away from it as Io
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ConnectionInfo {
     pub local_addr: String,

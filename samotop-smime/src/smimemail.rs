@@ -28,7 +28,7 @@ impl MailSetup for SMimeMail {
 impl MailDispatch for SMimeMail {
     fn send_mail<'a, 's, 'f>(
         &'a self,
-        session: &'s SessionInfo,
+        _session: &'s SessionInfo,
         mut transaction: Transaction,
     ) -> S2Fut<'f, DispatchResult>
     where
