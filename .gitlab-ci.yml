@@ -39,14 +39,14 @@ builder-buildah:
     - buildah config --env "PATH=/root/.cargo/bin:$BUILDERPATH" "$builder"
     - alias RUN=buildah run $builder -- 
 
-    #- RUN apk --no-cache add curl build-base openssl openssl-dev perl
-    #- RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh 
+    # RUN apk --no-cache add curl build-base openssl openssl-dev perl
+    # RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh 
     # Remove muslrust config to default to musl target
     - RUN rm ~/.cargo/config
     - RUN rustup default stable
     - RUN rustup component add clippy rustfmt
     - RUN rustup target add x86_64-unknown-linux-musl
-    - # install cargo tools
+    # install cargo tools
     - RUN cargo install toml-cli cargo-readme cargo-sweep cargo-audit cargo-outdated
     # install apt packages
     - RUN apt-get update && apt-get install -y jq
@@ -57,9 +57,7 @@ builder-buildah:
     - RUN dpkg -i "wildq_${VERSION}-1_amd64.deb"
 
     - buildah config --env LANG=C.UTF-8 $builder
-    - buildah config --env LC_ALL=C.UTF- $builder
-
-
+    - buildah config --env LC_ALL=C.UTF-8 $builder
 
 builder-build:
   extends: .kaniko-build-template
