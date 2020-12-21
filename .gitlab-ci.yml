@@ -43,6 +43,7 @@ release-build:
       - target/release/samotop-server
       - Cargo.lock
   script:    
+    - rustup default stable
     - cargo build --release --color always
     - cargo test --release --color always
 
@@ -54,6 +55,7 @@ stable-test:
     paths: *cache-paths
     policy: pull
   script:
+    - rustup default stable
     - cargo test --all-features --color always
 
 clippy-test:
@@ -181,6 +183,7 @@ publish-crate:
     paths:
       - Cargo.lock
   script:
+    - rustup default stable
     - COMPONENT="$(dirname "$COMPVER")"
     - VERSION="${COMPVER##$COMPONENT/}"
     - echo "Releasing component ${COMPONENT:?cannot be empty} v ${VERSION:?cannot be empty}"
