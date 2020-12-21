@@ -231,18 +231,3 @@ publish-docker:
     - case "$CI_COMMIT_REF_NAME" in master|develop) docker push "$TAG_CURRENT" ;; *) echo Will only push current from master or develop branch, not from \'"$CI_COMMIT_REF_NAME"\' ;; esac
     # push stable version as latest
     - case "$CI_COMMIT_REF_NAME" in master) docker push "$TAG_MINOR" && docker push "$TAG_MAJOR" && docker push "$TAG_LATEST" ;; *) echo Will only push latest from master branch, not from \'"$CI_COMMIT_REF_NAME"\' ;; esac
-
-
-builder:
-  stage: .pre
-  image: alpine
-  before_script:
-    - apk add buildah
-  script:
-    - builder=$(buildah from alpine)
-    - BUILDERPATH=$(buildah run $builder printenv PATH)
-    - buildah config --env "PATH=/root/.cargo/bin:$BUILDERPATH" "$container"
-    - alias run=buildah run $builder -- 
-    - run apk --no-cache add curl build-base openssl openssl-dev perl
-    - run curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh 
-    - 
