@@ -37,7 +37,7 @@ builder-buildah:
     - builder=$(buildah from clux/muslrust:latest)
     - BUILDERPATH=$(buildah run $builder printenv PATH)
     - buildah config --env "PATH=/root/.cargo/bin:$BUILDERPATH" "$builder"
-    - alias RUN="buildah run $builder --"
+    - alias RUN='buildah run $builder --'
 
     # RUN apk --no-cache add curl build-base openssl openssl-dev perl
     # RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh 
