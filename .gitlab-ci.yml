@@ -33,6 +33,33 @@ builder-buildah:
       - .gitlab-ci.yml
   script:
     - buildah --version
+    - buildah list
+    - builder=$(buildah from clux/muslrust:latest)
+    - BUILDERPATH=$(buildah run $builder printenv PATH)
+    - buildah config --env "PATH=/root/.cargo/bin:$BUILDERPATH" "$builder"
+    - alias RUN=buildah run $builder -- 
+
+    #- RUN apk --no-cache add curl build-base openssl openssl-dev perl
+    #- RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh 
+    # Remove muslrust config to default to musl target
+    - RUN rm ~/.cargo/config
+    - RUN rustup default stable
+    - RUN rustup component add clippy rustfmt
+    - RUN rustup target add x86_64-unknown-linux-musl
+    - # install cargo tools
+    - RUN cargo install toml-cli cargo-readme cargo-sweep cargo-audit cargo-outdated
+    # install apt packages
+    - RUN apt-get update && apt-get install -y jq
+    #   musl musl-dev musl-tools librust-pkg-config-dev
+    # install wildq
+    - VERSION=$(curl -s "https://api.github.com/repos/ahmet2mir/wildq/releases/latest" | grep '"tag_name":' | sed -E 's/.*"v([^"]+)".*/\1/')
+    - RUN curl -sL "https://github.com/ahmet2mir/wildq/releases/download/v${VERSION}/wildq_${VERSION}-1_amd64.deb" -o "wildq_${VERSION}-1_amd64.deb" 
+    - RUN dpkg -i "wildq_${VERSION}-1_amd64.deb"
+
+    - buildah config --env LANG=C.UTF-8 $builder
+    - buildah config --env LC_ALL=C.UTF- $builder
+
+
 
 builder-build:
   extends: .kaniko-build-template
