@@ -22,6 +22,9 @@ RUN VERSION=$(curl -s "https://api.github.com/repos/ahmet2mir/wildq/releases/lat
 ENV LC_ALL=C.UTF-8
 ENV LANG=C.UTF-8
 
+# Remove muslrust config to default to musl target
+RUN rm ~/.cargo/config
+
 FROM builder as dev
 
 ##########################################
