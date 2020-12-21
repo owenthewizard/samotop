@@ -1,8 +1,12 @@
-FROM clux/muslrust:latest as builder
-
 ##########################################
 # Download and install dev tools
 ##########################################
+FROM clux/muslrust:latest as builder
+ENV LC_ALL=C.UTF-8
+ENV LANG=C.UTF-8
+
+# Remove muslrust config to default to musl target
+RUN rm ~/.cargo/config
 
 # install rust tools
 RUN rustup default stable
@@ -19,17 +23,11 @@ RUN VERSION=$(curl -s "https://api.github.com/repos/ahmet2mir/wildq/releases/lat
     && curl -sL https://github.com/ahmet2mir/wildq/releases/download/v${VERSION}/wildq_${VERSION}-1_amd64.deb -o wildq_${VERSION}-1_amd64.deb \
     && dpkg -i wildq_${VERSION}-1_amd64.deb
 
-ENV LC_ALL=C.UTF-8
-ENV LANG=C.UTF-8
-
-# Remove muslrust config to default to musl target
-RUN rm ~/.cargo/config
-
-FROM builder as dev
 
 ##########################################
 # Download, build and cache dependencies
 ##########################################
+FROM builder as dev
 
 RUN USER=root cargo new --lib app
 WORKDIR /app
@@ -54,10 +52,7 @@ RUN find . -name Cargo.toml -mindepth 1 \
     | wildq -M -i json -o toml '{"dev-dependencies": .}' | tee -a Cargo.toml
 RUN cargo check && cargo build && cargo test --all-features
 
-####################################
 # The actual build of the app
-####################################
-
 COPY . .
 RUN cargo check --color always --all-features \
     && echo "CLIPPY -------------------------------------------" \
@@ -69,13 +64,15 @@ RUN cargo check --color always --all-features \
     && echo "----- DEV DONE!"
 
 
+####################################
+# Release build
+####################################
 FROM dev as prod
 RUN cargo build --color always --release
 
 ####################################
 # Samotop server build
 ####################################
-
 FROM debian:buster-slim as server
 COPY --from=prod /app/target/release/samotop-server /usr/local/bin/samotop
 #COPY -Samotop.crt Samotop.crt
