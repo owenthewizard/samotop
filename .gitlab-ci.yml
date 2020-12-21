@@ -1,7 +1,9 @@
 variables:
   BUILDER_VERSION: "2.0"
+  BUILDER_COMPONENT: "builder"
+  BUILDER_IMAGE: "$CI_REGISTRY_IMAGE/$BUILDER_COMPONENT:$BUILDER_VERSION"
 
-image: "registry.gitlab.com/brightopen/backyard/samotop/builder:$BUILDER_VERSION"
+image: $BUILDER_IMAGE
 
 builder-test:
   stage: build
@@ -25,15 +27,14 @@ builder-test:
 builder-build:
   extends: .kaniko-build-template
   variables:
-    COMPONENT: builder
-    VERSION: $BUILDER_VERSION
+    COMPONENT: $BUILDER_COMPONENT
     CONTEXT: .
     DOCKERFILE: Dockerfile
     BUILD_ARGS: --target builder
   only:
     changes:
       - Dockerfile
-      - .gitlab-ci.builder.yml
+      - .gitlab-ci.yml
   environment:
     name: builder
     url: https://gitlab.com/BrightOpen/BackYard/Samotop/container_registry/1517868
@@ -42,30 +43,49 @@ builder-build:
 # The job exports the given components pinned image so that deployments use the image built specifically in this pipeline.
 # If the image is not built in the pipeline, the default SEMVER image reference is used so it will deploy
 # the image of the same version built by another pipeline.
+# 
+# Specify either COMPONENT and VERSION variables (optionally REPOSITORY) and IMAGE will be constructed from these
+#  or else specify IMAGE with a tag and COMPONENT and VERSION will be extracted from it.
 .kaniko-build-template:
   image:
     name: gcr.io/kaniko-project/executor:debug
     entrypoint: [""]
   stage: .pre
+  variables:
+    KANIKO_DOCKER_CONFIG: "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}"
   script:
     - mkdir -p /kaniko/.docker
-    - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
-    - echo building "${COMPONENT:?required env variable}"
-    - echo version "${VERSION:?required env variable}"
-    - echo context "${CONTEXT:?required env variable}"
-    - echo dockerfile "${DOCKERFILE:?required env variable}"
-    - echo build args "$BUILD_ARGS"
-    - IMAGE="$CI_REGISTRY_IMAGE/$COMPONENT:$VERSION"
-    - echo image "$IMAGE"
+    - echo "${KANIKO_DOCKER_CONFIG:?}" > /kaniko/.docker/config.json
+    # image_var allows the job to specify the image value through a variable indirectly as a workaround to gitlab variable resolving limits.
+    # simply specify COMPONENT=xyz and XYZ_IMAGE=a/b/c/xyz:tag and IMAGE will be taken from XYZ_IMAGE variable
+    - component_cap="$(echo "$COMPONENT" | tr [:lower:] [:upper:] | tr - _)"
+    - image_var="${component_cap:?}_IMAGE"
+    - echo "IMAGE=${IMAGE:=$(eval echo "\$$image_var")}"
+    - echo "imgtag=${imgtag:=${IMAGE##*/}}"
+    - echo "REPOSITORY=${REPOSITORY:=${IMAGE%/*}}"
+    - echo "REPOSITORY=${REPOSITORY:=${DOCKER_REPOSITORY:?}}"
+    - echo "COMPONENT=${COMPONENT:=${imgtag%%:*}}"
+    - echo "VERSION=${VERSION:=${imgtag##*:}}"
+    - IMAGE="$REPOSITORY/$COMPONENT:$VERSION"
+    - |
+      echo "Building ${IMAGE:?}
+        COMPONENT ${COMPONENT:?required env variable} 
+        VERSION ${VERSION:?required env variable} 
+        with context ${CONTEXT:?required env variable} 
+        and dockerfile ${DOCKERFILE:?required env variable}
+        build args: ${BUILD_ARGS:-none}"
     # TODO: figure out how to prevent overwriting stable image tags (those without any label)
     # Other registries have this feature, not Gitlab - https://gitlab.com/gitlab-org/gitlab/-/issues/18984
-    - /kaniko/executor --context "$CONTEXT" --dockerfile "$DOCKERFILE" --destination "$IMAGE" --cache=true --cache-ttl=48h --digest-file kaniko.digest $BUILD_ARGS
-    - DIGEST="$(cat kaniko.digest)"
-    - COMPONENT_CAP="$(echo "$COMPONENT" | tr [:lower:] [:upper:])"
-    - echo "${COMPONENT_CAP}_VERSION=$VERSION" >> ci.env
-    - echo "${COMPONENT_CAP}_DIGEST=$DIGEST" >> ci.env
-    - echo "${COMPONENT_CAP}_IMAGE_SEMVER=$IMAGE" >> ci.env
-    - echo "${COMPONENT_CAP}_IMAGE=$CI_REGISTRY_IMAGE/$COMPONENT@$DIGEST" >> ci.env
+    - /kaniko/executor --context "$CONTEXT" --dockerfile "$DOCKERFILE" 
+        --destination "$IMAGE" 
+        --cache=true --cache-ttl=48h --cache-repo="$REPOSITORY/kaniko-cache"
+        --skip-unused-stages
+        --digest-file kaniko.digest $BUILD_ARGS
+    - digest="$(cat kaniko.digest)"
+    - echo "${component_cap}_VERSION=$VERSION" >> ci.env
+    - echo "${component_cap}_DIGEST=$digest" >> ci.env
+    - echo "${component_cap}_IMAGE_SEMVER=$IMAGE" >> ci.env
+    - echo "${component_cap}_IMAGE=$REPOSITORY/$COMPONENT@$digest" >> ci.env
     - cat ci.env
   artifacts:
     expire_in: 7 days
