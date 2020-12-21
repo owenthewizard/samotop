@@ -1,129 +1,248 @@
+include:
+  - ".gitlab-ci.builder.yml"
+
 variables:
-  BUILDER_VERSION: "2.0"
-  BUILDER_COMPONENT: "builder"
-  BUILDER_IMAGE: "$CI_REGISTRY_IMAGE/$BUILDER_COMPONENT:$BUILDER_VERSION"
+  CARGO_HOME: "$CI_PROJECT_DIR/.cargo"
 
-image: $BUILDER_IMAGE
+stages:
+  - build
+  - test
+  - release
 
-builder-test:
+debug-build:
   stage: build
+  only:
+    - branches
+  cache:
+    paths: &cache-paths
+      - target/
+      - $CARGO_HOME
+  artifacts:
+    paths:
+      - target/debug/samotop-server
+      - Cargo.lock
+  script:    
+    - mkdir -p target
+    - du -shx target
+    - du -shx "$CARGO_HOME"
+    - cargo build --all-features --color always
+    # cleanup target folder
+    - ./clean.sh
+
+release-build:
+  stage: build
+  only:
+    - /^release\/*/
+    - /^hotfix\/*/
+    - master
+  cache:
+    paths: *cache-paths
+    policy: pull
+  artifacts:
+    paths:
+      - target/release/samotop-server
+      - Cargo.lock
+  script:    
+    - cargo build --release --color always
+    - cargo test --release --color always
+
+stable-test:
+  stage: build
+  only:
+    - branches
+  cache:
+    paths: *cache-paths
+    policy: pull
   script:
-    - echo "$CARGO_HOME"
-    - echo "$RUSTUP_HOME"
+    - cargo test --all-features --color always
+
+clippy-test:
+  extends: stable-test
+  script:
+    - cargo clippy --all-features --color always -- -Dclippy::all
+
+check-test:
+  extends: stable-test
+  script:
+    - cargo check --all-features --bins --tests --benches --examples --color always
+    - ./fix.sh
+
+audit-test:
+  extends: stable-test
+  script:
+    - cargo audit --deny warnings --color always
+
+nightly-test:
+  stage: build
+  allow_failure: true
+  variables:
+    RUST_BACKTRACE: 1
+  only:
+    - branches
+  cache:
+    key: nightly
+    paths: *cache-paths
+  before_script:
+    - rustup default nightly
     - rustc --version --verbose
     - cargo --version --verbose
-    - rustfmt --version
-    - cargo clippy --version
-    - cargo readme --version
-    - cargo audit --version
-    - cargo outdated --version
-    - cargo sweep --version
-    - cargo tree --version
-    - toml --version
-    - jq --version
-    - wildq --version
-    - which toml
-
-builder-buildah:
-  image: quay.io/buildah/stable
-  stage: .pre
-  only:
-    changes:
-      - Dockerfile
-      - .gitlab-ci.yml
+    - rustup component add clippy
+    - cargo install cargo-readme
+    - cargo install cargo-sweep
   script:
-    - shopt -s expand_aliases
-    - buildah --version
-    - buildah list
-    - builder=$(buildah from clux/muslrust:latest)
-    - BUILDERPATH=$(buildah run $builder printenv PATH)
-    - buildah config --env "PATH=/root/.cargo/bin:$BUILDERPATH" "$builder"
-    - alias RUN='buildah run $builder --'
+    - cargo test --all-features --color always
+    - cargo clippy --all-features --color always -- -Dclippy::all
+    - cargo check --all-features --bins --tests --benches --examples --color always
+    # cleanup target folder
+    - ./clean.sh
 
-    # RUN apk --no-cache add curl build-base openssl openssl-dev perl
-    # RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh 
-    # Remove muslrust config to default to musl target
-    - RUN rm ~/.cargo/config
-    - RUN rustup default stable
-    - RUN rustup component add clippy rustfmt
-    - RUN rustup target add x86_64-unknown-linux-musl
-    # install cargo tools
-    - RUN cargo install toml-cli cargo-readme cargo-sweep cargo-audit cargo-outdated
-    # install apt packages
-    - RUN apt-get update && apt-get install -y jq
-    #   musl musl-dev musl-tools librust-pkg-config-dev
-    # install wildq
-    - VERSION=$(curl -s "https://api.github.com/repos/ahmet2mir/wildq/releases/latest" | grep '"tag_name":' | sed -E 's/.*"v([^"]+)".*/\1/')
-    - RUN curl -sL "https://github.com/ahmet2mir/wildq/releases/download/v${VERSION}/wildq_${VERSION}-1_amd64.deb" -o "wildq_${VERSION}-1_amd64.deb" 
-    - RUN dpkg -i "wildq_${VERSION}-1_amd64.deb"
-
-    - buildah config --env LANG=C.UTF-8 $builder
-    - buildah config --env LC_ALL=C.UTF-8 $builder
-
-builder-build:
-  extends: .kaniko-build-template
-  variables:
-    COMPONENT: $BUILDER_COMPONENT
-    CONTEXT: .
-    DOCKERFILE: Dockerfile
-    BUILD_ARGS: --target builder
+.example-template:
+  stage: build
   only:
-    changes:
-      - Dockerfile
-      - .gitlab-ci.yml
-  environment:
-    name: builder
-    url: https://gitlab.com/BrightOpen/BackYard/Samotop/container_registry/1517868
-
-# Jobs based on this template produce a docker image without the need for docker-in-docker (dind).
-# The job exports the given components pinned image so that deployments use the image built specifically in this pipeline.
-# If the image is not built in the pipeline, the default SEMVER image reference is used so it will deploy
-# the image of the same version built by another pipeline.
-# 
-# Specify either COMPONENT and VERSION variables (optionally REPOSITORY) and IMAGE will be constructed from these
-#  or else specify IMAGE with a tag and COMPONENT and VERSION will be extracted from it.
-.kaniko-build-template:
-  image:
-    name: gcr.io/kaniko-project/executor:debug
-    entrypoint: [""]
-  stage: .pre
-  variables:
-    KANIKO_DOCKER_CONFIG: "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}"
+    - branches
+  cache:
+    paths: *cache-paths
+    policy: pull
   script:
-    - mkdir -p /kaniko/.docker
-    - echo "${KANIKO_DOCKER_CONFIG:?}" > /kaniko/.docker/config.json
-    # image_var allows the job to specify the image value through a variable indirectly as a workaround to gitlab variable resolving limits.
-    # simply specify COMPONENT=xyz and XYZ_IMAGE=a/b/c/xyz:tag and IMAGE will be taken from XYZ_IMAGE variable
-    - component_cap="$(echo "$COMPONENT" | tr [:lower:] [:upper:] | tr - _)"
-    - image_var="${component_cap:?}_IMAGE"
-    - echo "IMAGE=${IMAGE:=$(eval echo "\$$image_var")}"
-    - echo "imgtag=${imgtag:=${IMAGE##*/}}"
-    - echo "REPOSITORY=${REPOSITORY:=${IMAGE%/*}}"
-    - echo "REPOSITORY=${REPOSITORY:=${DOCKER_REPOSITORY:?}}"
-    - echo "COMPONENT=${COMPONENT:=${imgtag%%:*}}"
-    - echo "VERSION=${VERSION:=${imgtag##*:}}"
-    - IMAGE="$REPOSITORY/$COMPONENT:$VERSION"
+    - cargo build --example ${EXAMPLE:?} --color always
+    - RUST_LOG=trace cargo run --example ${EXAMPLE:?} &
+    - sleep 10
     - |
-      echo "Building ${IMAGE:?}
-        COMPONENT ${COMPONENT:?required env variable} 
-        VERSION ${VERSION:?required env variable} 
-        with context ${CONTEXT:?required env variable} 
-        and dockerfile ${DOCKERFILE:?required env variable}
-        build args: ${BUILD_ARGS:-none}"
-    # TODO: figure out how to prevent overwriting stable image tags (those without any label)
-    # Other registries have this feature, not Gitlab - https://gitlab.com/gitlab-org/gitlab/-/issues/18984
-    - /kaniko/executor --context "$CONTEXT" --dockerfile "$DOCKERFILE" 
-        --destination "$IMAGE" 
-        --cache=true --cache-ttl=48h --cache-repo="$REPOSITORY/kaniko-cache"
-        --skip-unused-stages
-        --digest-file kaniko.digest $BUILD_ARGS
-    - digest="$(cat kaniko.digest)"
-    - echo "${component_cap}_VERSION=$VERSION" >> ci.env
-    - echo "${component_cap}_DIGEST=$digest" >> ci.env
-    - echo "${component_cap}_IMAGE_SEMVER=$IMAGE" >> ci.env
-    - echo "${component_cap}_IMAGE=$REPOSITORY/$COMPONENT@$digest" >> ci.env
-    - cat ci.env
+      sed -e 's/$/\r/' <<EOF | curl -v --url 'smtp://localhost:2525' \
+      --mail-from from@spf.org \
+      --mail-rcpt to@mikesh.info \
+      --upload-file - > client.log 2>&1 \
+      || echo "${FAILED:=sending mail failed}"
+      From: Moohoo <moo@hoo.com>
+      To: Yeeehaw <ye@haw.com>
+      Subject: Try me
+
+
+      .
+      ..
+      xoxo
+      EOF
+    - cat client.log | grep -v '* Expire in'
+    - find tmp/samotop/spool/new/ -print -exec cat {} \; || true
+    - test -z "${FAILED}"
+
+example-lmtp:
+  extends: .example-template
+  variables:
+    EXAMPLE: to-lmtp-tcp
+  services:
+    - name: dovecot/dovecot:2.3.11
+      alias: dovecot
+
+example-default:
+  extends: .example-template
+  variables:
+    EXAMPLE: default
+
+example-dir:
+  extends: .example-template
+  variables:
+    EXAMPLE: to-dirmail
+
+example-cmd:
+  extends: .example-template
+  variables:
+    EXAMPLE: on-cmd
+  script:
+    - cargo build --example ${EXAMPLE:?}
+    - |
+      sed -e 's/$/\r/' <<EOF | cargo run --example ${EXAMPLE:?}
+      lhlo boogie
+      mail from:<from@spf.org>
+      rcpt to:<komu@makesh.info>
+      rcpt to:<to@mikesh.info>
+      rcpt to:<za@mukesh.info>
+      data
+      From: Moohoo <moo@hoo.com>
+      To: Yeeehaw <ye@haw.com>
+      Subject: Try me
+
+      xoxo
+      .
+      quit
+      EOF
+    - find tmp/samotop/spool/new/ -print -exec cat {} \;
+
+publish-crate:
+  variables:
+    COMPVER: $CI_COMMIT_TAG
+  stage: release
+  only:
+    - tags
+  cache:
+    paths: *cache-paths
+    policy: pull
   artifacts:
-    expire_in: 7 days
-    reports:
-      dotenv: ci.env
+    paths:
+      - Cargo.lock
+  script:
+    - COMPONENT="$(dirname "$COMPVER")"
+    - VERSION="${COMPVER##$COMPONENT/}"
+    - echo "Releasing component ${COMPONENT:?cannot be empty} v ${VERSION:?cannot be empty}"
+    - cargo test --manifest-path "$COMPONENT/Cargo.toml" --release --color always
+    - test "$VERSION" == "$(cargo pkgid --manifest-path "$COMPONENT/Cargo.toml" | cut -d '#' -f2- | tr -d '\n')"
+    - cargo publish --manifest-path "$COMPONENT/Cargo.toml" --token "$CRATES_KEY" --color always
+
+publish-docker:
+  stage: release
+  image: "docker:git"
+  services:
+    - docker:dind
+  only:
+    changes:
+      - samotop-server/**/*
+    refs:
+      - master
+  script:
+    - cp -ra samotop-server/docker target/
+    # Copy either debug or release binary
+    - cp target/release/samotop-server target/docker/samotop
+    - cd target/docker/
+    - docker build -t samotop .
+    - cd ../../
+    - docker run -t --rm samotop --help
+    # extract version
+    - VER="$(docker run -t --rm samotop --version | cut -d ' ' -f2- | tr -d '\r\n')"
+    - echo "version=$VER"
+    # local tagging
+    - TAG_CURRENT="brightopen/samotop:$VER"
+    - TAG_MINOR="brightopen/samotop:${VER%.*}"
+    - TAG_MAJOR="brightopen/samotop:${VER%%.*}"
+    - TAG_LATEST="brightopen/samotop:latest"
+    - |
+      echo "Tags
+        current: $TAG_CURRENT (willbe published only on develop or master)
+        minor: $TAG_MINOR (willbe published only on master)
+        major: $TAG_MAJOR (willbe published only on master)
+        latest: $TAG_LATEST (willbe published only on master)
+      "
+    - docker tag samotop "$TAG_CURRENT"
+    - docker tag samotop "$TAG_MINOR"
+    - docker tag samotop "$TAG_MAJOR"
+    - docker tag samotop "$TAG_LATEST"
+    # remote docker hub push
+    - docker login -u "$DOCKER_USR" -p "$DOCKER_PWD"
+    # push current version
+    - case "$CI_COMMIT_REF_NAME" in master|develop) docker push "$TAG_CURRENT" ;; *) echo Will only push current from master or develop branch, not from \'"$CI_COMMIT_REF_NAME"\' ;; esac
+    # push stable version as latest
+    - case "$CI_COMMIT_REF_NAME" in master) docker push "$TAG_MINOR" && docker push "$TAG_MAJOR" && docker push "$TAG_LATEST" ;; *) echo Will only push latest from master branch, not from \'"$CI_COMMIT_REF_NAME"\' ;; esac
+
+
+builder:
+  stage: .pre
+  image: alpine
+  before_script:
+    - apk add buildah
+  script:
+    - builder=$(buildah from alpine)
+    - BUILDERPATH=$(buildah run $builder printenv PATH)
+    - buildah config --env "PATH=/root/.cargo/bin:$BUILDERPATH" "$container"
+    - alias run=buildah run $builder -- 
+    - run apk --no-cache add curl build-base openssl openssl-dev perl
+    - run curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh 
+    - 
