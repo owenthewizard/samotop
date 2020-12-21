@@ -130,7 +130,7 @@ async fn main_fut() -> Result<()> {
     let mut mail_service = Builder::default()
         .using(Name::new(setup.get_my_name()))
         .using(Dir::new(setup.get_mail_dir())?)
-        //.using(samotop::mail::spf::provide_viaspf())
+        .using(samotop::mail::spf::provide_viaspf())
         .using(SmtpParser::default());
 
     if let Some(cfg) = setup.get_tls_config().await? {
