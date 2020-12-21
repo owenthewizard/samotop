@@ -32,6 +32,7 @@ builder-buildah:
       - Dockerfile
       - .gitlab-ci.yml
   script:
+    - shopt -s expand_aliases
     - buildah --version
     - buildah list
     - builder=$(buildah from clux/muslrust:latest)
