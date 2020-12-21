@@ -12,6 +12,11 @@ builder-test:
     - echo "$RUSTUP_HOME"
     - rustc --version --verbose
     - cargo --version --verbose
+    - jq --version
+    - wildq --version
+    - rustup default stable
+    - rustc --version --verbose
+    - cargo --version --verbose
     - rustfmt --version
     - cargo clippy --version
     - cargo readme --version
@@ -20,9 +25,6 @@ builder-test:
     - cargo sweep --version
     - cargo tree --version
     - toml --version
-    - jq --version
-    - wildq --version
-    - which toml
 
 builder-build:
   extends: .kaniko-build-template
@@ -63,7 +65,7 @@ builder-build:
     - echo "IMAGE=${IMAGE:=$(eval echo "\$$image_var")}"
     - echo "imgtag=${imgtag:=${IMAGE##*/}}"
     - echo "REPOSITORY=${REPOSITORY:=${IMAGE%/*}}"
-    - echo "REPOSITORY=${REPOSITORY:=${DOCKER_REPOSITORY:?}}"
+    - echo "REPOSITORY=${REPOSITORY:=${CI_REGISTRY_IMAGE:?}}"
     - echo "COMPONENT=${COMPONENT:=${imgtag%%:*}}"
     - echo "VERSION=${VERSION:=${imgtag##*:}}"
     - IMAGE="$REPOSITORY/$COMPONENT:$VERSION"

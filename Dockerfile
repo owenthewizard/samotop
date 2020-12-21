@@ -58,21 +58,21 @@ RUN find . -name Cargo.toml -mindepth 1 \
     | wildq -M -i json -o toml '{"dev-dependencies": .}' | tee -a Cargo.toml
 RUN cargo check && cargo build && cargo test --all-features
 
-COPY . .
-
-# The actual build of the app
-FROM deps as nightly
-RUN cargo check --color always --all-features \
-    && echo "CLIPPY -------------------------------------------" \
-    && cargo clippy --color always --all-features -- -Dclippy::all \
-    && echo "BUILD -------------------------------------------" \
-    && cargo build --color always --all-features \
-    && echo "TEST -------------------------------------------" \
-    && cargo test --color always --all-features \
-    && echo "----- DEV DONE!"
+# # The actual build of the app
+# FROM deps as nightly
+# COPY . .
+# RUN cargo check --color always --all-features \
+#     && echo "CLIPPY -------------------------------------------" \
+#     && cargo clippy --color always --all-features -- -Dclippy::all \
+#     && echo "BUILD -------------------------------------------" \
+#     && cargo build --color always --all-features \
+#     && echo "TEST -------------------------------------------" \
+#     && cargo test --color always --all-features \
+#     && echo "----- DEV DONE!"
 
 # The actual build of the app
 FROM deps as stable
+COPY . .
 RUN cargo +stable check --color always --all-features \
     && echo "CLIPPY -------------------------------------------" \
     && cargo +stable clippy --color always --all-features -- -Dclippy::all \

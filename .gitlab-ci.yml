@@ -21,7 +21,11 @@ debug-build:
     paths:
       - target/debug/samotop-server
       - Cargo.lock
-  script:    
+  before_script:
+    - rustup default stable
+    - rustc --version --verbose
+    - cargo --version --verbose
+  script:
     - mkdir -p target
     - du -shx target
     - du -shx "$CARGO_HOME"
@@ -42,8 +46,11 @@ release-build:
     paths:
       - target/release/samotop-server
       - Cargo.lock
-  script:    
+  before_script:
     - rustup default stable
+    - rustc --version --verbose
+    - cargo --version --verbose
+  script:
     - cargo build --release --color always
     - cargo test --release --color always
 
@@ -54,8 +61,11 @@ stable-test:
   cache:
     paths: *cache-paths
     policy: pull
-  script:
+  before_script:
     - rustup default stable
+    - rustc --version --verbose
+    - cargo --version --verbose
+  script:
     - cargo test --all-features --color always
 
 clippy-test:
@@ -105,6 +115,10 @@ nightly-test:
   cache:
     paths: *cache-paths
     policy: pull
+  before_script:
+    - rustup default stable
+    - rustc --version --verbose
+    - cargo --version --verbose
   script:
     - cargo build --example ${EXAMPLE:?} --color always
     - RUST_LOG=trace cargo run --example ${EXAMPLE:?} &
@@ -182,8 +196,11 @@ publish-crate:
   artifacts:
     paths:
       - Cargo.lock
-  script:
+  before_script:
     - rustup default stable
+    - rustc --version --verbose
+    - cargo --version --verbose
+  script:
     - COMPONENT="$(dirname "$COMPVER")"
     - VERSION="${COMPVER##$COMPONENT/}"
     - echo "Releasing component ${COMPONENT:?cannot be empty} v ${VERSION:?cannot be empty}"
@@ -192,45 +209,19 @@ publish-crate:
     - cargo publish --manifest-path "$COMPONENT/Cargo.toml" --token "$CRATES_KEY" --color always
 
 publish-docker:
+  extends: .kaniko-build-template
   stage: release
-  image: "docker:git"
-  services:
-    - docker:dind
+  variables:
+    COMPONENT: samotop
+    VERSION: latest
+    CONTEXT: .
+    DOCKERFILE: Dockerfile
+    BUILD_ARGS: --target builder
   only:
     changes:
       - samotop-server/**/*
     refs:
       - master
-  script:
-    - cp -ra samotop-server/docker target/
-    # Copy either debug or release binary
-    - cp target/release/samotop-server target/docker/samotop
-    - cd target/docker/
-    - docker build -t samotop .
-    - cd ../../
-    - docker run -t --rm samotop --help
-    # extract version
-    - VER="$(docker run -t --rm samotop --version | cut -d ' ' -f2- | tr -d '\r\n')"
-    - echo "version=$VER"
-    # local tagging
-    - TAG_CURRENT="brightopen/samotop:$VER"
-    - TAG_MINOR="brightopen/samotop:${VER%.*}"
-    - TAG_MAJOR="brightopen/samotop:${VER%%.*}"
-    - TAG_LATEST="brightopen/samotop:latest"
-    - |
-      echo "Tags
-        current: $TAG_CURRENT (willbe published only on develop or master)
-        minor: $TAG_MINOR (willbe published only on master)
-        major: $TAG_MAJOR (willbe published only on master)
-        latest: $TAG_LATEST (willbe published only on master)
-      "
-    - docker tag samotop "$TAG_CURRENT"
-    - docker tag samotop "$TAG_MINOR"
-    - docker tag samotop "$TAG_MAJOR"
-    - docker tag samotop "$TAG_LATEST"
-    # remote docker hub push
-    - docker login -u "$DOCKER_USR" -p "$DOCKER_PWD"
-    # push current version
-    - case "$CI_COMMIT_REF_NAME" in master|develop) docker push "$TAG_CURRENT" ;; *) echo Will only push current from master or develop branch, not from \'"$CI_COMMIT_REF_NAME"\' ;; esac
-    # push stable version as latest
-    - case "$CI_COMMIT_REF_NAME" in master) docker push "$TAG_MINOR" && docker push "$TAG_MAJOR" && docker push "$TAG_LATEST" ;; *) echo Will only push latest from master branch, not from \'"$CI_COMMIT_REF_NAME"\' ;; esac
+  environment:
+    name: server
+    url: https://gitlab.com/BrightOpen/BackYard/Samotop/container_registry/1510406
