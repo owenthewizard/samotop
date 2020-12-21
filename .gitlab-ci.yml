@@ -24,6 +24,16 @@ builder-test:
     - wildq --version
     - which toml
 
+builder-buildah:
+  image: quay.io/buildah/stable
+  stage: .pre
+  only:
+    changes:
+      - Dockerfile
+      - .gitlab-ci.yml
+  script:
+    - buildah --version
+
 builder-build:
   extends: .kaniko-build-template
   variables:
