@@ -11,6 +11,8 @@ RUN cat /etc/apt/sources.list | sed 's/^deb /deb-src /g' > /etc/apt/sources.list
 # Required packages:
 # - build-essential, musl-dev, musl-tools - the C/C++/libc toolchain
 # - jq - for manipulating json as part of build
+# - git - checking file modifications after rustfmt/readme in CI
+# - curl - for CI tests
 # - libssl-dev - required by some cargo tools (audit)
 RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
     musl-dev musl-tools build-essential \
@@ -73,6 +75,9 @@ RUN export CC=musl-gcc \
     env "C_INCLUDE_PATH=$MUSLPREFIX/include" make depend 2> /dev/null && \
     make -j$(nproc) && make install_sw && \
     cd .. && rm -rf openssl*
+
+# TODO: integrate above
+RUN apt-get install -y --no-install-recommends curl git
 
 ##########################################
 # Download, build and cache dependencies

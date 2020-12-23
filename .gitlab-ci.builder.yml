@@ -13,7 +13,6 @@ builder-test:
     - rustc --version --verbose
     - cargo --version --verbose
     - jq --version
-    - wildq --version
     - rustup default stable
     - rustc --version --verbose
     - cargo --version --verbose
