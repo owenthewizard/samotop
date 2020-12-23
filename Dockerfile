@@ -1,36 +1,96 @@
 ##########################################
 # Download and install dev tools
 ##########################################
-FROM clux/muslrust:latest as builder
+FROM debian:buster-slim as builder
 ENV LC_ALL=C.UTF-8
 ENV LANG=C.UTF-8
 
-# Remove muslrust config to default to musl target
-#RUN rm ~/.cargo/config
+LABEL maintainer="Jo Cutajar <tell-no-one@robajz.info>"
 
-# install rust tools for stable
-RUN rustup toolchain install stable
-RUN rustup +stable component add clippy rustfmt
-RUN rustup +stable target add x86_64-unknown-linux-musl
-# install cargo tools
-RUN cargo +stable install toml-cli cargo-readme cargo-sweep cargo-audit cargo-outdated
-# install apt packages
-RUN apt-get update \
-    && apt-get upgrade -y \
-    && apt-get install -y \
-                    jq \
-                    musl musl-dev musl-tools \
-    && apt-get clean autoclean 
-# install wildq
-RUN VERSION=$(curl -s "https://api.github.com/repos/ahmet2mir/wildq/releases/latest" | grep '"tag_name":' | sed -E 's/.*"v([^"]+)".*/\1/') \
-    && curl -sL https://github.com/ahmet2mir/wildq/releases/download/v${VERSION}/wildq_${VERSION}-1_amd64.deb -o wildq_${VERSION}-1_amd64.deb \
-    && dpkg -i wildq_${VERSION}-1_amd64.deb \
-    && rm wildq_${VERSION}-1_amd64.deb
+RUN cat /etc/apt/sources.list | sed 's/^deb /deb-src /g' > /etc/apt/sources.list.d/src.list
+
+# Required packages:
+# - build-essential, musl-dev, musl-tools - the C/C++/libc toolchain
+# - curl + ca-certificates - for fetching and verifying online resources
+# - libssl-dev - for dynamic linking openssl
+RUN apt-get update && apt-get upgrade -y && apt-get install -y \
+    musl-dev \
+    musl-tools \
+    build-essential \
+    ca-certificates \
+    curl \
+    jq \
+    libssl-dev \
+    --no-install-recommends
+    # would break apt-get source
+    #rm -rf /var/lib/apt/lists/*
+
+# Essential compilation vars
+# SSL cert directories get overridden by --prefix and --openssldir
+# and they do not match the typical host configurations.
+# The SSL_CERT_* vars fix this, but only when inside this container
+# musl-compiled binary must point SSL at the correct certs (muslrust/issues/5) elsewhere
+ENV CC=musl-gcc \
+    PREFIX=/musl \
+    PATH=$PREFIX/bin:/usr/local/bin:/root/.cargo/bin:$PATH \
+    PKG_CONFIG_PATH=/usr/local/lib/pkgconfig \
+    LD_LIBRARY_PATH=$PREFIX \
+    PKG_CONFIG_ALLOW_CROSS=true \
+    PKG_CONFIG_ALL_STATIC=true \
+    PKG_CONFIG_PATH=$PREFIX/lib/pkgconfig \
+    OPENSSL_STATIC=true \
+    OPENSSL_DIR=$PREFIX \
+    SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
+    SSL_CERT_DIR=/etc/ssl/certs
+
+# Set up a prefix for musl build libraries, make the linker's job of finding them easier
+# Primarily for the benefit of postgres.
+# Lastly, link some linux-headers for openssl 1.1 (not used herein)
+RUN mkdir $PREFIX && \
+    echo "$PREFIX/lib" >> /etc/ld-musl-x86_64.path && \
+    ln -s /usr/include/x86_64-linux-gnu/asm /usr/include/x86_64-linux-musl/asm && \
+    ln -s /usr/include/asm-generic /usr/include/x86_64-linux-musl/asm-generic && \
+    ln -s /usr/include/linux /usr/include/x86_64-linux-musl/linux
+
+# Download and build official debian openssl package but with musl
+RUN apt-get source openssl && \
+    cd openssl* && \
+    ./Configure no-shared -fPIC --prefix=$PREFIX --openssldir=$PREFIX/ssl linux-x86_64 && \
+    env C_INCLUDE_PATH=$PREFIX/include make depend 2> /dev/null && \
+    make -j$(nproc) && make install_sw && \
+    cd .. && rm -rf openssl*
+
+# Rustup stable
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y \
+    --default-toolchain stable \
+    --profile minimal \
+    --component rustfmt \
+    --component clippy \
+    --target x86_64-unknown-linux-musl \
+    --target x86_64-unknown-linux-gnu
+
+# Useful cargo tools
+RUN cargo install toml-cli cargo-readme cargo-sweep cargo-audit cargo-outdated
+
+# Nightly rust
+RUN rustup toolchain install nightly \
+    --profile minimal \
+    --component rustfmt \
+    --component clippy \
+    --target x86_64-unknown-linux-musl \
+    --target x86_64-unknown-linux-gnu
 
 ##########################################
 # Download, build and cache dependencies
 ##########################################
 FROM builder as deps
+
+# install wildq
+RUN WQ_VERSION=$(curl -s "https://api.github.com/repos/ahmet2mir/wildq/releases/latest" | grep '"tag_name":' | sed -E 's/.*"v([^"]+)".*/\1/') \
+    && curl -sL https://github.com/ahmet2mir/wildq/releases/download/v${WQ_VERSION}/wildq_${WQ_VERSION}-1_amd64.deb -o wildq_${WQ_VERSION}-1_amd64.deb \
+    && dpkg -i wildq_${WQ_VERSION}-1_amd64.deb \
+    && rm wildq_${WQ_VERSION}-1_amd64.deb
+
 RUN USER=root cargo new --lib /app
 WORKDIR /app
 COPY samotop/Cargo.toml samotop/Cargo.toml
