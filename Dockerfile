@@ -14,10 +14,14 @@ RUN cat /etc/apt/sources.list | sed 's/^deb /deb-src /g' > /etc/apt/sources.list
 # - git - checking file modifications after rustfmt/readme in CI
 # - curl - for CI tests
 # - libssl-dev - required by some cargo tools (audit)
+# - pkg-config - so that rust build scripts find the right lib headers (openssl)
 RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
     musl-dev musl-tools build-essential \
     jq \
-    libssl-dev
+    git \
+    curl \
+    libssl-dev \
+    pkg-config
     # would break apt-get source
     #rm -rf /var/lib/apt/lists/*
 
@@ -76,9 +80,6 @@ RUN export CC=musl-gcc \
     make -j$(nproc) && make install_sw && \
     cd .. && rm -rf openssl*
 
-# TODO: integrate above
-RUN apt-get install -y --no-install-recommends curl git
-
 ##########################################
 # Download, build and cache dependencies
 ##########################################
@@ -134,13 +135,11 @@ FROM deps as stable
 COPY . .
 RUN cargo +stable check --color always --all-features \
     && echo "CLIPPY -------------------------------------------" \
-    && cargo +stable clippy --color always --all-features -- -Dclippy::all \
-    && echo "BUILD -------------------------------------------" \
-    && cargo +stable build --color always --all-features \
+    && cargo +stable clippy --color always --all-features --target=x86_64-unknown-linux-musl -- -Dclippy::all \
     && echo "TEST -------------------------------------------" \
-    && cargo +stable test --color always --all-features \
+    && cargo +stable test --color always --all-features  --target=x86_64-unknown-linux-musl \
     && echo "RELEASE ------------------------------------------" \
-    && cargo +stable build --color always --release
+    && cargo +stable build --color always --release --target=x86_64-unknown-linux-musl
 
 ####################################
 # Samotop server build
