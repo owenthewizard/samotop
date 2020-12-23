@@ -36,5 +36,5 @@ regex = "1.4"
 #[build]
 #target = "x86_64-unknown-linux-musl"
 
-[target.x86_64-unknown-linux-musl]
-ar = "x86_64-linux-musl-ar"
+# [target.x86_64-unknown-linux-musl]
+# ar = "x86_64-linux-musl-ar"

@@ -1,76 +1,33 @@
 ##########################################
 # Download and install dev tools
 ##########################################
-FROM debian:buster-slim as builder
+FROM rust:1-slim as builder
+LABEL maintainer="Jo Cutajar <tell-no-one@robajz.info>"
 ENV LC_ALL=C.UTF-8
 ENV LANG=C.UTF-8
-
-LABEL maintainer="Jo Cutajar <tell-no-one@robajz.info>"
 
 RUN cat /etc/apt/sources.list | sed 's/^deb /deb-src /g' > /etc/apt/sources.list.d/src.list
 
 # Required packages:
 # - build-essential, musl-dev, musl-tools - the C/C++/libc toolchain
-# - curl + ca-certificates - for fetching and verifying online resources
-# - libssl-dev - for dynamic linking openssl
-RUN apt-get update && apt-get upgrade -y && apt-get install -y \
+RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
     musl-dev \
     musl-tools \
     build-essential \
-    ca-certificates \
-    curl \
-    jq \
-    libssl-dev \
-    --no-install-recommends
+    jq
     # would break apt-get source
     #rm -rf /var/lib/apt/lists/*
 
-# Essential compilation vars
-# SSL cert directories get overridden by --prefix and --openssldir
-# and they do not match the typical host configurations.
-# The SSL_CERT_* vars fix this, but only when inside this container
-# musl-compiled binary must point SSL at the correct certs (muslrust/issues/5) elsewhere
-ENV CC=musl-gcc \
-    PREFIX=/musl \
-    PATH=$PREFIX/bin:/usr/local/bin:/root/.cargo/bin:$PATH \
-    PKG_CONFIG_PATH=/usr/local/lib/pkgconfig \
-    LD_LIBRARY_PATH=$PREFIX \
-    PKG_CONFIG_ALLOW_CROSS=true \
-    PKG_CONFIG_ALL_STATIC=true \
-    PKG_CONFIG_PATH=$PREFIX/lib/pkgconfig \
-    OPENSSL_STATIC=true \
-    OPENSSL_DIR=$PREFIX \
-    SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
-    SSL_CERT_DIR=/etc/ssl/certs
-
-# Set up a prefix for musl build libraries, make the linker's job of finding them easier
-# Primarily for the benefit of postgres.
-# Lastly, link some linux-headers for openssl 1.1 (not used herein)
-RUN mkdir $PREFIX && \
-    echo "$PREFIX/lib" >> /etc/ld-musl-x86_64.path && \
-    ln -s /usr/include/x86_64-linux-gnu/asm /usr/include/x86_64-linux-musl/asm && \
-    ln -s /usr/include/asm-generic /usr/include/x86_64-linux-musl/asm-generic && \
-    ln -s /usr/include/linux /usr/include/x86_64-linux-musl/linux
-
-# Download and build official debian openssl package but with musl
-RUN apt-get source openssl && \
-    cd openssl* && \
-    ./Configure no-shared -fPIC --prefix=$PREFIX --openssldir=$PREFIX/ssl linux-x86_64 && \
-    env C_INCLUDE_PATH=$PREFIX/include make depend 2> /dev/null && \
-    make -j$(nproc) && make install_sw && \
-    cd .. && rm -rf openssl*
+# Useful cargo tools
+RUN cargo install toml-cli cargo-readme cargo-sweep cargo-audit cargo-outdated
 
 # Rustup stable
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y \
-    --default-toolchain stable \
+RUN rustup toolchain install stable \
     --profile minimal \
     --component rustfmt \
     --component clippy \
     --target x86_64-unknown-linux-musl \
     --target x86_64-unknown-linux-gnu
-
-# Useful cargo tools
-RUN cargo install toml-cli cargo-readme cargo-sweep cargo-audit cargo-outdated
 
 # Nightly rust
 RUN rustup toolchain install nightly \
@@ -79,6 +36,41 @@ RUN rustup toolchain install nightly \
     --component clippy \
     --target x86_64-unknown-linux-musl \
     --target x86_64-unknown-linux-gnu
+
+# Essential compilation vars
+# SSL cert directories get overridden by --prefix and --openssldir
+# and they do not match the typical host configurations.
+# The SSL_CERT_* vars fix this, but only when inside this container
+# musl-compiled binary must point SSL at the correct certs (muslrust/issues/5) elsewhere
+ENV PREFIX=/var/local/musl
+    
+# Set up a prefix for musl build libraries, make the linker's job of finding them easier
+# Lastly, link some linux-headers for openssl 1.1 (not used herein)
+RUN mkdir -p "$PREFIX" && \
+    ln -s /usr/bin "$PREFIX/bin" && \
+    ln -s /usr/include/x86_64-linux-musl "$PREFIX/include"
+    ln -s /usr/lib/x86_64-linux-musl "$PREFIX/lib" && \
+    echo /usr/lib/x86_64-linux-musl >> /etc/ld-musl-x86_64.path && \
+    ln -s /usr/include/x86_64-linux-gnu/asm /usr/include/x86_64-linux-musl/asm && \
+    ln -s /usr/include/asm-generic /usr/include/x86_64-linux-musl/asm-generic && \
+    ln -s /usr/include/linux /usr/include/x86_64-linux-musl/linux
+
+# Download and build official debian openssl package but with musl
+RUN export CC=musl-gcc \
+    PKG_CONFIG_ALLOW_CROSS=true \
+    PKG_CONFIG_ALL_STATIC=true \
+    PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig" \
+    LD_LIBRARY_PATH="$PREFIX" \
+    OPENSSL_STATIC=true \
+    OPENSSL_DIR="$PREFIX" \
+    SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
+    SSL_CERT_DIR=/etc/ssl/certs && \
+    apt-get source openssl && \
+    cd openssl* && \
+    ./Configure no-shared -fPIC "--prefix=$PREFIX" "--openssldir=$PREFIX/ssl" linux-x86_64 && \
+    env "C_INCLUDE_PATH=$PREFIX/include" make depend 2> /dev/null && \
+    make -j$(nproc) && make install_sw && \
+    cd .. && rm -rf openssl*
 
 ##########################################
 # Download, build and cache dependencies
