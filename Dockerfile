@@ -10,11 +10,12 @@ RUN cat /etc/apt/sources.list | sed 's/^deb /deb-src /g' > /etc/apt/sources.list
 
 # Required packages:
 # - build-essential, musl-dev, musl-tools - the C/C++/libc toolchain
+# - jq - for manipulating json as part of build
+# - libssl-dev - required by some cargo tools (audit)
 RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
-    musl-dev \
-    musl-tools \
-    build-essential \
-    jq
+    musl-dev musl-tools build-essential \
+    jq \
+    libssl-dev
     # would break apt-get source
     #rm -rf /var/lib/apt/lists/*
 
@@ -37,38 +38,39 @@ RUN rustup toolchain install nightly \
     --target x86_64-unknown-linux-musl \
     --target x86_64-unknown-linux-gnu
 
-# Essential compilation vars
-# SSL cert directories get overridden by --prefix and --openssldir
-# and they do not match the typical host configurations.
-# The SSL_CERT_* vars fix this, but only when inside this container
-# musl-compiled binary must point SSL at the correct certs (muslrust/issues/5) elsewhere
-ENV PREFIX=/var/local/musl
+# Where MUSL builds will be prefixed
+ENV MUSLPREFIX=/var/local/musl
     
 # Set up a prefix for musl build libraries, make the linker's job of finding them easier
 # Lastly, link some linux-headers for openssl 1.1 (not used herein)
-RUN mkdir -p "$PREFIX" && \
-    ln -s /usr/bin "$PREFIX/bin" && \
-    ln -s /usr/include/x86_64-linux-musl "$PREFIX/include" && \
-    ln -s /usr/lib/x86_64-linux-musl "$PREFIX/lib" && \
+RUN mkdir -p "$MUSLPREFIX" && \
+    ln -s /usr/bin "$MUSLPREFIX/bin" && \
+    ln -s /usr/include/x86_64-linux-musl "$MUSLPREFIX/include" && \
+    ln -s /usr/lib/x86_64-linux-musl "$MUSLPREFIX/lib" && \
     echo /usr/lib/x86_64-linux-musl >> /etc/ld-musl-x86_64.path && \
     ln -s /usr/include/x86_64-linux-gnu/asm /usr/include/x86_64-linux-musl/asm && \
     ln -s /usr/include/asm-generic /usr/include/x86_64-linux-musl/asm-generic && \
     ln -s /usr/include/linux /usr/include/x86_64-linux-musl/linux
 
 # Download and build official debian openssl package but with musl
+# Essential compilation vars
+# SSL cert directories get overridden by --prefix and --openssldir
+# and they do not match the typical host configurations.
+# The SSL_CERT_* vars fix this, but only when inside this container
+# musl-compiled binary must point SSL at the correct certs (muslrust/issues/5) elsewhere
 RUN export CC=musl-gcc \
     PKG_CONFIG_ALLOW_CROSS=true \
     PKG_CONFIG_ALL_STATIC=true \
-    PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig" \
-    LD_LIBRARY_PATH="$PREFIX" \
+    PKG_CONFIG_PATH="$MUSLPREFIX/lib/pkgconfig" \
+    LD_LIBRARY_PATH="$MUSLPREFIX" \
     OPENSSL_STATIC=true \
-    OPENSSL_DIR="$PREFIX" \
+    OPENSSL_DIR="$MUSLPREFIX" \
     SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
     SSL_CERT_DIR=/etc/ssl/certs && \
     apt-get source openssl && \
     cd openssl* && \
-    ./Configure no-shared -fPIC "--prefix=$PREFIX" "--openssldir=$PREFIX/ssl" linux-x86_64 && \
-    env "C_INCLUDE_PATH=$PREFIX/include" make depend 2> /dev/null && \
+    ./Configure no-shared -fPIC "--prefix=$MUSLPREFIX" "--openssldir=$MUSLPREFIX/ssl" linux-x86_64 && \
+    env "C_INCLUDE_PATH=$MUSLPREFIX/include" make depend 2> /dev/null && \
     make -j$(nproc) && make install_sw && \
     cd .. && rm -rf openssl*
 
