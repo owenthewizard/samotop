@@ -48,7 +48,7 @@ ENV PREFIX=/var/local/musl
 # Lastly, link some linux-headers for openssl 1.1 (not used herein)
 RUN mkdir -p "$PREFIX" && \
     ln -s /usr/bin "$PREFIX/bin" && \
-    ln -s /usr/include/x86_64-linux-musl "$PREFIX/include"
+    ln -s /usr/include/x86_64-linux-musl "$PREFIX/include" && \
     ln -s /usr/lib/x86_64-linux-musl "$PREFIX/lib" && \
     echo /usr/lib/x86_64-linux-musl >> /etc/ld-musl-x86_64.path && \
     ln -s /usr/include/x86_64-linux-gnu/asm /usr/include/x86_64-linux-musl/asm && \
