@@ -200,20 +200,28 @@ publish-crate:
     - test "$VERSION" == "$(cargo pkgid --manifest-path "$COMPONENT/Cargo.toml" | cut -d '#' -f2- | tr -d '\n')"
     - cargo publish --manifest-path "$COMPONENT/Cargo.toml" --token "$CRATES_KEY" --color always
 
-publish-docker:
+server-version:
+  script:
+    - SAMOTOP_VERSION=$(cargo run -p samotop-server -- --version | cut -d' ' -f2)
+    - echo "SAMOTOP_VERSION=$SAMOTOP_VERSION" | tee vars.env
+  artifacts:
+    reports:
+      dotenv:
+        vars.env
+
+server-docker-image:
   extends: .kaniko-build-template
   stage: release
   variables:
     COMPONENT: samotop
-    VERSION: latest
     CONTEXT: .
     DOCKERFILE: Dockerfile
     BUILD_ARGS: ""
   only:
     changes:
       - samotop-server/**/*
-    refs:
-      - master
+      - Dockerfile
+      - .gitlab-ci.yml
   environment:
-    name: server
+    name: server-docker-image
     url: https://gitlab.com/BrightOpen/BackYard/Samotop/container_registry/1510406
