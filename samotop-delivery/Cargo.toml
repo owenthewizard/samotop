@@ -52,12 +52,13 @@ name = "transport_smtp"
 harness = false
 
 [features]
-default = ["file-transport", "smtp-transport", "sendmail-transport"]
+default = ["file-transport", "smtp-transport", "sendmail-transport", "skip-benches"]
 unstable = []
 serde-impls = ["serde", "serde_derive"]
 file-transport = ["serde-impls", "serde_json"]
 smtp-transport = ["base64", "nom", "hostname"]
 sendmail-transport = []
+skip-benches = []
 
 [[example]]
 name = "smtp"

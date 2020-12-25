@@ -29,7 +29,8 @@ RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-reco
 RUN cargo install toml-cli cargo-readme cargo-sweep cargo-audit cargo-outdated
 
 # Rustup stable
-RUN rustup component add rustfmt clippy
+RUN rustup component add clippy
+RUN rustup component add rustfmt
 RUN rustup target add x86_64-unknown-linux-musl
 
 # Nightly rust
