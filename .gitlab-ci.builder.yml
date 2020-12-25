@@ -12,10 +12,7 @@ builder-test:
     - echo "$RUSTUP_HOME"
     - rustc --version --verbose
     - cargo --version --verbose
-    - jq --version
-    - rustup default stable
-    - rustc --version --verbose
-    - cargo --version --verbose
+    - rustup --version --verbose
     - rustfmt --version
     - cargo clippy --version
     - cargo readme --version
@@ -24,6 +21,7 @@ builder-test:
     - cargo sweep --version
     - cargo tree --version
     - toml --version
+    - jq --version
 
 builder-build:
   extends: .kaniko-build-template
