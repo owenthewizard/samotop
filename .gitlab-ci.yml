@@ -22,7 +22,6 @@ debug-build:
       - target/debug/samotop-server
       - Cargo.lock
   before_script:
-    - rustup default stable
     - rustc --version --verbose
     - cargo --version --verbose
   script:
@@ -47,7 +46,6 @@ release-build:
       - target/release/samotop-server
       - Cargo.lock
   before_script:
-    - rustup default stable
     - rustc --version --verbose
     - cargo --version --verbose
   script:
@@ -62,7 +60,6 @@ stable-test:
     paths: *cache-paths
     policy: pull
   before_script:
-    - rustup default stable
     - rustc --version --verbose
     - cargo --version --verbose
   script:
@@ -71,7 +68,7 @@ stable-test:
 clippy-test:
   extends: stable-test
   script:
-    - cargo clippy --all-targets --all-features  --color always -- -Dclippy::all
+    - cargo clippy --all-features --color always -- -Dclippy::all
 
 check-test:
   extends: stable-test
@@ -100,7 +97,7 @@ nightly-test:
     - cargo --version --verbose
   script:
     - cargo test --all-targets --all-features --color always
-    - cargo clippy --all-targets --all-features --color always -- -Dclippy::all
+    - cargo clippy --all-features --color always -- -Dclippy::all
     - cargo check --all-targets --all-features --bins --tests --benches --examples --color always
     # cleanup target folder
     - ./clean.sh
@@ -113,7 +110,6 @@ nightly-test:
     paths: *cache-paths
     policy: pull
   before_script:
-    - rustup default stable
     - rustc --version --verbose
     - cargo --version --verbose
   script:
@@ -194,7 +190,6 @@ publish-crate:
     paths:
       - Cargo.lock
   before_script:
-    - rustup default stable
     - rustc --version --verbose
     - cargo --version --verbose
   script:
