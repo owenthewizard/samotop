@@ -215,7 +215,9 @@ server-version:
   stage: build
   script:
     - SAMOTOP_VERSION=$(cargo run -p samotop-server -- --version | cut -d' ' -f2)
-    - echo "SAMOTOP_VERSION=$SAMOTOP_VERSION" | tee vars.env
+    - echo "SAMOTOP_VERSION=$SAMOTOP_VERSION" > vars.env
+    - echo "SAMOTOP_IMAGE=$CI_REGISTRY_IMAGE/samotop:$SAMOTOP_VERSION" >> vars.env
+    - cat vars.env
   cache:
     key: *cache-key
     paths: *cache-paths
