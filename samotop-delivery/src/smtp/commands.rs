@@ -404,7 +404,7 @@ mod test {
             "RCPT TO:<test@example.com>\r\n"
         );
         assert_eq!(
-            format!("{}", RcptCommand::new(email.clone(), vec![rcpt_parameter])),
+            format!("{}", RcptCommand::new(email, vec![rcpt_parameter])),
             "RCPT TO:<test@example.com> TEST=value\r\n"
         );
         assert_eq!(format!("{}", QuitCommand), "QUIT\r\n");
@@ -441,7 +441,7 @@ mod test {
                 "{}",
                 AuthCommand::new(&mut SimpleAuthentication::new(
                     Mechanism::Login,
-                    credentials.clone()
+                    credentials
                 ))
                 .expect("should succeed")
             ),
