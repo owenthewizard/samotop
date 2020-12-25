@@ -215,6 +215,10 @@ server-version:
   script:
     - SAMOTOP_VERSION=$(cargo run -p samotop-server -- --version | cut -d' ' -f2)
     - echo "SAMOTOP_VERSION=$SAMOTOP_VERSION" | tee vars.env
+  cache:
+    key: *cache-key
+    paths: *cache-paths
+    policy: pull
   artifacts:
     reports:
       dotenv:
