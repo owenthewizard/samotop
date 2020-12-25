@@ -29,12 +29,8 @@ RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-reco
 RUN cargo install toml-cli cargo-readme cargo-sweep cargo-audit cargo-outdated
 
 # Rustup stable
-RUN rustup toolchain install stable \
-    --profile minimal \
-    --component rustfmt \
-    --component clippy \
-    --target x86_64-unknown-linux-musl \
-    --target x86_64-unknown-linux-gnu
+RUN rustup component add rustfmt clippy
+RUN rustup target add x86_64-unknown-linux-musl
 
 # Nightly rust
 RUN rustup toolchain install nightly \
@@ -46,11 +42,18 @@ RUN rustup toolchain install nightly \
 
 # Where MUSL builds will be prefixed
 ENV MUSLPREFIX=/var/local/musl
+ENV PKG_CONFIG_ALLOW_CROSS=true \
+    PKG_CONFIG_ALL_STATIC=true \
+    PKG_CONFIG_PATH="$MUSLPREFIX/lib/pkgconfig" \
+    LD_LIBRARY_PATH="$MUSLPREFIX" \
+    OPENSSL_STATIC=true \
+    OPENSSL_DIR="$MUSLPREFIX" \
+    SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
+    SSL_CERT_DIR=/etc/ssl/certs 
     
 # Set up a prefix for musl build libraries, make the linker's job of finding them easier
 # Lastly, link some linux-headers for openssl 1.1 (not used herein)
 RUN mkdir -p "$MUSLPREFIX" && \
-    ln -s /usr/bin "$MUSLPREFIX/bin" && \
     ln -s /usr/include/x86_64-linux-musl "$MUSLPREFIX/include" && \
     ln -s /usr/lib/x86_64-linux-musl "$MUSLPREFIX/lib" && \
     echo /usr/lib/x86_64-linux-musl >> /etc/ld-musl-x86_64.path && \
@@ -64,19 +67,11 @@ RUN mkdir -p "$MUSLPREFIX" && \
 # and they do not match the typical host configurations.
 # The SSL_CERT_* vars fix this, but only when inside this container
 # musl-compiled binary must point SSL at the correct certs (muslrust/issues/5) elsewhere
-RUN export CC=musl-gcc \
-    PKG_CONFIG_ALLOW_CROSS=true \
-    PKG_CONFIG_ALL_STATIC=true \
-    PKG_CONFIG_PATH="$MUSLPREFIX/lib/pkgconfig" \
-    LD_LIBRARY_PATH="$MUSLPREFIX" \
-    OPENSSL_STATIC=true \
-    OPENSSL_DIR="$MUSLPREFIX" \
-    SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
-    SSL_CERT_DIR=/etc/ssl/certs && \
+RUN export CC=musl-gcc && \
     apt-get source openssl && \
     cd openssl* && \
-    ./Configure no-shared -fPIC "--prefix=$MUSLPREFIX" "--openssldir=$MUSLPREFIX/ssl" linux-x86_64 && \
-    env "C_INCLUDE_PATH=$MUSLPREFIX/include" make depend 2> /dev/null && \
+    ./Configure -static no-shared -fPIC "--prefix=$MUSLPREFIX" "--openssldir=$MUSLPREFIX" linux-x86_64 && \
+    env "C_INCLUDE_PATH=/usr/include" make depend && \
     make -j$(nproc) && make install_sw && \
     cd .. && rm -rf openssl*
 
@@ -116,7 +111,12 @@ RUN find . -name Cargo.toml -mindepth 1 \
     | jq -s 'add | to_entries | .[] |  select((.value|type=="string") or (.value.path?|not))' \
     | jq -s 'from_entries' \
     | wildq -M -i json -o toml '{"dev-dependencies": .}' | tee -a Cargo.toml
-RUN cargo check && cargo build && cargo test --all-features
+RUN cargo fetch
+ENV OPENSSL_DIR=/var/local/musl
+RUN cargo check
+RUN cargo build
+RUN rustup target add x86_64-unknown-linux-musl
+RUN cargo test --target=x86_64-unknown-linux-musl
 
 # # The actual build of the app
 # FROM deps as nightly
@@ -146,6 +146,8 @@ RUN cargo +stable check --color always --all-features \
 ####################################
 FROM scratch as server
 COPY --from=stable /app/target/*/release/samotop-server /bin/samotop
+COPY --from=stable /var/local/musl/bin/openssl /bin/openssl
+ENV PATH=/bin
 #COPY -Samotop.crt Samotop.crt
 #COPY -Samotop.key Samotop.key
 #COPY -Samotop.pfx Samotop.pfx
