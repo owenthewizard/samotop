@@ -14,6 +14,9 @@ debug-build:
   only:
     - branches
   cache:
+    key: &cache-key
+      files:
+        - Cargo.lock
     paths: &cache-paths
       - target/
       - $CARGO_HOME
@@ -39,6 +42,7 @@ release-build:
     - /^hotfix\/*/
     - master
   cache:
+    key: *cache-key
     paths: *cache-paths
     policy: pull
   artifacts:
@@ -57,6 +61,7 @@ stable-test:
   only:
     - branches
   cache:
+    key: *cache-key
     paths: *cache-paths
     policy: pull
   before_script:
@@ -89,7 +94,10 @@ nightly-test:
   only:
     - branches
   cache:
-    key: nightly
+    key: 
+      prefix: nightly
+      files:
+        - Cargo.lock
     paths: *cache-paths
   before_script:
     - rustup default nightly
@@ -107,6 +115,7 @@ nightly-test:
   only:
     - branches
   cache:
+    key: *cache-key
     paths: *cache-paths
     policy: pull
   before_script:
@@ -184,6 +193,7 @@ publish-crate:
   only:
     - tags
   cache:
+    key: *cache-key
     paths: *cache-paths
     policy: pull
   artifacts:
@@ -201,6 +211,7 @@ publish-crate:
     - cargo publish --manifest-path "$COMPONENT/Cargo.toml" --token "$CRATES_KEY" --color always
 
 server-version:
+  stage: build
   script:
     - SAMOTOP_VERSION=$(cargo run -p samotop-server -- --version | cut -d' ' -f2)
     - echo "SAMOTOP_VERSION=$SAMOTOP_VERSION" | tee vars.env
