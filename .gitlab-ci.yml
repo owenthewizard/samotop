@@ -29,6 +29,7 @@ debug-build:
     - cargo --version --verbose
   script:
     - mkdir -p target
+    - mkdir -p "$CARGO_HOME"
     - du -shx target
     - du -shx "$CARGO_HOME"
     - cargo build --all-features --color always
