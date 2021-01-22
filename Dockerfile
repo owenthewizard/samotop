@@ -135,13 +135,13 @@ RUN cargo test --target=x86_64-unknown-linux-musl
 # The actual build of the app
 FROM deps as stable
 COPY . .
-RUN cargo +stable check --color always --all-features \
+RUN cargo check --color always --all-features \
     && echo "CLIPPY -------------------------------------------" \
-    && cargo +stable clippy --color always --all-features --target=x86_64-unknown-linux-musl -- -Dclippy::all \
+    && cargo clippy --color always --all-features --target=x86_64-unknown-linux-musl -- -Dclippy::all \
     && echo "TEST -------------------------------------------" \
-    && cargo +stable test --color always --all-features  --target=x86_64-unknown-linux-musl \
+    && cargo test --color always --all-features  --target=x86_64-unknown-linux-musl \
     && echo "RELEASE ------------------------------------------" \
-    && cargo +stable build --color always --release --target=x86_64-unknown-linux-musl
+    && cargo build --color always --release --target=x86_64-unknown-linux-musl
 
 ####################################
 # Samotop server build
