@@ -35,10 +35,10 @@ parser-nom = ["samotop-parser-nom"]
 
 [dependencies]
 log = "0.4"
-bytes = "0.6"
+bytes = "1.0"
 pin-project = "1.0"
 futures = "0.3"
-async-std = "1.7"
+async-std = "1.9"
 regex = "1.4"
 smol-timeout = "0.6"
 
