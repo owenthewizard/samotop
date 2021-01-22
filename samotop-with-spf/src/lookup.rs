@@ -48,7 +48,7 @@ impl Lookup for TrustDnsResolver {
             .map(|mx| {
                 Name::new(&mx.exchange().to_ascii()).map_err(|e| LookupError::Dns(Some(e.into())))
             })
-            .collect::<Result<_, _>>())
+            .collect::<Result<_, _>>()?)
     }
 
     fn lookup_txt(&self, name: &Name) -> LookupResult<Vec<String>> {
@@ -62,7 +62,7 @@ impl Lookup for TrustDnsResolver {
                     .map(|data| str::from_utf8(data).map_err(|e| LookupError::Dns(Some(e.into()))))
                     .collect()
             })
-            .collect::<Result<_, _>>())
+            .collect::<Result<_, _>>()?)
     }
 
     fn lookup_ptr(&self, ip: IpAddr) -> LookupResult<Vec<Name>> {
@@ -72,7 +72,7 @@ impl Lookup for TrustDnsResolver {
             .map_err(to_lookup_error)?
             .into_iter()
             .map(|name| Name::new(&name.to_ascii()).map_err(|e| LookupError::Dns(Some(e.into()))))
-            .collect::<Result<_, _>>())
+            .collect::<Result<_, _>>()?)
     }
 }
 
