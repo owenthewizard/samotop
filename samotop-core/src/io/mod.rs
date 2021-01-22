@@ -1,6 +1,6 @@
-pub mod tls;
-mod service;
 mod connection;
+mod service;
+pub mod tls;
 
-pub use self::service::*;
 pub use self::connection::*;
+pub use self::service::*;
