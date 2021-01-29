@@ -17,7 +17,7 @@ builder-test:
     - cargo clippy --version
     - cargo readme --version
     - cargo audit --version
-    - cargo outdated --version
+    #- cargo outdated --version
     - cargo sweep --version
     - cargo tree --version
     - toml --version
