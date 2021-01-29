@@ -181,7 +181,7 @@ impl Setup {
             );
             let mut idfile = File::open(&id_path)
                 .await
-                .map_err(|e| format!("Could not load identity: {}", e))?;
+                .map_err(|e| format!("Could not load identity: {:?}", e))?;
             let mut idbuf = vec![];
             let _ = idfile.read_to_end(&mut idbuf).await?;
             let mut idbuf = std::io::BufReader::new(&idbuf[..]);
