@@ -3,6 +3,7 @@ pub mod smtp;
 
 pub use samotop_core::io::*;
 
+#[cfg(feature = "delivery")]
 pub use samotop_delivery::smtp::net as client;
 
 pub mod tls {

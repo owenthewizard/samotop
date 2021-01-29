@@ -37,7 +37,7 @@ impl<'s, S> SmtpProto<'s, S> {
     //     self
     // }
     pub fn buffer(&self) -> &[u8] {
-        self.buffer.bytes()
+        self.buffer.chunk()
     }
     pub fn stream_mut(&mut self) -> Pin<&mut S> {
         self.stream.as_mut()
@@ -193,7 +193,7 @@ impl<'s, S: Read + Write> SmtpProto<'s, S> {
             let mut enough = self.buffer.remaining() != 0;
             loop {
                 self.buffer.reserve(1024);
-                let buf = self.buffer.bytes_mut();
+                let buf = self.buffer.chunk_mut();
                 if !enough {
                     // It is OK to use uninitialized buffer as long as read fulfills the contract.
                     // In other words, it will only use the given buffer for writing.
@@ -216,7 +216,7 @@ impl<'s, S: Read + Write> SmtpProto<'s, S> {
                         self.buffer.advance_mut(read)
                     };
                 }
-                let response = std::str::from_utf8(self.buffer.bytes())?;
+                let response = std::str::from_utf8(self.buffer.chunk())?;
                 debug!("S: {}", escape_crlf(response));
                 break match parse_response(response) {
                     Ok((remaining, response)) => {
