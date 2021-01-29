@@ -59,4 +59,8 @@ fn bench_reuse_send(c: &mut Criterion) {
 }
 
 criterion_group!(benches, bench_simple_send, bench_reuse_send);
+
+#[cfg(feature = "skip-benches")]
+fn main() {}
+#[cfg(not(feature = "skip-benches"))]
 criterion_main!(benches);

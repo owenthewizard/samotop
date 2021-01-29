@@ -83,9 +83,9 @@ where
                 None => break Poll::Ready(None),
                 Some(io) => Pin::new(io),
             };
-            break match parser.parse_command(buffer.bytes()) {
+            break match parser.parse_command(buffer.chunk()) {
                 Ok((i, cmd)) => {
-                    let consumed = buffer.bytes().len() - i.len();
+                    let consumed = buffer.chunk().len() - i.len();
                     buffer.advance(consumed);
                     Poll::Ready(Some(cmd))
                 }
@@ -93,7 +93,7 @@ where
                     if buffer.remaining_mut() == 0 {
                         buffer.reserve(1024);
                     }
-                    let buff = buffer.bytes_mut();
+                    let buff = buffer.chunk_mut();
                     // This is unsafe because BytesMut does not initialize the buffer.
                     // Malicious reader could get access to random / interesting data!
                     // Accepting unsafe here we assume the reader is not malicious and
@@ -104,7 +104,7 @@ where
                     match ready!(reader.poll_read(cx, buff)) {
                         Ok(0) => Poll::Ready(Some(processing_error(
                             "Incomplete and finished",
-                            String::from_utf8_lossy(buffer.bytes()),
+                            String::from_utf8_lossy(buffer.chunk()),
                         ))),
                         Ok(len) => {
                             // This is unsafe because badly behaved reader could return a different
