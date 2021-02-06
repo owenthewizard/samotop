@@ -25,4 +25,5 @@ path = "../samotop-core"
 async-native-tls = "0.3"
 
 [features]
+default = ["vendored"]
 vendored = ["async-native-tls/vendored"]

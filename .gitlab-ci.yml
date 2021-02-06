@@ -54,8 +54,8 @@ release-build:
     - rustc --version --verbose
     - cargo --version --verbose
   script:
-    - cargo build --all-targets --release --color always
-    - cargo test --all-targets --release --color always
+    - cargo build --all-features --release --color always
+    - cargo test --all-features --release --color always
 
 stable-test:
   stage: build
