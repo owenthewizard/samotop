@@ -34,6 +34,7 @@ The [samotop crate is published on crates.io](https://crates.io/crates/samotop).
 - [x] DATA are handled and terminated correctly (escape dot, final dot).
 - [x] Async/await with async-std backing
 - [x] Privacy: TLS/STARTTLS supported using [rustls](https://crates.io/crates/rustls) and [native_tls](https://crates.io/crates/native_tls)
+- [x] Privacy: Encryption at rest, S/MIME encrypt e-mails, only the recipient will be able to decrypt
 - [x] MTA: Simple mail relay, logging smtp session to standard output but able to receive mail from common relays
 - [x] MDA: System-wide mailbox - mailbox for all unclaimed domains / addresses - store mail in a folder so it can be processed further
 - [x] MDA: Domain mailbox - mailbox for unclaimed addresses (through LMTP to another LDA)
@@ -41,8 +42,11 @@ The [samotop crate is published on crates.io](https://crates.io/crates/samotop).
 - [x] MDA: Store mail in Maildir (through LMTP to another LDA)
 - [x] MDA: Smart mailbox - multiple mailbox addresses by convention
 - [x] Integration: LMTP socket - can deliver to LDA over unix or network sockets using LMTP
+- [x] Integration: LMTP child process - can deliver to LDA using LMTP protocol over io with a child process
+        - [ ] Connector is missing and must be provided
 - [x] LDA: Can process LMTP session (LHLO + delivery status per rcpt) with `LmtpParserPeg`
 - [x] Antispam: SPF (through viaspf, todo:async)
+- [x] Anti-abuse: Command timeout
 
 ### To do
 
@@ -55,9 +59,7 @@ The [samotop crate is published on crates.io](https://crates.io/crates/samotop).
 - [ ] Antispam: reverse lookup
 - [ ] Antispam: DANE (DNSSEC) with UI - user verifies signatures
 - [ ] Privacy: Refuse unencrypted session
-- [ ] Privacy: Encryption at rests, encrypt e-mails, only the recipient will be able to decrypt
 - [ ] Privacy: Leave no trace, no logs, obfuscated file dates...
-- [ ] Integration: LMTP child process - can deliver to LDA using LMTP protocol over io with a child process
 
 ## Installation
 

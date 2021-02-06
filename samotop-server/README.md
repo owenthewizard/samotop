@@ -6,6 +6,10 @@ You can run your own privacy focussed, resource efficient mail server. [Samotop 
 
 ## Status
 
+### General
+
+- [x] Tiny docker image - only contains statically compiled samotop and openssl, no OS clutter.
+
 ### Common (MDA/MTA/MSA)
 
 - [x] The server will receive mail and write it to a given maildir folder. Another program can pick the folder and process it further.
@@ -71,6 +75,11 @@ Both should produce a usage information not too different from this:
                                                     ports. If no ports are given, the default is to start on localhost:25
 
 ## TLS
+
+You can run these also in docker:
+```rust
+n --rm -ti --entrypoint openssl samotop help
+```
 
 Generate a cert and ID with openssl:
 ```bash
