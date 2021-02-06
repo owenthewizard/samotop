@@ -3,6 +3,19 @@ name = "samotop-smime"
 version = "0.12.0"
 authors = ["Robert Cutajar <robert.cutajar@robajz.info>"]
 edition = "2018"
+license = "MIT OR Apache-2.0"
+description = "A samotop extensions for server side S/MIME encrypted mail."
+documentation = "https://docs.rs/samotop/"
+homepage = "https://gitlab.com/BrightOpen/BackYard/Samotop/-/tree/develop/samotop-core"
+repository = "https://gitlab.com/BrightOpen/BackYard/Samotop/"
+keywords = ["smtp", "model", "async", "server"]
+
+categories = [
+    "email",
+    "asynchronous",
+    "network-programming",
+    "cryptography"
+]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
