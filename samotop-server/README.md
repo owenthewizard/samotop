@@ -76,9 +76,10 @@ Both should produce a usage information not too different from this:
 
 ## TLS
 
-You can run these also in docker:
+You can run these openssl commands in docker as well.
+This will run an openssl with the current folder mounted under /data and that is also the work dir:
 ```rust
-n --rm -ti --entrypoint openssl samotop help
+docker run --rm -ti -v "$PWD:/data/" -w "/data/" --entrypoint openssl samotop help
 ```
 
 Generate a cert and ID with openssl:
