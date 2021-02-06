@@ -11,7 +11,7 @@ keywords = ["smtp", "tls"]
 edition = "2018"
 
 # see crates.io/category_slugs
-categories = ["email", "network-programming"]
+categories = ["email", "network-programming", "cryptography"]
 
 [badges]
 gitlab = { repository = "BrightOpen/BackYard/Samotop", branch = "develop" }
