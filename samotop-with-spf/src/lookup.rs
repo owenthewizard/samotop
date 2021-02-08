@@ -43,36 +43,33 @@ impl Lookup for TrustDnsResolver {
         let res = block_on(fut);
         let mut mxs: Vec<MX> = res.map_err(to_lookup_error)?.into_iter().collect();
         mxs.sort_by_key(|mx| mx.preference());
-        Ok(mxs
-            .into_iter()
+        mxs.into_iter()
             .map(|mx| {
                 Name::new(&mx.exchange().to_ascii()).map_err(|e| LookupError::Dns(Some(e.into())))
             })
-            .collect::<Result<_, _>>()?)
+            .collect::<Result<_, _>>()
     }
 
     fn lookup_txt(&self, name: &Name) -> LookupResult<Vec<String>> {
         let fut = self.0.txt_lookup(name.as_str());
         let res = block_on(fut);
-        Ok(res
-            .map_err(to_lookup_error)?
+        res.map_err(to_lookup_error)?
             .into_iter()
             .map(|txt| {
                 txt.iter()
                     .map(|data| str::from_utf8(data).map_err(|e| LookupError::Dns(Some(e.into()))))
                     .collect()
             })
-            .collect::<Result<_, _>>()?)
+            .collect::<Result<_, _>>()
     }
 
     fn lookup_ptr(&self, ip: IpAddr) -> LookupResult<Vec<Name>> {
         let fut = self.0.reverse_lookup(ip);
         let res = block_on(fut);
-        Ok(res
-            .map_err(to_lookup_error)?
+        res.map_err(to_lookup_error)?
             .into_iter()
             .map(|name| Name::new(&name.to_ascii()).map_err(|e| LookupError::Dns(Some(e.into()))))
-            .collect::<Result<_, _>>()?)
+            .collect::<Result<_, _>>()
     }
 }
 
