@@ -1,44 +1,68 @@
 # Samotop
 An SMTP [server](samotop-server/README.md) and [library](samotop/README.md) implemented in Rust.
 
-[![plantuml]](http://www.plantuml.com/plantuml/uml/TL5TIyCm57tFhxZiFGDzB28hAY9OsEnyAdl8sZiRbYOZ7-gG_NVJf5Sgubivf-VZdgoS5zQ7GR5EUB4N3c6n2HXm0L_iCWFBjZL1UvVnfghB7V1mub27_I2TaqP7T4le2ofnPiscsh7cCGZRHLpXmNEuwx4zCiQqwQ9j9QJQcqzmP-Tn6Cq1cWdyaToZakzepxyvAz_wI8v0RCHQPK87Kdkq6dqsAhNnFLgeqKPzrC24v7gNIHGSsYdvjToDPka3EB-TdLV0GrrjrsmCX1lEyzy5F5NbcWRfp8UE8XghWAibYE1xuiTx8fyMBk1w2SuRYt2G2cczR95dIlhd64falla_0nfwNi06XIuz15cJ-2JROnOcbhhD5mAwEVz1wVGUHUxsPsOAIXvaiKBTXK5z0m00)
+# Inbound mail processing
 
-[plantuml]: http://www.plantuml.com/plantuml/png/TL5TIyCm57tFhxZiFGDzB28hAY9OsEnyAdl8sZiRbYOZ7-gG_NVJf5Sgubivf-VZdgoS5zQ7GR5EUB4N3c6n2HXm0L_iCWFBjZL1UvVnfghB7V1mub27_I2TaqP7T4le2ofnPiscsh7cCGZRHLpXmNEuwx4zCiQqwQ9j9QJQcqzmP-Tn6Cq1cWdyaToZakzepxyvAz_wI8v0RCHQPK87Kdkq6dqsAhNnFLgeqKPzrC24v7gNIHGSsYdvjToDPka3EB-TdLV0GrrjrsmCX1lEyzy5F5NbcWRfp8UE8XghWAibYE1xuiTx8fyMBk1w2SuRYt2G2cczR95dIlhd64falla_0nfwNi06XIuz15cJ-2JROnOcbhhD5mAwEVz1wVGUHUxsPsOAIXvaiKBTXK5z0m00
+[![inbound]](http://www.plantuml.com/plantuml/umla/RP1FJm913CNlyoaQJkjXYNhSWs4bnfX8GWHEXaFPgR1n_fZvenB3TxSxbAZ4sqpxw-lhcyI48MLhbCQ46um4exRhV7OfZa0fvpLNPjYRZVzSx6CYEu8l1V0ijJM_PLJ0OUwWL6Tyrj2xHC5HEiwqpgST1LXGUAUmLWUXSgHGYERMRvgYlcg7Tlb3VNCiD108DLXUeXhKjdVSos-bZGwtPCcbjVhzWJhqsrrYf5Xhm9OUeDnu1Xjw6LX9u5zyrJ9NNTO_2JJ0P_83geTPExzWPjcALk7kCmRDrDKOfZlgNk5fEbz2zJXR2dnoUQPwFGPDfkUaoicd2T63MliFzyVibXA4R2YgiwJ5CQyQ8ZIuX-fk8UjbdSX9Jcf2JcThlW40)
+
+[inbound]: http://www.plantuml.com/plantuml/png/RP1FJm913CNlyoaQJkjXYNhSWs4bnfX8GWHEXaFPgR1n_fZvenB3TxSxbAZ4sqpxw-lhcyI48MLhbCQ46um4exRhV7OfZa0fvpLNPjYRZVzSx6CYEu8l1V0ijJM_PLJ0OUwWL6Tyrj2xHC5HEiwqpgST1LXGUAUmLWUXSgHGYERMRvgYlcg7Tlb3VNCiD108DLXUeXhKjdVSos-bZGwtPCcbjVhzWJhqsrrYf5Xhm9OUeDnu1Xjw6LX9u5zyrJ9NNTO_2JJ0P_83geTPExzWPjcALk7kCmRDrDKOfZlgNk5fEbz2zJXR2dnoUQPwFGPDfkUaoicd2T63MliFzyVibXA4R2YgiwJ5CQyQ8ZIuX-fk8UjbdSX9Jcf2JcThlW40
 
 ```
 @startuml
-database "Queue" {
-}
-database "Accounts" {
-}
-[MSA] -up- Submission
-[MTA] -up- Relay
-[QM]
-[Guard] -left- Check
+database "Accounts" 
 
-
-node "Mailbox system" {
-  [Mailbox] -left- Delivery
-  [Mailbox] -right- Mail
+node "MailboxSystem" {
+  [Mailbox]
+  database "Mails" 
 }
 
 cloud internet {
-  [Another Server] - AnotherRelay
+  [Another Server]
 }
 cloud user {
+  :Bob:
+  [MUA]
+}
+:Bob: -> [MUA]: read mail
+:admin: -up-> [Management]
+[Management] -right-> Mails: manage accounts
+[Management] -left-> Accounts: manage accounts
+[MUA] -(0- [Mailbox]:  inbox (IMAP)
+[MTA] -left(0- [Guard]: 1. Check RCPT (LMTP)
+[MTA] -right(0- [Mailbox]: 2. deliver mail (LMTP)
+[Guard] -down-> Accounts: get rules
+[Another Server] -(0- MTA: relay (ESMTP)
+[Mailbox] -down-> Mails
+@enduml
+```
+
+# Outbound mail processing
+
+[![outbound]](http://www.plantuml.com/plantuml/umla/PP11IyGm48Nl-HMFFTL35_MOWsm5RnPSggVIGzeEDj0ccime8lvtqzXTXBr--V9uRmwHJM1PPZKQDhs9XDrHI6Y7VwGQ1Y-EOuAghPkgWsgFTQVKC7iPOHrJSCJuLa1RESyJ1JGKFYXqwcUp95B8XhxtlLxD-gLQdrK6AE_-Y4OaDy8uKBaOEwjCKHRNPHAQB4Y_s1YjToWUclhvwMghLOx-qwMWKs6DcpsCy4IExM2OJbwmhnFdnBH3utQFztKrYiUSjj9pMBx7XkGjVRhOg15eDb_dCeSq8Dtq5m00)
+
+[outbound]: http://www.plantuml.com/plantuml/png/PP11IyGm48Nl-HMFFTL35_MOWsm5RnPSggVIGzeEDj0ccime8lvtqzXTXBr--V9uRmwHJM1PPZKQDhs9XDrHI6Y7VwGQ1Y-EOuAghPkgWsgFTQVKC7iPOHrJSCJuLa1RESyJ1JGKFYXqwcUp95B8XhxtlLxD-gLQdrK6AE_-Y4OaDy8uKBaOEwjCKHRNPHAQB4Y_s1YjToWUclhvwMghLOx-qwMWKs6DcpsCy4IExM2OJbwmhnFdnBH3utQFztKrYiUSjj9pMBx7XkGjVRhOg15eDb_dCeSq8Dtq5m00
+
+```
+@startuml
+database "Queue" 
+database "Accounts" 
+
+[MSA] 
+[QM]
+
+cloud internet {
+  [Another Server]
+}
+cloud user {
+  :Bob:
   [MUA]
 }
 
-[MUA] --> Submission: ESMTP
-Mail <-- [MUA]: IMAP
-[MSA] -down-> Accounts: 1. auth
-[MSA] -left-> Queue: 2. store file
-[MTA] -down-> Check: 1. LMTP
-[MTA] -right-> Queue: 2. store file
-[Guard] -> Accounts: rules
-[QM] -down-> Queue: pick file
-[QM] -left-> AnotherRelay : ESMTP
-[QM] -right-> Delivery: LMTP
-[Another Server] -down-> Relay: ESMTP
+:Bob: -> [MUA]: send an e-mail
+[MUA] -(0- [MSA]: submission (ESMTP)
+[MSA] -down-> Accounts: 1. authenticate
+[MSA] -right(0- [QM]: 2. queue (LMTP)
+[QM] -down-> Queue
+[QM] -up(0- [Another Server]: relay (ESMTP)
 @enduml
 ```
