@@ -1,20 +1,10 @@
-/*
+/*!
     Aim: wrap rustyknife nom parser for samotop
+
+:warning: this brings **GPLv3** requirements of the rustyknife crate.
+
 */
 
-// use nom::{
-//     branch::alt,
-//     bytes::streaming::tag_no_case,
-//     bytes::streaming::take_until,
-//     bytes::streaming::{escaped_transform, is_a, is_not, tag, take, take_while_m_n},
-//     character::streaming::{alphanumeric0, alphanumeric1},
-//     combinator::map,
-//     combinator::opt,
-//     combinator::recognize,
-//     multi::{many0, many1},
-//     sequence::{delimited, pair, preceded, separated_pair, terminated, tuple},
-//     IResult,
-// };
 use nom::{bytes::streaming::tag, Err};
 use rustyknife::{
     rfc5321::mailbox,

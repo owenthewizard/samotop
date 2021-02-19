@@ -8,9 +8,9 @@
 
 {{license}}
 
-> :warning: **WARNING: GPLv3** in samotop-parser-nom crate - parser-nom feature of this crate
+> :warning: **WARNING: GPLv3**  
 >
-> Since the rustyknife crate is licensed under GPLv3, it's terms apply to you if you distribute a binary including the parser-nom feature.
+> Since the rustyknife crate is licensed under GPLv3, it's terms apply to you if you distribute a binary including it.
 
 ### Contribution
 
