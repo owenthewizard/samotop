@@ -1,6 +1,10 @@
 # Samotop
 An SMTP [server](samotop-server/README.md) and [library](samotop/README.md) implemented in Rust.
 
+![samotop]
+
+[samotop]: samotop.png
+
 # Inbound mail processing
 
 [![inbound]](http://www.plantuml.com/plantuml/umla/RP1FJm913CNlyoaQJkjXYNhSWs4bnfX8GWHEXaFPgR1n_fZvenB3TxSxbAZ4sqpxw-lhcyI48MLhbCQ46um4exRhV7OfZa0fvpLNPjYRZVzSx6CYEu8l1V0ijJM_PLJ0OUwWL6Tyrj2xHC5HEiwqpgST1LXGUAUmLWUXSgHGYERMRvgYlcg7Tlb3VNCiD108DLXUeXhKjdVSos-bZGwtPCcbjVhzWJhqsrrYf5Xhm9OUeDnu1Xjw6LX9u5zyrJ9NNTO_2JJ0P_83geTPExzWPjcALk7kCmRDrDKOfZlgNk5fEbz2zJXR2dnoUQPwFGPDfkUaoicd2T63MliFzyVibXA4R2YgiwJ5CQyQ8ZIuX-fk8UjbdSX9Jcf2JcThlW40)
