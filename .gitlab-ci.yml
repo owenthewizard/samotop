@@ -242,4 +242,4 @@ server-docker-image:
       - .gitlab-ci.yml
   environment:
     name: server-docker-image
-    url: https://gitlab.com/BrightOpen/BackYard/Samotop/container_registry/1510406
+    url: https://gitlab.com/BrightOpen/Samotop/container_registry/1510406

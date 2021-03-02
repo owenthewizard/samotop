@@ -5,8 +5,8 @@ authors = ["jocutajar <tellnoone@robajz.info>"]
 license = "MIT OR Apache-2.0"
 description = "SMTP server with focus on privacy"
 documentation = "https://docs.rs/samotop-server/"
-homepage = "https://gitlab.com/BrightOpen/BackYard/Samotop/-/tree/develop/samotop-server"
-repository = "https://gitlab.com/BrightOpen/BackYard/Samotop/"
+homepage = "https://gitlab.com/BrightOpen/Samotop/-/tree/develop/samotop-server"
+repository = "https://gitlab.com/BrightOpen/Samotop/"
 readme = "README.md"
 keywords = ["smtp", "e-mail", "mail", "email", "server"]
 edition = "2018"
@@ -15,7 +15,7 @@ edition = "2018"
 categories = ["email", "asynchronous"]
 
 [badges]
-gitlab = { repository = "BrightOpen/BackYard/Samotop", branch = "develop" }
+gitlab = { repository = "BrightOpen/Samotop", branch = "develop" }
 
 [dependencies.samotop]
 version = "0.12.0"

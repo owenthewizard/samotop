@@ -5,8 +5,8 @@ authors = ["jocutajar <tellnoone@robajz.info>"]
 license = "MIT OR Apache-2.0"
 description = "Samotop test utils"
 documentation = "https://docs.rs/samotop/"
-homepage = "https://gitlab.com/BrightOpen/BackYard/Samotop/-/tree/develop/samotop-tests"
-repository = "https://gitlab.com/BrightOpen/BackYard/Samotop/"
+homepage = "https://gitlab.com/BrightOpen/Samotop/-/tree/develop/samotop-tests"
+repository = "https://gitlab.com/BrightOpen/Samotop/"
 keywords = ["test"]
 edition = "2018"
 

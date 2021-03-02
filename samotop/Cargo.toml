@@ -5,8 +5,8 @@ authors = ["jocutajar <tellnoone@robajz.info>"]
 license = "MIT OR Apache-2.0"
 description = "SMTP server and library built on async-std"
 documentation = "https://docs.rs/samotop/"
-homepage = "https://gitlab.com/BrightOpen/BackYard/Samotop/"
-repository = "https://gitlab.com/BrightOpen/BackYard/Samotop/"
+homepage = "https://gitlab.com/BrightOpen/Samotop/"
+repository = "https://gitlab.com/BrightOpen/Samotop/"
 readme = "README.md"
 keywords = ["smtp", "async", "server", "parser", "PEG"]
 edition = "2018"
@@ -20,7 +20,7 @@ categories = [
 ]
 
 [badges]
-gitlab = { repository = "BrightOpen/BackYard/Samotop", branch = "develop" }
+gitlab = { repository = "BrightOpen/Samotop", branch = "develop" }
 maintenance = { status = "actively-developed" }
 
 [features]

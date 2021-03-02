@@ -36,7 +36,7 @@ builder-build:
       - .gitlab-ci.builder.yml
   environment:
     name: builder
-    url: https://gitlab.com/BrightOpen/BackYard/Samotop/container_registry/1517868
+    url: https://gitlab.com/BrightOpen/Samotop/container_registry/1517868
 
 # Jobs based on this template produce a docker image without the need for docker-in-docker (dind).
 # The job exports the given components pinned image so that deployments use the image built specifically in this pipeline.

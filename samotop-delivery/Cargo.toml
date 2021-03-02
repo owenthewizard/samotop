@@ -4,8 +4,8 @@ name = "samotop-delivery"
 version = "0.12.0"
 description = "Set of transports to deliver mail to, notably to SMTP/LMTP, but also maildir..."
 readme = "README.md"
-homepage = "https://gitlab.com/BrightOpen/BackYard/Samotop/-/tree/develop/samotop-delivery"
-repository = "https://gitlab.com/BrightOpen/BackYard/Samotop/"
+homepage = "https://gitlab.com/BrightOpen/Samotop/-/tree/develop/samotop-delivery"
+repository = "https://gitlab.com/BrightOpen/Samotop/"
 license = "MIT OR Apache-2.0"
 authors = [
     "jocutajar <tellnoone@robajz.info>",
