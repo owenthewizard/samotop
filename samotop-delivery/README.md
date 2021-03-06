@@ -1,4 +1,4 @@
-# samotop-delivery 0.12.0
+# samotop-delivery 0.13.0-samotop-dev
 
 samotop-delivery is a set of transports to deliver mail to,
 notably to SMTP/LMTP, but also maildir... It is used in Samotop

@@ -3,7 +3,7 @@
 
 # samotop-parser-nom 0.12.0
 
-    Aim: wrap rustyknife nom parser for samotop
+Aim: wrap rustyknife nom parser for samotop
 
 :warning: this brings **GPLv3** requirements of the rustyknife crate.
 

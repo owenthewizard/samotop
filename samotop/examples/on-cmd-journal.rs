@@ -30,7 +30,7 @@ use futures::AsyncWrite as Write;
 use samotop::{
     io::{smtp::SmtpService, tls::TlsCapable, ConnectionInfo, IoService},
     mail::MailSetup,
-    mail::{Builder, Journal, EsmtpService},
+    mail::{Builder, EsmtpService, Journal},
     parser::LmtpParserPeg,
 };
 use std::sync::Arc;
