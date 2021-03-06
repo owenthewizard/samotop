@@ -163,6 +163,7 @@ version = "1.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d9f06685bad74e0570f5213741bea82158279a4103d988e57bfada11ad230341"
 dependencies = [
+ "async-attributes",
  "async-channel",
  "async-global-executor",
  "async-io",
@@ -855,6 +856,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "hex"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "644f9158b2f133fd50f5fb3242878846d9eb792e445c893805ff0e3824006e35"
+
+[[package]]
 name = "hostname"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -999,6 +1006,20 @@ checksum = "51b9bbe6c47d51fc3e1a9b945965946b4c44142ab8792c50835a980d362c2710"
 dependencies = [
  "cfg-if 1.0.0",
  "value-bag",
+]
+
+[[package]]
+name = "lozizol"
+version = "0.5.3-dev"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7f1de289e1fa0dc1455520ce7bf80970ce57a5c7f091e55a371af48f307581d6"
+dependencies = [
+ "async-std",
+ "bytes",
+ "hex",
+ "log",
+ "memchr",
+ "num-traits",
 ]
 
 [[package]]
@@ -1575,7 +1596,7 @@ dependencies = [
 
 [[package]]
 name = "samotop"
-version = "0.12.0"
+version = "0.13.0-dev"
 dependencies = [
  "async-std",
  "bytes",
@@ -1609,7 +1630,7 @@ dependencies = [
 
 [[package]]
 name = "samotop-delivery"
-version = "0.12.0"
+version = "0.13.0-samotop-dev"
 dependencies = [
  "async-attributes",
  "async-std",
@@ -1622,6 +1643,7 @@ dependencies = [
  "glob",
  "hostname",
  "log",
+ "lozizol",
  "memchr",
  "nom",
  "pin-project",
@@ -1633,6 +1655,7 @@ dependencies = [
  "serde_json",
  "structopt",
  "thiserror",
+ "uuid",
 ]
 
 [[package]]
@@ -2123,6 +2146,15 @@ dependencies = [
  "idna",
  "matches",
  "percent-encoding",
+]
+
+[[package]]
+name = "uuid"
+version = "0.8.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bc5cf98d8186244414c848017f0e2676b3fcb46807f6668a97dfe67359a3c4b7"
+dependencies = [
+ "getrandom",
 ]
 
 [[package]]

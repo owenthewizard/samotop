@@ -15,6 +15,7 @@
 pub mod authentication;
 pub mod commands;
 mod error;
+mod delivery;
 pub mod extension;
 pub mod net;
 pub mod response;
@@ -27,3 +28,4 @@ pub use self::error::*;
 pub use self::smtp_client::*;
 pub use self::stream::*;
 pub use self::transport::*;
+pub use self::delivery::*;

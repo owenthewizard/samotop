@@ -10,10 +10,9 @@ mod inet;
 pub use self::inet::*;
 
 use self::tls::DefaultTls;
-use crate::smtp::extension::ClientId;
 use crate::smtp::extension::ServerInfo;
-use crate::ClientSecurity;
 use crate::{smtp::authentication::Authentication, SyncFuture};
+use crate::{smtp::extension::ClientId, smtp::ClientSecurity};
 use async_std::io::{self, Read, Write};
 use samotop_core::io::tls::MayBeTls;
 use std::fmt;

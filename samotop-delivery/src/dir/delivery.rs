@@ -1,5 +1,5 @@
-use super::dispatch::DispatchMail;
-use crate::dir::FileTransport;
+use crate::dir::MaildirTransport;
+use crate::dispatch::DispatchMail;
 use samotop_core::{common::*, mail::*};
 use std::path::PathBuf;
 
@@ -16,7 +16,7 @@ impl Dir {
 
 impl MailSetup for Dir {
     fn setup(self, builder: &mut Builder) {
-        let transport = FileTransport::new(self.path);
+        let transport = MaildirTransport::new(self.path);
         builder
             .dispatch
             .insert(0, Box::new(DispatchMail::new(transport)))

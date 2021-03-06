@@ -1,4 +1,4 @@
-use super::dispatch::DispatchMail;
+use crate::dispatch::DispatchMail;
 use crate::smtp::{net::Connector, ConnectionReuseParameters, SmtpClient};
 use samotop_core::{common::*, mail::*};
 

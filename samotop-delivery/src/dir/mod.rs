@@ -1,9 +1,11 @@
 //! Reference implementation of a mail service
-//! simply delivering mail to single directory.
+//! simply delivering mail to single maildir directory.
+//! Files are named with the transaftion id.
 
+mod delivery;
 mod error;
 mod stream;
-pub use self::{error::*, stream::*};
+pub use self::{delivery::*, error::*, stream::*};
 use crate::{Envelope, SyncFuture, Transport};
 use async_std::{
     fs::{create_dir_all, rename, File},
@@ -18,20 +20,20 @@ use std::path::PathBuf;
     feature = "serde-impls",
     derive(serde_derive::Serialize, serde_derive::Deserialize)
 )]
-pub struct FileTransport {
+pub struct MaildirTransport {
     path: PathBuf,
 }
 
-impl FileTransport {
+impl MaildirTransport {
     /// Creates a new transport to the given directory
-    pub fn new<P: AsRef<Path>>(path: P) -> FileTransport {
-        FileTransport {
+    pub fn new<P: AsRef<Path>>(path: P) -> MaildirTransport {
+        MaildirTransport {
             path: PathBuf::from(path.as_ref()),
         }
     }
 }
 
-impl Transport for FileTransport {
+impl Transport for MaildirTransport {
     type DataStream = MailFile;
     fn send_stream<'s, 'a>(&'s self, envelope: Envelope) -> SyncFuture<'a, Result<MailFile, Error>>
     where

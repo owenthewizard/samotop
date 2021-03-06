@@ -21,6 +21,12 @@ impl EmailAddress {
     }
 }
 
+impl From<EmailAddress> for String {
+    fn from(addr: EmailAddress) -> Self {
+        addr.0
+    }
+}
+
 impl FromStr for EmailAddress {
     type Err = Error;
 
@@ -38,6 +44,11 @@ impl Display for EmailAddress {
 impl AsRef<str> for EmailAddress {
     fn as_ref(&self) -> &str {
         &self.0
+    }
+}
+impl AsRef<[u8]> for EmailAddress {
+    fn as_ref(&self) -> &[u8] {
+        self.0.as_bytes()
     }
 }
 
