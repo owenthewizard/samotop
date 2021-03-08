@@ -18,12 +18,16 @@ pub struct JournalTransport {
     max_size: usize,
 }
 
-impl JournalTransport {
-    /// Creates a new transport that always returns the given response
-    pub fn new() -> JournalTransport {
-        Self::from_dir(".")
+impl Default for JournalTransport {
+    /// Creates a new transport that stores a journal in current folder
+    fn default() -> Self {
+        Self::new(".")
     }
-    pub fn from_dir(dir: impl Into<PathBuf>) -> JournalTransport {
+}
+
+impl JournalTransport {
+    /// Creates a new transport that stores a journal in the given folder
+    pub fn new(dir: impl Into<PathBuf>) -> JournalTransport {
         JournalTransport {
             dir: dir.into(),
             bucket: Potential::empty(),

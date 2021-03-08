@@ -2,18 +2,11 @@ use crate::{
     journal::{JournalError, JournalResult},
     EmailAddress, Envelope, MailDataStream,
 };
-use async_std::{
-    future::Future,
-    io::{self},
-};
+use async_std::io;
 use futures::AsyncWriteExt;
 use lozizol::model::{Sequence, Vuint};
 use potential::Lease;
-use std::{
-    fmt,
-    pin::Pin,
-    task::{Context, Poll},
-};
+use samotop_core::common::*;
 use uuid::Uuid;
 
 #[derive(Debug)]
@@ -57,7 +50,7 @@ impl io::Write for JournalStream {
         let mut len = usize::min(buf.len(), self.buffer_capacity());
 
         if len == 0 {
-            if let Poll::Pending = self.as_mut().poll_flush(cx)? {
+            if self.as_mut().poll_flush(cx)?.is_pending() {
                 return Poll::Pending;
             } else {
                 len = usize::min(buf.len(), self.buffer_capacity())
@@ -73,7 +66,7 @@ impl io::Write for JournalStream {
         loop {
             break match std::mem::take(&mut self.state) {
                 State::Ready(mut bucket) => {
-                    if let Poll::Pending = Pin::new(&mut bucket.write).poll_flush(cx)? {
+                    if Pin::new(&mut bucket.write).poll_flush(cx)?.is_pending() {
                         self.state = State::Ready(bucket);
                         Poll::Pending
                     } else if self.buffer.is_empty() {
@@ -157,7 +150,7 @@ impl io::Write for JournalStream {
                             .from()
                             .map(addr_to_vec)
                             // 0 length means none
-                            .unwrap_or(vec![0]);
+                            .unwrap_or_else(|| vec![0]);
                         let rcpts: Vec<Vec<u8>> =
                             self.envelope.to().iter().map(addr_to_vec).collect();
                         let blocks = std::mem::take(&mut self.blocks).into_iter().fold(
@@ -224,12 +217,8 @@ impl io::Write for JournalStream {
 
 enum State {
     Ready(Lease<Bucket>),
-    Encoding(
-        Pin<
-            Box<dyn Future<Output = JournalResult<(Lease<Bucket>, usize)>> + Send + Sync + 'static>,
-        >,
-    ),
-    Closing(Pin<Box<dyn Future<Output = JournalResult<()>> + Send + Sync + 'static>>),
+    Encoding(S3Fut<JournalResult<(Lease<Bucket>, usize)>>),
+    Closing(S3Fut<JournalResult<()>>),
     Invalid,
 }
 impl Default for State {
