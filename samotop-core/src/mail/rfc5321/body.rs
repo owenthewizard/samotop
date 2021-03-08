@@ -3,10 +3,10 @@ use crate::{
     smtp::{ApplyCommand, CodecControl, MailBodyChunk, MailBodyEnd, SmtpSessionCommand, SmtpState},
 };
 
-use super::{ESMTPCommand, Rfc5321};
+use super::{EsmtpCommand, Rfc5321};
 
 impl<B: AsRef<[u8]> + Sync + Send + fmt::Debug> SmtpSessionCommand
-    for ESMTPCommand<MailBodyChunk<B>>
+    for EsmtpCommand<MailBodyChunk<B>>
 {
     fn verb(&self) -> &str {
         ""
@@ -51,7 +51,7 @@ impl<B: AsRef<[u8]> + Sync + Send + fmt::Debug> ApplyCommand<MailBodyChunk<B>> f
     }
 }
 
-impl SmtpSessionCommand for ESMTPCommand<MailBodyEnd> {
+impl SmtpSessionCommand for EsmtpCommand<MailBodyEnd> {
     fn verb(&self) -> &str {
         ""
     }

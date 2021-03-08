@@ -39,7 +39,7 @@ bytes = "1.0"
 memchr = "2.3"
 
 [dependencies.samotop-core]
-version = "0.12.0"
+version = "0.13.0-samotop-dev"
 path = "../samotop-core"
 
 [dev-dependencies]

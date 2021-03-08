@@ -1,10 +1,10 @@
-use super::{ESMTPCommand, Rfc5321};
+use super::{EsmtpCommand, Rfc5321};
 use crate::{
     common::*,
     smtp::{ApplyCommand, SmtpNoop, SmtpSessionCommand, SmtpState},
 };
 
-impl SmtpSessionCommand for ESMTPCommand<SmtpNoop> {
+impl SmtpSessionCommand for EsmtpCommand<SmtpNoop> {
     fn verb(&self) -> &str {
         "NOOP"
     }
