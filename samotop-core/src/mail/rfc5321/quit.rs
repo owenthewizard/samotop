@@ -1,8 +1,8 @@
-use super::{ESMTPCommand, Rfc5321};
+use super::{EsmtpCommand, Rfc5321};
 use crate::common::*;
 use crate::smtp::{ApplyCommand, SmtpQuit, SmtpSessionCommand, SmtpState};
 
-impl SmtpSessionCommand for ESMTPCommand<SmtpQuit> {
+impl SmtpSessionCommand for EsmtpCommand<SmtpQuit> {
     fn verb(&self) -> &str {
         "QUIT"
     }

@@ -27,13 +27,13 @@ pub struct SmtpDataCodec {
     derive(serde_derive::Serialize, serde_derive::Deserialize)
 )]
 enum State {
-    AfterCRLF,
-    AfterCR,
+    AfterCrLf,
+    AfterCr,
     Midway,
 }
 impl Default for State {
     fn default() -> Self {
-        State::AfterCRLF
+        State::AfterCrLf
     }
 }
 
@@ -48,8 +48,8 @@ impl SmtpDataCodec {
     /// Close the data stream - this writes the appropriate final dot
     pub async fn close<W: Write + Unpin>(&mut self, buf: W) -> io::Result<()> {
         trace!("close");
-        let mut buf = BugIO { inner: buf };
-        if State::AfterCRLF == self.state {
+        let mut buf = BugIo { inner: buf };
+        if State::AfterCrLf == self.state {
             buf.write_all(b".\r\n").await?;
         } else {
             buf.write_all(b"\r\n.\r\n").await?;
@@ -60,11 +60,11 @@ impl SmtpDataCodec {
     /// Encode data - it does not handle final dot
     pub async fn encode<W: Write + Unpin>(&mut self, mut frame: &[u8], buf: W) -> io::Result<()> {
         debug!("encode {:?}", std::str::from_utf8(frame));
-        let mut buf = BugIO { inner: buf };
+        let mut buf = BugIo { inner: buf };
 
         while !frame.is_empty() {
             // write an escape a dot after CR LF if the first char is a dot
-            if State::AfterCRLF == self.state {
+            if State::AfterCrLf == self.state {
                 if let Some(b'.') = frame.first() {
                     buf.write_all(b".".as_ref()).await?;
                 }
@@ -73,9 +73,9 @@ impl SmtpDataCodec {
             if let Some(pos) = memchr2(b'\n', b'\r', frame) {
                 self.state = match frame[pos] {
                     // watch out, \n may follow
-                    b'\r' => State::AfterCR,
+                    b'\r' => State::AfterCr,
                     // \n must immediately follow \r, otherwise it is not significant
-                    b'\n' if pos == 0 && self.state == State::AfterCR => State::AfterCRLF,
+                    b'\n' if pos == 0 && self.state == State::AfterCr => State::AfterCrLf,
                     // lone \n without \r
                     b'\n' => State::Midway,
                     _ => unreachable!(),
@@ -94,12 +94,12 @@ impl SmtpDataCodec {
 
 #[pin_project]
 #[derive(Default, Debug, Clone)]
-pub struct BugIO<S> {
+pub struct BugIo<S> {
     #[pin]
     pub inner: S,
 }
 
-impl<S: Read> Read for BugIO<S> {
+impl<S: Read> Read for BugIo<S> {
     fn poll_read(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
@@ -110,7 +110,7 @@ impl<S: Read> Read for BugIO<S> {
         res
     }
 }
-impl<S: Write> Write for BugIO<S> {
+impl<S: Write> Write for BugIo<S> {
     fn poll_write(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,

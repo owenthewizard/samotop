@@ -1,11 +1,11 @@
-use super::{ESMTPCommand, Rfc5321};
+use super::{EsmtpCommand, Rfc5321};
 use crate::{
     common::*,
     mail::{StartMailFailure, StartMailResult, Transaction},
     smtp::{ApplyCommand, SmtpMail, SmtpSessionCommand, SmtpState},
 };
 
-impl SmtpSessionCommand for ESMTPCommand<SmtpMail> {
+impl SmtpSessionCommand for EsmtpCommand<SmtpMail> {
     fn verb(&self) -> &str {
         match self.instruction {
             SmtpMail::Mail(_, _) => "MAIL",

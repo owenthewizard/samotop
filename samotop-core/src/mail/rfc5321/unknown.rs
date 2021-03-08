@@ -1,10 +1,10 @@
-use super::{ESMTPCommand, Rfc5321};
+use super::{EsmtpCommand, Rfc5321};
 use crate::{
     common::*,
     smtp::{ApplyCommand, SmtpSessionCommand, SmtpState, SmtpUnknownCommand},
 };
 
-impl SmtpSessionCommand for ESMTPCommand<SmtpUnknownCommand> {
+impl SmtpSessionCommand for EsmtpCommand<SmtpUnknownCommand> {
     fn verb(&self) -> &str {
         self.instruction.verb.as_str()
     }

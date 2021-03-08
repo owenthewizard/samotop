@@ -4,7 +4,7 @@ use crate::{
 };
 use futures::TryFutureExt;
 use samotop_core::{common::*, mail::*};
-use std::{error::Error as StdError, fmt};
+use std::fmt;
 
 #[derive(Debug)]
 pub struct DispatchMail<T> {
@@ -24,7 +24,7 @@ impl<T> MailDispatch for DispatchMail<T>
 where
     T: Transport + Send + Sync,
     T::DataStream: Sync + Send + 'static,
-    <T::DataStream as MailDataStream>::Error: StdError + Sync + Send,
+    <T::DataStream as MailDataStream>::Error: std::error::Error + Sync + Send + 'static,
 {
     fn send_mail<'a, 's, 'f>(
         &'a self,

@@ -1,8 +1,8 @@
-use super::{ESMTPCommand, Rfc5321};
+use super::{EsmtpCommand, Rfc5321};
 use crate::smtp::{ApplyCommand, SmtpData, SmtpSessionCommand, SmtpState};
 use crate::{common::*, mail::DispatchError};
 
-impl SmtpSessionCommand for ESMTPCommand<SmtpData> {
+impl SmtpSessionCommand for EsmtpCommand<SmtpData> {
     fn verb(&self) -> &str {
         "DATA"
     }

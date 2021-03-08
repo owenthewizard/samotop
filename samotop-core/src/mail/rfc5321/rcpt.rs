@@ -1,11 +1,11 @@
-use super::{ESMTPCommand, Rfc5321};
+use super::{EsmtpCommand, Rfc5321};
 use crate::{
     common::*,
     mail::{AddRecipientRequest, AddRecipientResult, Recipient},
     smtp::{ApplyCommand, SmtpRcpt, SmtpSessionCommand, SmtpState},
 };
 
-impl SmtpSessionCommand for ESMTPCommand<SmtpRcpt> {
+impl SmtpSessionCommand for EsmtpCommand<SmtpRcpt> {
     fn verb(&self) -> &str {
         "RCPT"
     }

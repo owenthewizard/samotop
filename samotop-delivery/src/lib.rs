@@ -46,10 +46,13 @@
 #[macro_use]
 extern crate log;
 
-pub mod delivery;
+#[cfg(feature = "dir-transport")]
 pub mod dir;
+mod dispatch;
 #[cfg(feature = "file-transport")]
 pub mod file;
+#[cfg(feature = "journal-transport")]
+pub mod journal;
 #[cfg(feature = "sendmail-transport")]
 pub mod sendmail;
 #[cfg(feature = "smtp-transport")]
@@ -58,17 +61,21 @@ pub mod stub;
 pub mod types;
 
 pub mod prelude {
+    #[cfg(feature = "dir-transport")]
+    pub use crate::dir::*;
     #[cfg(feature = "file-transport")]
-    pub use crate::file::FileTransport;
+    pub use crate::file::*;
+    #[cfg(feature = "journal-transport")]
+    pub use crate::journal::*;
     #[cfg(feature = "sendmail-transport")]
-    pub use crate::sendmail::SendmailTransport;
+    pub use crate::sendmail::*;
     #[cfg(feature = "smtp-transport")]
-    pub use crate::smtp::{ClientSecurity, SmtpClient, SmtpTransport};
+    pub use crate::smtp::*;
     pub use crate::types::*;
     pub use crate::{MailDataStream, Transport};
 }
 
-use crate::prelude::*;
+use crate::types::*;
 use async_std::io::{copy, Read, Write};
 use futures::{io::AsyncWriteExt, Future};
 use std::{fmt, pin::Pin};

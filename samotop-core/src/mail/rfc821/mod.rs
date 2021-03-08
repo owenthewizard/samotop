@@ -1,5 +1,5 @@
 //! RFC 821 has been replaced by RFC 5321 which is backwards compatible
 
-use super::ESMTP;
+use super::Esmtp;
 
-pub type Rfc821 = ESMTP;
+pub type Rfc821 = Esmtp;

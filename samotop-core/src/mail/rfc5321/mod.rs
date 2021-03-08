@@ -9,20 +9,20 @@ mod rcpt;
 mod rset;
 mod unknown;
 
-use super::rfc3207::ESMTPStartTls;
+use super::rfc3207::EsmtpStartTls;
 use crate::common::*;
 use crate::smtp::*;
 
 /// An implementation of ESMTP - RFC 5321 - SMTP Service Extension for Secure SMTP over Transport Layer Security
 
 #[derive(Eq, PartialEq, Debug, Clone)]
-pub struct ESMTP;
+pub struct Esmtp;
 
-pub type Rfc5321 = ESMTP;
+pub type Rfc5321 = Esmtp;
 
 impl Rfc5321 {
-    pub fn command<I>(instruction: I) -> ESMTPCommand<I> {
-        ESMTPCommand { instruction }
+    pub fn command<I>(instruction: I) -> EsmtpCommand<I> {
+        EsmtpCommand { instruction }
     }
 }
 
@@ -38,7 +38,7 @@ impl ApplyCommand<SmtpCommand> for Rfc5321 {
                 C::Quit => Self::apply_cmd(&SmtpQuit, state).await,
                 C::Rset => Self::apply_cmd(&SmtpRset, state).await,
                 C::Noop(_) => Self::apply_cmd(&SmtpNoop, state).await,
-                C::StartTls => ESMTPStartTls::command().apply(state).await,
+                C::StartTls => EsmtpStartTls::command().apply(state).await,
                 C::Expn(_) | C::Vrfy(_) | C::Help(_) | C::Turn | C::Other(_, _) => {
                     Self::apply_cmd(&SmtpUnknownCommand::default(), state).await
                 }
@@ -48,16 +48,16 @@ impl ApplyCommand<SmtpCommand> for Rfc5321 {
 }
 
 #[derive(Eq, PartialEq, Debug, Clone)]
-pub struct ESMTPCommand<I> {
+pub struct EsmtpCommand<I> {
     instruction: I,
 }
 
-impl SmtpSessionCommand for ESMTPCommand<SmtpCommand> {
+impl SmtpSessionCommand for EsmtpCommand<SmtpCommand> {
     fn verb(&self) -> &str {
         self.instruction.verb()
     }
 
     fn apply(&self, state: SmtpState) -> S2Fut<SmtpState> {
-        ESMTP::apply_cmd(&self.instruction, state)
+        Esmtp::apply_cmd(&self.instruction, state)
     }
 }
