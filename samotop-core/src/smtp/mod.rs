@@ -33,15 +33,15 @@ pub enum CodecControl {
 impl fmt::Debug for CodecControl {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         #[derive(Debug)]
-        enum TB<'a> {
+        enum TextOrBytes<'a> {
             T(&'a str),
             B(&'a [u8]),
         }
-        fn tb(inp: &[u8]) -> TB {
+        fn tb(inp: &[u8]) -> TextOrBytes {
             if let Ok(text) = std::str::from_utf8(inp) {
-                TB::T(text)
+                TextOrBytes::T(text)
             } else {
-                TB::B(inp)
+                TextOrBytes::B(inp)
             }
         }
         match self {

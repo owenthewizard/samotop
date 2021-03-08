@@ -4,9 +4,9 @@ use crate::{
     smtp::{ApplyCommand, SmtpHelo, SmtpSessionCommand, SmtpState, SmtpUnknownCommand},
 };
 
-use super::LMTPCommand;
+use super::LmtpCommand;
 
-impl SmtpSessionCommand for LMTPCommand<SmtpHelo> {
+impl SmtpSessionCommand for LmtpCommand<SmtpHelo> {
     fn verb(&self) -> &str {
         self.instruction.verb.as_str()
     }

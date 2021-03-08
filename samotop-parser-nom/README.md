@@ -1,9 +1,9 @@
 [![Build Status](https://gitlab.com/BrightOpen/Samotop/badges/develop/pipeline.svg)](https://gitlab.com/BrightOpen/Samotop/commits/master)
 ![Maintenance](https://img.shields.io/badge/maintenance-activly--developed-brightgreen.svg)
 
-# samotop-parser-nom 0.12.0
+# samotop-parser-nom 0.12.1-samotop-dev
 
-    Aim: wrap rustyknife nom parser for samotop
+Aim: wrap rustyknife nom parser for samotop
 
 :warning: this brings **GPLv3** requirements of the rustyknife crate.
 

@@ -1,8 +1,8 @@
-use super::{ESMTPCommand, Rfc5321};
+use super::{EsmtpCommand, Rfc5321};
 use crate::common::*;
 use crate::smtp::{ApplyCommand, SmtpRset, SmtpSessionCommand, SmtpState};
 
-impl SmtpSessionCommand for ESMTPCommand<SmtpRset> {
+impl SmtpSessionCommand for EsmtpCommand<SmtpRset> {
     fn verb(&self) -> &str {
         "RSET"
     }

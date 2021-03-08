@@ -1,6 +1,6 @@
 [package]
 name = "samotop-tests"
-version = "0.12.0"
+version = "0.12.1-samotop-dev"
 authors = ["jocutajar <tellnoone@robajz.info>"]
 license = "MIT OR Apache-2.0"
 description = "Samotop test utils"
@@ -14,7 +14,7 @@ edition = "2018"
 categories = []
 
 [dependencies.samotop-core]
-version = "0.12.0"
+version = "0.13.0-samotop-dev"
 path = "../samotop-core"
 
 [dependencies]

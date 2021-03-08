@@ -1,10 +1,10 @@
-use super::{LMTPCommand, Rfc2033};
+use super::{LmtpCommand, Rfc2033};
 use crate::{
     common::*,
     smtp::{ApplyCommand, CodecControl, MailBodyEnd, SmtpSessionCommand, SmtpState},
 };
 
-impl SmtpSessionCommand for LMTPCommand<MailBodyEnd> {
+impl SmtpSessionCommand for LmtpCommand<MailBodyEnd> {
     fn verb(&self) -> &str {
         ""
     }

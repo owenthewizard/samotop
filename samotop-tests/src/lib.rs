@@ -55,13 +55,13 @@ impl<I> Stream for TestStream<I> {
 
 #[pin_project]
 #[derive(Default, Debug, Clone)]
-pub struct TestIO {
+pub struct TestIo {
     pub input: Vec<u8>,
     pub output: Vec<u8>,
     pub read: usize,
     pub read_chunks: VecDeque<usize>,
 }
-impl TestIO {
+impl TestIo {
     pub fn written(&self) -> &[u8] {
         &self.output[..]
     }
@@ -78,12 +78,12 @@ impl TestIO {
         self
     }
 }
-impl<T: AsRef<[u8]>> From<T> for TestIO {
+impl<T: AsRef<[u8]>> From<T> for TestIo {
     fn from(data: T) -> Self {
         Self::default().add_read_chunk(data)
     }
 }
-impl Read for TestIO {
+impl Read for TestIo {
     fn poll_read(
         self: Pin<&mut Self>,
         _cx: &mut Context<'_>,
@@ -109,7 +109,7 @@ impl Read for TestIO {
         }
     }
 }
-impl Write for TestIO {
+impl Write for TestIo {
     fn poll_write(
         self: Pin<&mut Self>,
         _cx: &mut Context<'_>,
@@ -126,7 +126,7 @@ impl Write for TestIO {
         Poll::Ready(Ok(()))
     }
 }
-impl MayBeTls for TestIO {
+impl MayBeTls for TestIo {
     fn encrypt(self: Pin<&mut Self>) {
         panic!("not allowed")
     }

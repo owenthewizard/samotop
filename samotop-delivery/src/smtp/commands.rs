@@ -26,14 +26,19 @@ pub struct HeloCommand {
     derive(serde_derive::Serialize, serde_derive::Deserialize)
 )]
 enum HeloVariant {
-    HELO,
-    EHLO,
-    LHLO,
+    Helo,
+    Ehlo,
+    Lhlo,
 }
 
 impl Display for HeloCommand {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        write!(f, "{:?} {}\r\n", self.variant, self.client_id)
+        write!(
+            f,
+            "{} {}\r\n",
+            format!("{:?}", self.variant).to_uppercase(),
+            self.client_id
+        )
     }
 }
 
@@ -42,21 +47,21 @@ impl HeloCommand {
     pub fn ehlo(client_id: ClientId) -> HeloCommand {
         HeloCommand {
             client_id,
-            variant: HeloVariant::EHLO,
+            variant: HeloVariant::Ehlo,
         }
     }
     /// Creates a EHLO command
     pub fn helo(client_id: ClientId) -> HeloCommand {
         HeloCommand {
             client_id,
-            variant: HeloVariant::HELO,
+            variant: HeloVariant::Helo,
         }
     }
     /// Creates a EHLO command
     pub fn lhlo(client_id: ClientId) -> HeloCommand {
         HeloCommand {
             client_id,
-            variant: HeloVariant::LHLO,
+            variant: HeloVariant::Lhlo,
         }
     }
 }
