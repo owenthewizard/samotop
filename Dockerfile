@@ -149,7 +149,7 @@ RUN cargo check --color always --all-features \
 FROM scratch as server
 COPY --from=stable /app/target/*/release/samotop-server /bin/samotop
 COPY --from=stable /var/local/musl/bin/openssl /bin/openssl
-COPY /samotop-server/ssl /var/ssl
+
 ENV PATH=/bin
 VOLUME ["/var/ssl"]
 ENTRYPOINT ["/bin/samotop"]
