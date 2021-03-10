@@ -1,5 +1,5 @@
 use async_std::{future::timeout, task::block_on};
-use async_std_resolver::{config, resolver, AsyncStdResolver, ResolveError};
+use async_std_resolver::{resolver_from_system_conf, AsyncStdResolver, ResolveError};
 use std::{
     future::Future,
     net::{IpAddr, Ipv4Addr, Ipv6Addr},
@@ -23,13 +23,7 @@ impl TrustDnsResolver {
 }
 
 pub async fn new_resolver() -> Result<TrustDnsResolver, ResolveError> {
-    Ok(TrustDnsResolver::new(
-        resolver(
-            config::ResolverConfig::default(),
-            config::ResolverOpts::default(),
-        )
-        .await?,
-    ))
+    Ok(TrustDnsResolver::new(resolver_from_system_conf().await?))
 }
 
 impl Lookup for TrustDnsResolver {
