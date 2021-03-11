@@ -13,7 +13,7 @@ impl IoService for DummyService {
         &self,
         _io: Result<Box<dyn MayBeTls>>,
         connection: ConnectionInfo,
-    ) -> S3Fut<Result<()>> {
+    ) -> S1Fut<'static, Result<()>> {
         info!("Received connection {}", connection);
         Box::pin(ready(Ok(())))
     }

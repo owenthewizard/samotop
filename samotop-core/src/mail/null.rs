@@ -9,7 +9,7 @@ impl MailDispatch for NullDispatch {
         &'a self,
         _session: &'s super::SessionInfo,
         mut transaction: super::Transaction,
-    ) -> crate::common::S2Fut<'f, DispatchResult>
+    ) -> crate::common::S1Fut<'f, DispatchResult>
     where
         'a: 'f,
         's: 'f,

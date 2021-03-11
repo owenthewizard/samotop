@@ -9,13 +9,13 @@ impl SmtpSessionCommand for EsmtpCommand<SmtpInvalidCommand> {
         ""
     }
 
-    fn apply(&self, state: SmtpState) -> S2Fut<SmtpState> {
+    fn apply(&self, state: SmtpState) -> S1Fut<SmtpState> {
         Rfc5321::apply_cmd(&self.instruction, state)
     }
 }
 
 impl ApplyCommand<SmtpInvalidCommand> for Rfc5321 {
-    fn apply_cmd(_cmd: &SmtpInvalidCommand, mut state: SmtpState) -> S2Fut<SmtpState> {
+    fn apply_cmd(_cmd: &SmtpInvalidCommand, mut state: SmtpState) -> S1Fut<SmtpState> {
         state.say_invalid_syntax();
         Box::pin(ready(state))
     }

@@ -9,13 +9,13 @@ impl SmtpSessionCommand for LmtpCommand<MailBodyEnd> {
         ""
     }
 
-    fn apply(&self, state: SmtpState) -> S2Fut<SmtpState> {
+    fn apply(&self, state: SmtpState) -> S1Fut<SmtpState> {
         Rfc2033::apply_cmd(&self.instruction, state)
     }
 }
 
 impl ApplyCommand<MailBodyEnd> for Rfc2033 {
-    fn apply_cmd(_data: &MailBodyEnd, mut state: SmtpState) -> S2Fut<SmtpState> {
+    fn apply_cmd(_data: &MailBodyEnd, mut state: SmtpState) -> S1Fut<SmtpState> {
         if state.transaction.sink.is_none() {
             // CheckMe: silence. handle_data_end should respond with error.
             return Box::pin(ready(state));

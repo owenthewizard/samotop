@@ -52,7 +52,7 @@ where
         &self,
         io: Result<Box<dyn MayBeTls>>,
         connection: ConnectionInfo,
-    ) -> S3Fut<Result<()>> {
+    ) -> S1Fut<'static, Result<()>> {
         let mail_service = self.mail_service.clone();
 
         Box::pin(async move {

@@ -27,7 +27,7 @@ impl SmtpSessionCommand for LmtpCommand<SmtpCommand> {
         self.instruction.verb()
     }
 
-    fn apply(&self, state: SmtpState) -> S2Fut<SmtpState> {
+    fn apply(&self, state: SmtpState) -> S1Fut<SmtpState> {
         use SmtpCommand as C;
         Box::pin(async move {
             match self.instruction {

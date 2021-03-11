@@ -71,7 +71,7 @@ impl MailDispatch for DebugMailService {
         &'a self,
         session: &'s SessionInfo,
         mut transaction: Transaction,
-    ) -> S2Fut<'f, DispatchResult>
+    ) -> S1Fut<'f, DispatchResult>
     where
         'a: 'f,
         's: 'f,

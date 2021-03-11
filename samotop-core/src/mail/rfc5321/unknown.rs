@@ -9,13 +9,13 @@ impl SmtpSessionCommand for EsmtpCommand<SmtpUnknownCommand> {
         self.instruction.verb.as_str()
     }
 
-    fn apply(&self, state: SmtpState) -> S2Fut<SmtpState> {
+    fn apply(&self, state: SmtpState) -> S1Fut<SmtpState> {
         Rfc5321::apply_cmd(&self.instruction, state)
     }
 }
 
 impl ApplyCommand<SmtpUnknownCommand> for Rfc5321 {
-    fn apply_cmd(_cmd: &SmtpUnknownCommand, mut state: SmtpState) -> S2Fut<SmtpState> {
+    fn apply_cmd(_cmd: &SmtpUnknownCommand, mut state: SmtpState) -> S1Fut<SmtpState> {
         state.say_not_implemented();
         Box::pin(ready(state))
     }

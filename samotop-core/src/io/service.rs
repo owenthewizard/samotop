@@ -21,7 +21,7 @@ pub trait IoService {
         &self,
         io: Result<Box<dyn MayBeTls>>,
         connection: ConnectionInfo,
-    ) -> S3Fut<Result<()>>;
+    ) -> S1Fut<'static, Result<()>>;
 }
 
 impl<S: IoService + ?Sized, T: Deref<Target = S>> IoService for T
@@ -33,7 +33,7 @@ where
         &self,
         io: Result<Box<dyn MayBeTls>>,
         connection: ConnectionInfo,
-    ) -> S3Fut<Result<()>> {
+    ) -> S1Fut<'static, Result<()>> {
         S::handle(self.deref(), io, connection)
     }
 }

@@ -9,13 +9,13 @@ impl SmtpSessionCommand for EsmtpCommand<SmtpNoop> {
         "NOOP"
     }
 
-    fn apply(&self, state: SmtpState) -> S2Fut<SmtpState> {
+    fn apply(&self, state: SmtpState) -> S1Fut<SmtpState> {
         Rfc5321::apply_cmd(&self.instruction, state)
     }
 }
 
 impl ApplyCommand<SmtpNoop> for Rfc5321 {
-    fn apply_cmd(_cmd: &SmtpNoop, mut state: SmtpState) -> S2Fut<SmtpState> {
+    fn apply_cmd(_cmd: &SmtpNoop, mut state: SmtpState) -> S1Fut<SmtpState> {
         state.say_ok();
         Box::pin(ready(state))
     }

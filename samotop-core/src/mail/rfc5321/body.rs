@@ -12,13 +12,13 @@ impl<B: AsRef<[u8]> + Sync + Send + fmt::Debug> SmtpSessionCommand
         ""
     }
 
-    fn apply(&self, state: SmtpState) -> S2Fut<SmtpState> {
+    fn apply(&self, state: SmtpState) -> S1Fut<SmtpState> {
         Rfc5321::apply_cmd(&self.instruction, state)
     }
 }
 
 impl<B: AsRef<[u8]> + Sync + Send + fmt::Debug> ApplyCommand<MailBodyChunk<B>> for Rfc5321 {
-    fn apply_cmd(data: &MailBodyChunk<B>, mut state: SmtpState) -> S2Fut<SmtpState> {
+    fn apply_cmd(data: &MailBodyChunk<B>, mut state: SmtpState) -> S1Fut<SmtpState> {
         if state.transaction.sink.is_none() {
             // CheckMe: silence. handle_data_end should respond with error.
             return Box::pin(ready(state));
@@ -55,13 +55,13 @@ impl SmtpSessionCommand for EsmtpCommand<MailBodyEnd> {
     fn verb(&self) -> &str {
         ""
     }
-    fn apply(&self, state: SmtpState) -> S2Fut<SmtpState> {
+    fn apply(&self, state: SmtpState) -> S1Fut<SmtpState> {
         Rfc5321::apply_cmd(&self.instruction, state)
     }
 }
 
 impl ApplyCommand<MailBodyEnd> for Rfc5321 {
-    fn apply_cmd(_data: &MailBodyEnd, mut state: SmtpState) -> S2Fut<SmtpState> {
+    fn apply_cmd(_data: &MailBodyEnd, mut state: SmtpState) -> S1Fut<SmtpState> {
         if state.transaction.sink.is_none() {
             // CheckMe: silence. handle_data_end should respond with error.
             return Box::pin(ready(state));
