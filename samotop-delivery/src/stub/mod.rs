@@ -64,7 +64,7 @@ pub struct StubStream {
 impl MailDataStream for StubStream {
     type Output = ();
     type Error = Error;
-    fn result(&self) -> StubResult {
+    fn result(&mut self) -> StubResult {
         info!("Done: {:?}", self.response);
         self.response.clone()
     }

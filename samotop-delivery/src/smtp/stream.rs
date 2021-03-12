@@ -83,7 +83,7 @@ where
 {
     type Output = Response;
     type Error = Error;
-    fn result(&self) -> Result<Self::Output, Self::Error> {
+    fn result(&mut self) -> Result<Self::Output, Self::Error> {
         match self.state {
             State::Done(ref response) => Ok(response.clone()),
             _ => Err(Error::Client("Mail sending was not completed properly")),

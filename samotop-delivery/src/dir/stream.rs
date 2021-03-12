@@ -68,7 +68,7 @@ impl MailDataStream for MailFile {
 
     type Error = Error;
 
-    fn result(&self) -> Result<Self::Output, Self::Error> {
+    fn result(&mut self) -> Result<Self::Output, Self::Error> {
         Ok(self.id.to_owned())
     }
 }

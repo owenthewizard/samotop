@@ -93,7 +93,7 @@ pub struct ProcStreamInner {
 impl MailDataStream for ProcStream {
     type Output = ();
     type Error = Error;
-    fn result(&self) -> SendmailResult {
+    fn result(&mut self) -> SendmailResult {
         match self {
             ProcStream::Done => Ok(()),
             _ => Err(Error::Client(

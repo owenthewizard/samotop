@@ -125,5 +125,5 @@ pub trait MailDataStream: fmt::Debug + Write {
     /// Return the result of sending the mail.
     /// This should return error if the mail has not been fully dispatched.
     /// In other words, it should fail if the mail data stream hasn't been closed.
-    fn result(&self) -> Result<Self::Output, Self::Error>;
+    fn result(&mut self) -> Result<Self::Output, Self::Error>;
 }
