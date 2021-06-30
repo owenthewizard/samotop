@@ -32,9 +32,7 @@ impl SpfService {
 
 impl MailSetup for Provider<Config> {
     fn setup(self, config: &mut Configuration) {
-        config
-            .dispatch
-            .insert(0, Box::new(SpfService::new(self.0)));
+        config.dispatch.insert(0, Box::new(SpfService::new(self.0)));
     }
 }
 

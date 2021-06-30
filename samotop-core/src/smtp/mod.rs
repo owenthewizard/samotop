@@ -1,6 +1,7 @@
 mod codec;
 mod command;
 mod commands;
+mod driver;
 pub mod extension;
 mod extensions;
 mod host;

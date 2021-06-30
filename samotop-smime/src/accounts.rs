@@ -2,7 +2,7 @@ use log::error;
 use samotop_core::{
     common::{ready, S2Fut},
     mail::{
-        AddRecipientFailure, AddRecipientRequest, AddRecipientResult, Configuration, Certificate,
+        AddRecipientFailure, AddRecipientRequest, AddRecipientResult, Certificate, Configuration,
         MailGuard, MailSetup, SessionInfo, StartMailRequest, StartMailResult,
     },
 };

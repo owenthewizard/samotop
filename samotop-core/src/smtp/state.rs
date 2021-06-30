@@ -1,5 +1,5 @@
 use crate::{
-    mail::{AddRecipientFailure, MailService, SessionInfo, StartMailFailure, Transaction},
+    mail::{AddRecipientFailure, Builder, MailService, SessionInfo, StartMailFailure, Transaction},
     parser::Parser,
     smtp::{CodecControl, SmtpPath, SmtpReply},
 };
@@ -10,6 +10,17 @@ pub struct SmtpState {
     pub session: SessionInfo,
     pub transaction: Transaction,
     pub writes: VecDeque<CodecControl>,
+}
+
+impl Default for SmtpState {
+    fn default() -> Self {
+        SmtpState {
+            service: Box::new(Builder::default().into_service()),
+            session: SessionInfo::default(),
+            transaction: Transaction::default(),
+            writes: vec![].into(),
+        }
+    }
 }
 
 impl SmtpState {
