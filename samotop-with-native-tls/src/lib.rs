@@ -84,7 +84,7 @@ impl fmt::Debug for NativeTlsProvider<TlsAcceptor> {
 
 impl TlsProvider for NativeTlsProvider<TlsConnector> {
     fn get_tls_upgrade(&self) -> Option<Box<dyn TlsUpgrade>> {
-        Some(Box::new(NativeTlsProvider::clone(&self)))
+        Some(Box::new(NativeTlsProvider::clone(self)))
     }
 }
 

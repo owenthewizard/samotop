@@ -7,13 +7,13 @@ impl SmtpSessionCommand for EsmtpCommand<SmtpData> {
         "DATA"
     }
 
-    fn apply(&self, state: SmtpState) -> S2Fut<SmtpState> {
+    fn apply(&self, state: SmtpState) -> S1Fut<SmtpState> {
         Rfc5321::apply_cmd(&self.instruction, state)
     }
 }
 
 impl ApplyCommand<SmtpData> for Rfc5321 {
-    fn apply_cmd(_cmd: &SmtpData, mut state: SmtpState) -> S2Fut<SmtpState> {
+    fn apply_cmd(_cmd: &SmtpData, mut state: SmtpState) -> S1Fut<SmtpState> {
         if state.transaction.id.is_empty()
             || state.session.peer_name.is_none()
             || state.transaction.mail.is_none()

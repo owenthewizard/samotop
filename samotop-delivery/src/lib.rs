@@ -81,18 +81,16 @@ use futures::{io::AsyncWriteExt, Future};
 use std::{fmt, pin::Pin};
 
 pub type SyncFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Sync + Send + 'a>>;
-type SendResult<T> = Result<<T as MailDataStream>::Output, <T as MailDataStream>::Error>;
+type SendResult<T> = Result<<T as Transport>::DataStream, <T as Transport>::Error>;
 
 /// Transport method for emails
 pub trait Transport: std::fmt::Debug {
     /// Result type for the transport
     type DataStream: MailDataStream;
+    type Error;
 
     /// Start sending e-mail and return a stream to write the body to
-    fn send_stream<'s, 'a>(
-        &'s self,
-        envelope: Envelope,
-    ) -> SyncFuture<'a, Result<Self::DataStream, <Self::DataStream as MailDataStream>::Error>>
+    fn send_stream<'s, 'a>(&'s self, envelope: Envelope) -> SyncFuture<'a, SendResult<Self>>
     where
         's: 'a;
 
@@ -101,10 +99,10 @@ pub trait Transport: std::fmt::Debug {
         &'s self,
         envelope: Envelope,
         message: R,
-    ) -> SyncFuture<'a, SendResult<Self::DataStream>>
+    ) -> SyncFuture<'a, SendResult<Self>>
     where
         Self::DataStream: Unpin + Send + Sync,
-        <Self::DataStream as MailDataStream>::Error: From<std::io::Error>,
+        Self::Error: From<std::io::Error>,
         R: Read + Unpin + Send + Sync + 'r,
         's: 'a,
         'r: 'a,
@@ -114,16 +112,14 @@ pub trait Transport: std::fmt::Debug {
             let mut stream = stream.await?;
             copy(message, &mut stream).await?;
             stream.close().await?;
-            stream.result()
+            Ok(stream)
         })
     }
 }
 
 pub trait MailDataStream: fmt::Debug + Write {
-    type Output;
-    type Error;
     /// Return the result of sending the mail.
-    /// This should return error if the mail has not been fully dispatched.
-    /// In other words, it should fail if the mail data stream hasn't been closed.
-    fn result(&self) -> Result<Self::Output, Self::Error>;
+    /// This should return false if the mail has not been fully dispatched.
+    /// In other words, the test should fail if the mail data stream hasn't been closed.
+    fn is_done(&self) -> bool;
 }

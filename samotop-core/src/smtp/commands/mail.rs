@@ -20,10 +20,10 @@ impl SmtpMail {
     }
     pub fn sender(&self) -> &SmtpPath {
         match self {
-            SmtpMail::Mail(p, _) => &p,
-            SmtpMail::Send(p, _) => &p,
-            SmtpMail::Saml(p, _) => &p,
-            SmtpMail::Soml(p, _) => &p,
+            SmtpMail::Mail(p, _) => p,
+            SmtpMail::Send(p, _) => p,
+            SmtpMail::Saml(p, _) => p,
+            SmtpMail::Soml(p, _) => p,
         }
     }
 }

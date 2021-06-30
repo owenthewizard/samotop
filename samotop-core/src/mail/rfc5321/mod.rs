@@ -27,7 +27,7 @@ impl Rfc5321 {
 }
 
 impl ApplyCommand<SmtpCommand> for Rfc5321 {
-    fn apply_cmd(cmd: &SmtpCommand, state: SmtpState) -> S2Fut<SmtpState> {
+    fn apply_cmd(cmd: &SmtpCommand, state: SmtpState) -> S1Fut<SmtpState> {
         use SmtpCommand as C;
         Box::pin(async move {
             match cmd {
@@ -57,7 +57,7 @@ impl SmtpSessionCommand for EsmtpCommand<SmtpCommand> {
         self.instruction.verb()
     }
 
-    fn apply(&self, state: SmtpState) -> S2Fut<SmtpState> {
+    fn apply(&self, state: SmtpState) -> S1Fut<SmtpState> {
         Esmtp::apply_cmd(&self.instruction, state)
     }
 }

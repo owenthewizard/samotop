@@ -1,7 +1,6 @@
 [workspace]
 members = [
     "samotop-core",
-    "samotop-model",
     "samotop-delivery",
     "samotop-parser",
     "samotop-parser-nom",
@@ -9,7 +8,6 @@ members = [
     "samotop-with-native-tls",
     "samotop-with-spf",
     "samotop-smime",
-    "samotop-tests",
     "samotop",
     "samotop-server",
 ]

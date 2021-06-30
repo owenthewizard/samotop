@@ -34,6 +34,7 @@ impl StubTransport {
 
 impl Transport for StubTransport {
     type DataStream = StubStream;
+    type Error = Error;
     fn send_stream<'life1, 'async_trait>(
         &'life1 self,
         envelope: Envelope,
@@ -62,11 +63,9 @@ pub struct StubStream {
 }
 
 impl MailDataStream for StubStream {
-    type Output = ();
-    type Error = Error;
-    fn result(&self) -> StubResult {
+    fn is_done(&self) -> bool {
         info!("Done: {:?}", self.response);
-        self.response.clone()
+        self.response.is_ok()
     }
 }
 
@@ -85,6 +84,7 @@ impl Write for StubStream {
     }
     fn poll_close(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
         info!("Closing");
-        Poll::Ready(Ok(()))
+        Poll::Ready(self.response.as_ref().map(|_resp| ()))
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.clone()))
     }
 }

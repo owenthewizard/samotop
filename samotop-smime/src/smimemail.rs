@@ -30,7 +30,7 @@ impl MailDispatch for SMimeMail {
         &'a self,
         _session: &'s SessionInfo,
         mut transaction: Transaction,
-    ) -> S2Fut<'f, DispatchResult>
+    ) -> S1Fut<'f, DispatchResult>
     where
         'a: 'f,
         's: 'f,

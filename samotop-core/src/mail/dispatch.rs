@@ -11,7 +11,7 @@ pub trait MailDispatch: fmt::Debug {
         &'a self,
         session: &'s SessionInfo,
         transaction: Transaction,
-    ) -> S2Fut<'f, DispatchResult>
+    ) -> S1Fut<'f, DispatchResult>
     where
         'a: 'f,
         's: 'f;
@@ -25,7 +25,7 @@ where
         &'a self,
         session: &'s SessionInfo,
         transaction: Transaction,
-    ) -> S2Fut<'f, DispatchResult>
+    ) -> S1Fut<'f, DispatchResult>
     where
         'a: 'f,
         's: 'f,

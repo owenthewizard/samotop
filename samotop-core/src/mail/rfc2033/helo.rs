@@ -11,7 +11,7 @@ impl SmtpSessionCommand for LmtpCommand<SmtpHelo> {
         self.instruction.verb.as_str()
     }
 
-    fn apply(&self, state: SmtpState) -> S2Fut<SmtpState> {
+    fn apply(&self, state: SmtpState) -> S1Fut<SmtpState> {
         Rfc2033::apply_cmd(&self.instruction, state)
     }
 }
@@ -19,7 +19,7 @@ impl SmtpSessionCommand for LmtpCommand<SmtpHelo> {
 impl ApplyCommand<SmtpHelo> for Rfc2033 {
     /// Applies given helo to the state
     /// It asserts the right HELO/EHLO variant
-    fn apply_cmd(helo: &SmtpHelo, state: SmtpState) -> S2Fut<SmtpState> {
+    fn apply_cmd(helo: &SmtpHelo, state: SmtpState) -> S1Fut<SmtpState> {
         Box::pin(async move {
             match helo.verb.to_ascii_uppercase().as_str() {
                 "LHLO" => apply_helo(helo, true, state).await,
@@ -70,22 +70,15 @@ mod tests {
 
     #[test]
     fn is_sync_and_send() {
-        for i in 0..1 {
-            let sut = Rfc2033::command(SmtpHelo {
-                verb: "LHLO".to_string(),
-                host: SmtpHost::Domain("wex.xor.ro".to_owned()),
-            });
-            let set = SmtpState::new(Builder::default());
-            let res = sut.apply(set);
-            if i == 0 {
-                is_sync(res);
-            } else {
-                is_send(res);
-            }
-        }
+        let sut = Rfc2033::command(SmtpHelo {
+            verb: "LHLO".to_string(),
+            host: SmtpHost::Domain("wex.xor.ro".to_owned()),
+        });
+        let set = SmtpState::new(Builder::default());
+        let res = sut.apply(set);
+
+        is_send(res);
     }
 
-    fn is_sync<T: Sync>(_subj: T) {}
     fn is_send<T: Send>(_subj: T) {}
-    //fn is_static<T: 'static>(_subj: T) {}
 }

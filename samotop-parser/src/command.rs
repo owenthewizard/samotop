@@ -21,7 +21,7 @@ where
     fn apply(
         &self,
         mut state: samotop_core::smtp::SmtpState,
-    ) -> samotop_core::common::S2Fut<samotop_core::smtp::SmtpState> {
+    ) -> samotop_core::common::S1Fut<samotop_core::smtp::SmtpState> {
         Box::pin(async move {
             state.say(CodecControl::Parser(Box::new(self.parser.clone())));
             state = self.command.apply(state).await;

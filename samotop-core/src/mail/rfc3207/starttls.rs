@@ -7,15 +7,15 @@ impl SmtpSessionCommand for EsmtpStartTls {
         "STARTTLS"
     }
 
-    fn apply(&self, state: SmtpState) -> S2Fut<SmtpState> {
-        EsmtpStartTls::apply_cmd(&self, state)
+    fn apply(&self, state: SmtpState) -> S1Fut<SmtpState> {
+        EsmtpStartTls::apply_cmd(self, state)
     }
 }
 
 impl ApplyCommand<EsmtpStartTls> for Rfc3207 {
     /// Applies given helo to the state
     /// It asserts the right HELO/EHLO variant
-    fn apply_cmd(_cmd: &EsmtpStartTls, mut state: SmtpState) -> S2Fut<SmtpState> {
+    fn apply_cmd(_cmd: &EsmtpStartTls, mut state: SmtpState) -> S1Fut<SmtpState> {
         if state.session.peer_name.is_none() {
             state.say_command_sequence_fail()
         } else {

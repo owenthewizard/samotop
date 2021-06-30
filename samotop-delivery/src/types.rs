@@ -54,7 +54,7 @@ impl AsRef<[u8]> for EmailAddress {
 
 impl AsRef<OsStr> for EmailAddress {
     fn as_ref(&self) -> &OsStr {
-        &self.0.as_ref()
+        self.0.as_ref()
     }
 }
 

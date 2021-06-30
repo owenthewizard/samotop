@@ -10,13 +10,13 @@ impl SmtpSessionCommand for EsmtpCommand<SmtpHelo> {
         self.instruction.verb.as_str()
     }
 
-    fn apply(&self, state: SmtpState) -> S2Fut<SmtpState> {
+    fn apply(&self, state: SmtpState) -> S1Fut<SmtpState> {
         Rfc5321::apply_cmd(&self.instruction, state)
     }
 }
 
 impl ApplyCommand<SmtpHelo> for Rfc5321 {
-    fn apply_cmd(cmd: &SmtpHelo, state: SmtpState) -> S2Fut<SmtpState> {
+    fn apply_cmd(cmd: &SmtpHelo, state: SmtpState) -> S1Fut<SmtpState> {
         Box::pin(async move {
             match cmd.verb.to_ascii_uppercase().as_str() {
                 "EHLO" => apply_helo(cmd, true, state).await,
@@ -68,22 +68,15 @@ mod tests {
 
     #[test]
     fn is_sync_and_send() {
-        for i in 0..1 {
-            let sut = Rfc5321::command(SmtpHelo {
-                verb: "EHLO".to_string(),
-                host: SmtpHost::Domain("wex.xor.ro".to_owned()),
-            });
-            let set = SmtpState::new(Builder::default());
-            let res = sut.apply(set);
-            if i == 0 {
-                is_sync(res);
-            } else {
-                is_send(res);
-            }
-        }
+        let sut = Rfc5321::command(SmtpHelo {
+            verb: "EHLO".to_string(),
+            host: SmtpHost::Domain("wex.xor.ro".to_owned()),
+        });
+        let set = SmtpState::new(Builder::default());
+        let res = sut.apply(set);
+
+        is_send(res);
     }
 
-    fn is_sync<T: Sync>(_subj: T) {}
     fn is_send<T: Send>(_subj: T) {}
-    //fn is_static<T: 'static>(_subj: T) {}
 }

@@ -5,7 +5,7 @@ use lozizol::model::SequenceIdError;
 
 /// An enum of all error kinds.
 #[derive(thiserror::Error, Debug)]
-pub enum JournalError {
+pub enum Error {
     // /// Internal client error
     // #[error("client error: {0}")]
     // Client(&'static str),
@@ -19,6 +19,3 @@ pub enum JournalError {
     #[error("sequence ID validation error: {0}")]
     SequenceId(#[from] SequenceIdError<String>),
 }
-
-/// SMTP result type
-pub type JournalResult<T> = Result<T, JournalError>;
