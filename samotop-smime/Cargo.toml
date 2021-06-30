@@ -1,6 +1,6 @@
 [package]
 name = "samotop-smime"
-version = "0.12.1-samotop-dev"
+version = "0.13.0-samotop-dev"
 authors = ["Robert Cutajar <robert.cutajar@robajz.info>"]
 edition = "2018"
 license = "MIT OR Apache-2.0"

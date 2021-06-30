@@ -1,6 +1,6 @@
 [package]
 name = "samotop-with-native-tls"
-version = "0.12.1-samotop-dev"
+version = "0.13.0-samotop-dev"
 authors = ["jocutajar <tellnoone@robajz.info>"]
 license = "MIT OR Apache-2.0"
 description = "Native TLS support for Samotop"
