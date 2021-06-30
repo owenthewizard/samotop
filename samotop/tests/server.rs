@@ -15,7 +15,9 @@ fn use_samotop_server() {
 #[test]
 fn builder_builds_task() {
     let parser = samotop::parser::SmtpParser::default();
-    let mail = Arc::new(samotop::mail::Builder::default().using(parser));
-    let svc = samotop::io::smtp::SmtpService::new(mail);
+    let mail = samotop::mail::Builder::default()
+        .using(parser)
+        .into_service();
+    let svc = samotop::io::smtp::SmtpService::new(Arc::new(mail));
     let _srv = samotop::server::TcpServer::on("localhost:25").serve(svc);
 }

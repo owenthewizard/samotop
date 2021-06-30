@@ -23,10 +23,10 @@ impl Default for DebugMailService {
     }
 }
 impl MailSetup for DebugMailService {
-    fn setup(self, builder: &mut Builder) {
-        builder.esmtp.insert(0, Box::new(self.clone()));
-        builder.guard.insert(0, Box::new(self.clone()));
-        builder.dispatch.insert(0, Box::new(self));
+    fn setup(self, config: &mut Configuration) {
+        config.esmtp.insert(0, Box::new(self.clone()));
+        config.guard.insert(0, Box::new(self.clone()));
+        config.dispatch.insert(0, Box::new(self));
     }
 }
 impl EsmtpService for DebugMailService {

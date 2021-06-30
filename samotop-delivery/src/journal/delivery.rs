@@ -22,9 +22,9 @@ impl Default for Journal {
 }
 
 impl MailSetup for Journal {
-    fn setup(self, builder: &mut Builder) {
+    fn setup(self, config: &mut Configuration) {
         let transport = JournalTransport::new(self.path);
-        builder
+        config
             .dispatch
             .insert(0, Box::new(DispatchMail::new(transport)))
     }

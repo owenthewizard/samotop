@@ -137,17 +137,17 @@ async fn main_fut() -> Result<()> {
 
     let ports = setup.get_service_ports();
 
-    let mut mail_service = Builder::default()
+    let mut builder = Builder::default()
         .using(Name::new(setup.get_my_name()))
         .using(Dir::new(setup.get_mail_dir())?)
         .using(samotop::mail::spf::provide_viaspf())
         .using(SmtpParser::default());
 
     if let Some(cfg) = setup.get_tls_config().await? {
-        mail_service = mail_service.using(RustlsProvider::from(TlsAcceptor::from(cfg)));
+        builder = builder.using(RustlsProvider::from(TlsAcceptor::from(cfg)));
     }
 
-    let smtp_service = SmtpService::new(Arc::new(mail_service));
+    let smtp_service = SmtpService::new(Arc::new(builder.into_service()));
 
     info!("I am {}", setup.get_my_name());
     TcpServer::on_all(ports).serve(smtp_service).await

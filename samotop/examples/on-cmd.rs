@@ -30,7 +30,7 @@ use futures::AsyncWrite as Write;
 use samotop::{
     io::{smtp::SmtpService, tls::TlsCapable, ConnectionInfo, IoService},
     mail::MailSetup,
-    mail::{Builder, Dir, EsmtpService},
+    mail::{Builder, Configuration, Dir, EsmtpService},
     parser::LmtpParserPeg,
 };
 use std::sync::Arc;
@@ -49,7 +49,8 @@ async fn main_fut() -> Result<()> {
         Builder::default()
             .using(dir_service)
             .using(LmtpParserPeg::default())
-            .using(NoTimeout),
+            .using(NoTimeout)
+            .into_service(),
     );
     let smtp_service = SmtpService::new(Arc::new(mail_service));
 
@@ -73,8 +74,8 @@ impl EsmtpService for NoTimeout {
 }
 
 impl MailSetup for NoTimeout {
-    fn setup(self, builder: &mut Builder) {
-        builder.esmtp.insert(0, Box::new(self))
+    fn setup(self, config: &mut Configuration) {
+        config.esmtp.insert(0, Box::new(self))
     }
 }
 

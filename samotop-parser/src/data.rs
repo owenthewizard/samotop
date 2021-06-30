@@ -1,6 +1,6 @@
 use samotop_core::{
     common::*,
-    mail::{Builder, MailSetup, Rfc2033, Rfc5321},
+    mail::{Configuration, MailSetup, Rfc2033, Rfc5321},
     parser::{ParseError, ParseResult, Parser},
     smtp::*,
 };
@@ -13,8 +13,8 @@ pub struct DataParserPeg {
 }
 
 impl MailSetup for DataParserPeg {
-    fn setup(self, builder: &mut Builder) {
-        builder.data_parser.insert(0, Arc::new(self))
+    fn setup(self, config: &mut Configuration) {
+        config.data_parser.insert(0, Arc::new(self))
     }
 }
 

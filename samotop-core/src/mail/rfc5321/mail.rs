@@ -77,7 +77,7 @@ mod tests {
 
     #[async_test]
     async fn transaction_gets_reset() {
-        let mut set = SmtpState::new(Builder::default());
+        let mut set = SmtpState::new(Builder::default().into_service());
         set.session.peer_name = Some("xx.io".to_owned());
         set.transaction.id = "someid".to_owned();
         set.transaction.mail = Some(SmtpMail::Mail(SmtpPath::Null, vec![]));
@@ -96,7 +96,7 @@ mod tests {
 
     #[async_test]
     async fn mail_is_set() {
-        let mut set = SmtpState::new(Builder::default());
+        let mut set = SmtpState::new(Builder::default().into_service());
         set.session.peer_name = Some("xx.io".to_owned());
         let sut = Rfc5321::command(SmtpMail::Mail(SmtpPath::Postmaster, vec![]));
         let mut res = sut.apply(set).await;
@@ -113,7 +113,7 @@ mod tests {
     #[async_test]
     async fn command_sequence_is_enforced() {
         // MAIL command requires HELO/EHLO
-        let set = SmtpState::new(Builder::default());
+        let set = SmtpState::new(Builder::default().into_service());
         let sut = Rfc5321::command(SmtpMail::Mail(SmtpPath::Postmaster, vec![]));
         let mut res = sut.apply(set).await;
         match res.writes.pop_front() {

@@ -70,7 +70,7 @@ mod tests {
 
     #[async_test]
     async fn recipient_is_added() {
-        let mut set = SmtpState::new(Builder::default());
+        let mut set = SmtpState::new(Builder::default().into_service());
         set.transaction.id = "someid".to_owned();
         set.transaction.mail = Some(SmtpMail::Mail(SmtpPath::Null, vec![]));
         set.transaction.rcpts.push(Recipient::null());

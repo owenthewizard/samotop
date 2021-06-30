@@ -53,7 +53,8 @@ async fn main_fut() -> Result<()> {
         .using(SmtpParser::default())
         .using(RustlsProvider::from(TlsAcceptor::from(
             setup.get_tls_config().await?,
-        )));
+        )))
+        .into_service();
 
     let smtp_service = SmtpService::new(Arc::new(mail_service));
 

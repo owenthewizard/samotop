@@ -2,7 +2,7 @@ use super::{TlsProvider, TlsUpgrade};
 use crate::io::tls::Io;
 use crate::{
     common::*,
-    mail::{Builder, MailSetup},
+    mail::{Configuration, MailSetup},
 };
 
 #[derive(Default, Debug, Clone, Copy)]
@@ -55,7 +55,7 @@ impl Write for Impossible {
 }
 
 impl MailSetup for NoTls {
-    fn setup(self, builder: &mut Builder) {
-        builder.tls = Box::new(self);
+    fn setup(self, config: &mut Configuration) {
+        config.tls = Box::new(self);
     }
 }

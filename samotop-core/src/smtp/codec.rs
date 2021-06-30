@@ -2,7 +2,7 @@ use crate::common::*;
 use crate::io::tls::MayBeTls;
 use crate::smtp::CodecControl;
 use crate::{
-    parser::{DummyParser, ParseError, Parser},
+    parser::{ParseError, Parser},
     smtp::{ProcessingError, SmtpSessionCommand},
 };
 use bytes::{Buf, BufMut, BytesMut};
@@ -137,7 +137,7 @@ impl<IO: MayBeTls> SmtpCodec<IO> {
         SmtpCodec {
             io: Some(io),
             buffer: BytesMut::default(),
-            parser: Box::new(DummyParser),
+            parser: Box::new(()),
             s2c_pending: vec![].into(),
         }
     }

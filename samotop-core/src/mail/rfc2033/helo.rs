@@ -44,7 +44,7 @@ mod tests {
 
     #[async_test]
     async fn transaction_gets_reset() {
-        let mut set = SmtpState::new(Builder::default());
+        let mut set = SmtpState::new(Builder::default().into_service());
         set.transaction.id = "someid".to_owned();
         set.transaction.mail = Some(SmtpMail::Mail(SmtpPath::Null, vec![]));
         set.transaction.rcpts.push(Recipient::null());
@@ -59,7 +59,7 @@ mod tests {
 
     #[async_test]
     async fn helo_is_set() {
-        let set = SmtpState::new(Builder::default());
+        let set = SmtpState::new(Builder::default().into_service());
         let sut = Rfc2033::command(SmtpHelo {
             verb: "LHLO".to_string(),
             host: SmtpHost::Domain("wex.xor.ro".to_owned()),
@@ -74,7 +74,7 @@ mod tests {
             verb: "LHLO".to_string(),
             host: SmtpHost::Domain("wex.xor.ro".to_owned()),
         });
-        let set = SmtpState::new(Builder::default());
+        let set = SmtpState::new(Builder::default().into_service());
         let res = sut.apply(set);
 
         is_send(res);

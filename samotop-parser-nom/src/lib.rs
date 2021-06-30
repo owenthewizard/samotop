@@ -16,7 +16,7 @@ use rustyknife::{
 };
 use samotop_core::{
     common::Arc,
-    mail::{Builder, MailSetup, Rfc5321},
+    mail::{Configuration, MailSetup, Rfc5321},
     parser::{ParseError, ParseResult, Parser},
     smtp::*,
 };
@@ -26,8 +26,8 @@ use std::net::IpAddr;
 pub struct SmtpParserNom;
 
 impl MailSetup for SmtpParserNom {
-    fn setup(self, builder: &mut Builder) {
-        builder.command_parser.insert(0, Arc::new(self))
+    fn setup(self, config: &mut Configuration) {
+        config.command_parser.insert(0, Arc::new(self))
     }
 }
 

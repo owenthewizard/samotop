@@ -3,17 +3,24 @@ use crate::{
     io::tls::{NoTls, TlsProvider, TlsUpgrade},
     mail::{
         AddRecipientRequest, AddRecipientResult, DispatchResult, EsmtpService, MailDispatch,
-        MailGuard, MailSetup, SessionInfo, StartMailRequest, StartMailResult, Transaction,
+        MailGuard, MailService, MailSetup, SessionInfo, StartMailRequest, StartMailResult,
+        Transaction,
     },
-    parser::Parser,
+    parser::{Interpret, Parser},
 };
 
 use super::ParserProvider;
 
-#[derive(Debug)]
+#[derive(Default)]
 pub struct Builder {
+    config: Configuration,
+}
+
+#[derive(Debug)]
+pub struct Configuration {
     pub id: String,
     pub tls: Box<dyn TlsProvider + Sync + Send + 'static>,
+    pub interpretter: Box<dyn Interpret + Send + Sync>,
     pub data_parser: Vec<Arc<dyn Parser + Sync + Send + 'static>>,
     pub command_parser: Vec<Arc<dyn Parser + Sync + Send + 'static>>,
     pub dispatch: Vec<Box<dyn MailDispatch + Sync + Send + 'static>>,
@@ -23,17 +30,21 @@ pub struct Builder {
 
 impl Builder {
     pub fn using(mut self, setup: impl MailSetup) -> Self {
-        trace!("Builder {} using setup {:?}", self.id, setup);
-        setup.setup(&mut self);
+        trace!("Builder {} using setup {:?}", self.config.id, setup);
+        setup.setup(&mut self.config);
         self
+    }
+    pub fn into_service(self) -> impl MailService {
+        self.config
     }
 }
 
-impl Default for Builder {
+impl Default for Configuration {
     fn default() -> Self {
         Self {
             id: Default::default(),
             tls: Box::new(NoTls),
+            interpretter: Box::new(()),
             data_parser: Default::default(),
             command_parser: Default::default(),
             dispatch: Default::default(),
@@ -43,7 +54,7 @@ impl Default for Builder {
     }
 }
 
-impl MailDispatch for Builder {
+impl MailDispatch for Configuration {
     fn send_mail<'a, 's, 'f>(
         &'a self,
         session: &'s SessionInfo,
@@ -71,7 +82,7 @@ impl MailDispatch for Builder {
     }
 }
 
-impl MailGuard for Builder {
+impl MailGuard for Configuration {
     fn add_recipient<'a, 'f>(
         &'a self,
         mut request: AddRecipientRequest,
@@ -127,7 +138,7 @@ impl MailGuard for Builder {
     }
 }
 
-impl EsmtpService for Builder {
+impl EsmtpService for Configuration {
     fn prepare_session(&self, session: &mut SessionInfo) {
         debug!(
             "Esmtp {} with {} esmtps preparing session {:?}",
@@ -142,13 +153,13 @@ impl EsmtpService for Builder {
     }
 }
 
-impl TlsProvider for Builder {
+impl TlsProvider for Configuration {
     fn get_tls_upgrade(&self) -> Option<Box<dyn TlsUpgrade>> {
         self.tls.get_tls_upgrade()
     }
 }
 
-impl ParserProvider for Builder {
+impl ParserProvider for Configuration {
     fn get_parser_for_data(&self) -> Box<dyn Parser + Sync + Send> {
         Box::new(self.data_parser.clone())
     }

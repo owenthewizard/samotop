@@ -48,7 +48,8 @@ async fn main_fut() -> Result<()> {
     let mail_service = Arc::new(
         Builder::default()
             .using(dir_service)
-            .using(SmtpParser::default()),
+            .using(SmtpParser::default())
+            .into_service(),
     );
     let smtp_service = SmtpService::new(mail_service);
     use samotop::server::UnixServer;

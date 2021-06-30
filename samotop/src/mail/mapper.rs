@@ -18,8 +18,8 @@ impl Mapper {
 }
 
 impl MailSetup for Mapper {
-    fn setup(self, builder: &mut Builder) {
-        builder.guard.insert(0, Box::new(self))
+    fn setup(self, config: &mut Configuration) {
+        config.guard.insert(0, Box::new(self))
     }
 }
 

@@ -159,7 +159,7 @@ mod tests {
 
     #[async_test]
     async fn transaction_gets_reset() {
-        let mut sut = SmtpState::new(Builder::default());
+        let mut sut = SmtpState::new(Builder::default().into_service());
         sut.transaction.id = "someid".to_owned();
         sut.transaction.mail = Some(SmtpMail::Mail(SmtpPath::Null, vec![]));
         sut.transaction.rcpts.push(Recipient::null());

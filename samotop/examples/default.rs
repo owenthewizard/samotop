@@ -35,7 +35,8 @@ fn main() -> Result<()> {
 async fn main_fut() -> Result<()> {
     let mail_service = Builder::default()
         .using(NullDispatch)
-        .using(SmtpParser::default());
+        .using(SmtpParser::default())
+        .into_service();
     let smtp_service = SmtpService::new(Arc::new(mail_service));
 
     TcpServer::on("localhost:2525").serve(smtp_service).await
