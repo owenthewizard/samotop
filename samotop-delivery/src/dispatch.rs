@@ -1,7 +1,4 @@
-use crate::{
-    prelude::{EmailAddress, Envelope, Transport},
-    MailDataStream,
-};
+use crate::prelude::{EmailAddress, Envelope, Transport};
 use futures::TryFutureExt;
 use samotop_core::{common::*, mail::*};
 use std::fmt;
@@ -24,7 +21,7 @@ impl<T> MailDispatch for DispatchMail<T>
 where
     T: Transport + Send + Sync,
     T::DataStream: Sync + Send + 'static,
-    <T::DataStream as MailDataStream>::Error: std::error::Error + Sync + Send + 'static,
+    T::Error: std::error::Error + Sync + Send + 'static,
 {
     fn send_mail<'a, 's, 'f>(
         &'a self,

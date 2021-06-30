@@ -1,4 +1,3 @@
-use crate::smtp::error::Error;
 use crate::smtp::response::Response;
 use crate::smtp::transport::SmtpConnection;
 use crate::smtp::util::SmtpDataCodec;
@@ -75,18 +74,22 @@ impl<S> SmtpDataStream<S> {
             }),
         }
     }
+    pub fn last_response(&self) -> Option<&Response> {
+        match self.state {
+            State::Done(ref resp) => Some(resp),
+            _ => None,
+        }
+    }
 }
 
 impl<S> MailDataStream for SmtpDataStream<S>
 where
     S: Read + Write + Unpin + Sync + Send + 'static,
 {
-    type Output = Response;
-    type Error = Error;
-    fn result(&mut self) -> Result<Self::Output, Self::Error> {
+    fn is_done(&self) -> bool {
         match self.state {
-            State::Done(ref response) => Ok(response.clone()),
-            _ => Err(Error::Client("Mail sending was not completed properly")),
+            State::Done(ref resp) => resp.is_positive(),
+            _ => false,
         }
     }
 }

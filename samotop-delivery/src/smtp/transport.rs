@@ -162,7 +162,7 @@ where
 
 impl<Conf: ConnectionConfiguration, Conn: Connector> Transport for SmtpTransport<Conf, Conn> {
     type DataStream = SmtpDataStream<Conn::Stream>;
-
+    type Error = Error;
     fn send_stream<'s, 'a>(
         &'s self,
         envelope: Envelope,

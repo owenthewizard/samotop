@@ -3,10 +3,7 @@
 
 mod error;
 pub use self::error::*;
-use crate::{
-    sendmail::error::{Error, SendmailResult},
-    SyncFuture,
-};
+use crate::{sendmail::error::Error, SyncFuture};
 use crate::{Envelope, MailDataStream, Transport};
 use async_std::io::Write;
 use async_std::task;
@@ -45,6 +42,7 @@ impl SendmailTransport {
 
 impl Transport for SendmailTransport {
     type DataStream = ProcStream;
+    type Error = Error;
     fn send_stream<'s, 'a>(&'s self, envelope: Envelope) -> SyncFuture<Result<ProcStream, Error>>
     where
         's: 'a,
@@ -91,14 +89,10 @@ pub struct ProcStreamInner {
 }
 
 impl MailDataStream for ProcStream {
-    type Output = ();
-    type Error = Error;
-    fn result(&mut self) -> SendmailResult {
+    fn is_done(&self) -> bool {
         match self {
-            ProcStream::Done => Ok(()),
-            _ => Err(Error::Client(
-                "Mail sending did not finish properly".to_owned(),
-            )),
+            ProcStream::Done => true,
+            _ => false,
         }
     }
 }

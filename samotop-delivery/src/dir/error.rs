@@ -21,6 +21,3 @@ impl From<&'static str> for Error {
         Error::Client(string)
     }
 }
-
-/// SMTP result type
-pub type FileResult = Result<(), Error>;

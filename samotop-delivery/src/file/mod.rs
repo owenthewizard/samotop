@@ -8,10 +8,7 @@ pub use self::error::*;
 use crate::Envelope;
 use crate::MailDataStream;
 use crate::Transport;
-use crate::{
-    file::error::{Error, FileResult},
-    SyncFuture,
-};
+use crate::{file::error::Error, SyncFuture};
 use async_std::fs::File;
 use async_std::io::Write;
 use async_std::path::Path;
@@ -51,6 +48,7 @@ struct SerializableEmail {
 
 impl Transport for FileTransport {
     type DataStream = FileStream;
+    type Error = Error;
     fn send_stream<'s, 'a>(
         &'s self,
         envelope: Envelope,
@@ -84,14 +82,8 @@ pub struct FileStream {
 }
 
 impl MailDataStream for FileStream {
-    type Output = ();
-    type Error = Error;
-    fn result(&mut self) -> FileResult {
-        if self.closed {
-            Ok(())
-        } else {
-            Err(Error::Client("file was not closed properly"))
-        }
+    fn is_done(&self) -> bool {
+        self.closed
     }
 }
 

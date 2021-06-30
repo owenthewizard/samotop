@@ -1,3 +1,4 @@
+use super::error::*;
 use super::*;
 use crate::{Envelope, SyncFuture, Transport};
 use potential::Potential;
@@ -31,10 +32,11 @@ impl JournalTransport {
 
 impl Transport for JournalTransport {
     type DataStream = JournalStream;
+    type Error = Error;
     fn send_stream<'life1, 'async_trait>(
         &'life1 self,
         envelope: Envelope,
-    ) -> SyncFuture<JournalResult<JournalStream>>
+    ) -> SyncFuture<Result<JournalStream, Error>>
     where
         'life1: 'async_trait,
     {
