@@ -7,13 +7,12 @@ use std::{
     task::{Context, Poll},
 };
 
-use super::Error;
-
 #[pin_project(project=MailFileProj)]
 pub struct MailFile {
     id: String,
     file: File,
     target: Pin<Box<dyn Future<Output = std::io::Result<()>> + Send + Sync + 'static>>,
+    closed: bool,
 }
 
 impl MailFile {
@@ -22,7 +21,12 @@ impl MailFile {
         file: File,
         target: Pin<Box<dyn Future<Output = std::io::Result<()>> + Send + Sync + 'static>>,
     ) -> Self {
-        Self { id, file, target }
+        Self {
+            id,
+            file,
+            target,
+            closed: false,
+        }
     }
 }
 impl std::fmt::Debug for MailFile {
@@ -53,22 +57,24 @@ impl Write for MailFile {
     fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
         trace!("poll_close");
         ready!(self.as_mut().poll_flush(cx))?;
-        let MailFileProj { target, file, .. } = self.project();
+        let MailFileProj {
+            target,
+            file,
+            closed,
+            ..
+        } = self.project();
         trace!("closing file");
         ready!(Pin::new(file).poll_close(cx))?;
         trace!("moving file");
         ready!(target.as_mut().poll(cx))?;
         trace!("DONE!");
+        *closed = true;
         Poll::Ready(Ok(()))
     }
 }
 
 impl MailDataStream for MailFile {
-    type Output = String;
-
-    type Error = Error;
-
-    fn result(&self) -> Result<Self::Output, Self::Error> {
-        Ok(self.id.to_owned())
+    fn is_done(&self) -> bool {
+        self.closed
     }
 }

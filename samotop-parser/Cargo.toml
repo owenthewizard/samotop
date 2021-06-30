@@ -1,6 +1,6 @@
 [package]
 name = "samotop-parser"
-version = "0.12.1-samotop-dev"
+version = "0.13.0-samotop-dev"
 authors = ["jocutajar <tellnoone@robajz.info>"]
 license = "MIT OR Apache-2.0"
 description = "SMTP parser of Samotop - SMTP server and library built on async-std"
@@ -23,4 +23,4 @@ path = "../samotop-core"
 
 [dependencies]
 log = "0.4"
-peg = "0.6"
+peg = "0.7"

@@ -1,6 +1,6 @@
 [package]
 name = "samotop-with-spf"
-version = "0.12.1-samotop-dev"
+version = "0.13.0-samotop-dev"
 authors = ["jocutajar <tellnoone@robajz.info>"]
 license = "MIT OR Apache-2.0"
 description = "Integration of SPF checks into Samotop - SMTP server and library built on async-std"
@@ -24,7 +24,8 @@ path = "../samotop-core"
 [dependencies]
 pin-project = "1.0"
 log = "0.4"
-viaspf = "0.3"
+# TODO: use released async version https://gitlab.com/glts/viaspf/-/issues/2
+viaspf = { version = "0.4", git = "https://gitlab.com/BrightOpen/BackYard/viaspf.git", branch = "master" }
 trust-dns-resolver = { version = "0.20", default-features = false }
 async-std-resolver = "0.20"
 async-std = "1.9"

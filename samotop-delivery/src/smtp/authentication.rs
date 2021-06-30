@@ -71,8 +71,8 @@ pub(crate) struct SimpleAuthentication {
 impl SimpleAuthentication {
     pub fn new(mechanism: Mechanism, credentials: Credentials) -> Self {
         Self {
-            mechanism,
             credentials,
+            mechanism,
         }
     }
 }

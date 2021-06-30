@@ -6,12 +6,12 @@ use std::fmt;
 pub trait SmtpSessionCommand: Sync + Send + fmt::Debug {
     fn verb(&self) -> &str;
     #[must_use = "apply must be awaited"]
-    fn apply(&self, state: SmtpState) -> S2Fut<SmtpState>;
+    fn apply(&self, state: SmtpState) -> S1Fut<SmtpState>;
 }
 
 pub trait ApplyCommand<Data> {
     #[must_use = "apply must be awaited"]
-    fn apply_cmd(data: &Data, state: SmtpState) -> S2Fut<SmtpState>;
+    fn apply_cmd(data: &Data, state: SmtpState) -> S1Fut<SmtpState>;
 }
 
 #[derive(Eq, PartialEq, Debug, Clone)]
@@ -63,7 +63,7 @@ where
         ""
     }
 
-    fn apply(&self, mut state: SmtpState) -> S2Fut<SmtpState> {
+    fn apply(&self, mut state: SmtpState) -> S1Fut<SmtpState> {
         match self {
             Ok(command) => Box::pin(async move { command.apply(state).await }),
             Err(e) => {

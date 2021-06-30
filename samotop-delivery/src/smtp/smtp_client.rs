@@ -203,7 +203,10 @@ impl SmtpClient {
     where
         R: Read + Unpin + Send + Sync,
     {
-        self.connect().send(envelope, message).await
+        let sent = self.connect().send(envelope, message).await?;
+        sent.last_response()
+            .map(Response::to_owned)
+            .ok_or(Error::Client("mail was not sent"))
     }
 
     /// Connect to the server and send one mail, returning data stream to write body into
@@ -220,7 +223,7 @@ impl ConnectionConfiguration for SmtpClient {
         self.server_addr.clone()
     }
     fn timeout(&self) -> Duration {
-        self.timeout.clone().unwrap_or_default()
+        self.timeout.unwrap_or_default()
     }
     fn security(&self) -> ClientSecurity {
         self.security

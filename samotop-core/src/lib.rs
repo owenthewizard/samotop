@@ -18,6 +18,7 @@ pub mod common {
     pub use std::future::*;
     pub type S3Fut<T> = Pin<Box<dyn Future<Output = T> + Sync + Send + 'static>>;
     pub type S2Fut<'a, T> = Pin<Box<dyn Future<Output = T> + Sync + Send + 'a>>;
+    pub type S1Fut<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
     pub use std::fmt;
     pub use std::pin::Pin;
     pub use std::sync::Arc;

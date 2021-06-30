@@ -10,7 +10,7 @@ impl SmtpSessionCommand for SessionInfo {
         ""
     }
 
-    fn apply(&self, mut state: SmtpState) -> S2Fut<SmtpState> {
+    fn apply(&self, mut state: SmtpState) -> S1Fut<SmtpState> {
         state.session = self.clone();
         state.service.prepare_session(&mut state.session);
 
@@ -47,7 +47,7 @@ impl SmtpSessionCommand for SessionShutdown {
         ""
     }
 
-    fn apply(&self, mut state: SmtpState) -> S2Fut<SmtpState> {
+    fn apply(&self, mut state: SmtpState) -> S1Fut<SmtpState> {
         state.reset();
         state.session = SessionInfo::default();
         Box::pin(ready(state))
@@ -68,7 +68,7 @@ impl SmtpSessionCommand for Timeout {
         ""
     }
 
-    fn apply(&self, mut state: SmtpState) -> S2Fut<SmtpState> {
+    fn apply(&self, mut state: SmtpState) -> S1Fut<SmtpState> {
         let timeout = state.session.command_timeout;
         if timeout > Duration::default() && self.last.elapsed() > timeout {
             state.say_shutdown_err("Timeout expired.".to_owned());
@@ -86,7 +86,7 @@ impl SmtpSessionCommand for ProcessingError {
         ""
     }
 
-    fn apply(&self, mut state: SmtpState) -> S2Fut<SmtpState> {
+    fn apply(&self, mut state: SmtpState) -> S1Fut<SmtpState> {
         state.say_shutdown(SmtpReply::ProcesingError);
         Box::pin(ready(state))
     }

@@ -43,7 +43,7 @@ impl MailDispatch for SpfService {
         &'a self,
         session: &'s SessionInfo,
         transaction: Transaction,
-    ) -> S2Fut<'f, DispatchResult>
+    ) -> S1Fut<'f, DispatchResult>
     where
         'a: 'f,
         's: 'f,
@@ -73,7 +73,8 @@ impl MailDispatch for SpfService {
                 peer_addr,
                 sender.as_str(),
                 peer_name.as_str(),
-            );
+            )
+            .await;
             match evaluation.result {
                 SpfResult::Fail(explanation) => {
                     info!("mail rejected due to SPF fail: {}", explanation);
@@ -107,7 +108,7 @@ mod tests {
         let cfg = Config::default();
         let sut = SpfService::new(cfg);
         let fut = sut.send_mail(&sess, tran);
-        is_sync(fut);
+        is_send(fut);
     }
 
     #[test]
@@ -117,4 +118,5 @@ mod tests {
     }
 
     fn is_sync<T: Sync>(_subject: T) {}
+    fn is_send<T: Send>(_subject: T) {}
 }

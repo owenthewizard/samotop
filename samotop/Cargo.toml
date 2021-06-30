@@ -39,7 +39,7 @@ bytes = "1.0"
 pin-project = "1.0"
 futures = "0.3"
 async-std = "1.9"
-regex = "1.4"
+regex = "1.5"
 smol-timeout = "0.6"
 
 [dependencies.samotop-core]
@@ -47,32 +47,32 @@ version = "0.13.0-samotop-dev"
 path = "../samotop-core"
 
 [dependencies.samotop-parser]
-version = "0.12.1-samotop-dev"
+version = "0.13.0-samotop-dev"
 path = "../samotop-parser"
 optional = true
 
 [dependencies.samotop-parser-nom]
-version = "0.12.1-samotop-dev"
+version = "0.13.0-samotop-dev"
 path = "../samotop-parser-nom"
 optional = true
 
 [dependencies.samotop-with-spf]
-version = "0.12.1-samotop-dev"
+version = "0.13.0-samotop-dev"
 path = "../samotop-with-spf"
 optional = true
 
 [dependencies.samotop-with-rustls]
-version = "0.12.1-samotop-dev"
+version = "0.13.0-samotop-dev"
 path = "../samotop-with-rustls"
 optional = true
 
 [dependencies.samotop-with-native-tls]
-version = "0.12.1-samotop-dev"
+version = "0.13.0-samotop-dev"
 path = "../samotop-with-native-tls"
 optional = true
 
 [dependencies.samotop-smime]
-version="0.12.1-samotop-dev"
+version="0.13.0-samotop-dev"
 path = "../samotop-smime"
 optional = true
 

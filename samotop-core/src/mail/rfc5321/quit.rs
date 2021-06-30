@@ -7,13 +7,13 @@ impl SmtpSessionCommand for EsmtpCommand<SmtpQuit> {
         "QUIT"
     }
 
-    fn apply(&self, state: SmtpState) -> S2Fut<SmtpState> {
+    fn apply(&self, state: SmtpState) -> S1Fut<SmtpState> {
         Rfc5321::apply_cmd(&self.instruction, state)
     }
 }
 
 impl ApplyCommand<SmtpQuit> for Rfc5321 {
-    fn apply_cmd(_cmd: &SmtpQuit, mut state: SmtpState) -> S2Fut<SmtpState> {
+    fn apply_cmd(_cmd: &SmtpQuit, mut state: SmtpState) -> S1Fut<SmtpState> {
         let name = state.session.service_name.clone();
         state.reset();
         state.say_shutdown_ok(name);

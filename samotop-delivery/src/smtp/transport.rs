@@ -39,7 +39,7 @@ where
         connector: &Conn,
     ) -> Result<SmtpConnection<Conn::Stream>, Error> {
         let mut stream = connector.connect(configuration).await?;
-        let server_info = Self::setup(&configuration, &mut stream).await?;
+        let server_info = Self::setup(configuration, &mut stream).await?;
         let reuse = configuration.max_reuse_count().saturating_add(1);
         Ok(SmtpConnection {
             stream,
@@ -104,7 +104,7 @@ where
         server_info: &ServerInfo,
         timeout: Duration,
     ) -> Result<(), Error> {
-        if let Some(auth) = configuration.get_authentication(&server_info, stream.is_encrypted()) {
+        if let Some(auth) = configuration.get_authentication(server_info, stream.is_encrypted()) {
             let mut client = SmtpProto::new(Pin::new(stream));
             client.authenticate(auth, timeout).await?;
         } else {
@@ -162,7 +162,7 @@ where
 
 impl<Conf: ConnectionConfiguration, Conn: Connector> Transport for SmtpTransport<Conf, Conn> {
     type DataStream = SmtpDataStream<Conn::Stream>;
-
+    type Error = Error;
     fn send_stream<'s, 'a>(
         &'s self,
         envelope: Envelope,

@@ -35,6 +35,7 @@ impl MaildirTransport {
 
 impl Transport for MaildirTransport {
     type DataStream = MailFile;
+    type Error = Error;
     fn send_stream<'s, 'a>(&'s self, envelope: Envelope) -> SyncFuture<'a, Result<MailFile, Error>>
     where
         's: 'a,

@@ -17,6 +17,3 @@ pub enum Error {
     #[error("io error: {0}")]
     Io(#[from] io::Error),
 }
-
-/// sendmail result type
-pub type SendmailResult = Result<(), Error>;

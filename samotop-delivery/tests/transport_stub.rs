@@ -21,7 +21,7 @@ mod test {
 
     #[test]
     fn stub_transport_stream_is_sync() {
-        fn is_sync<T: Sync>(_tested: T) {};
+        fn is_sync<T: Sync>(_tested: T) {}
 
         let envelope = Envelope::new(
             Some("user@localhost".parse().unwrap()),

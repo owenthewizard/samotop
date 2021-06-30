@@ -1,26 +1,38 @@
-use crate::{
-    journal::{JournalError, JournalResult},
-    EmailAddress, Envelope, MailDataStream,
+use super::error::Error;
+use crate::{EmailAddress, Envelope, MailDataStream};
+use async_std::{
+    fs::{create_dir_all, OpenOptions},
+    io,
+    path::{Path, PathBuf},
 };
-use async_std::io;
 use futures::AsyncWriteExt;
 use lozizol::model::{Sequence, Vuint};
-use potential::Lease;
+use potential::{Gone, Lease, Potential};
 use samotop_core::common::*;
+use std::{
+    result::Result,
+    time::{Duration, Instant},
+};
 use uuid::Uuid;
 
 #[derive(Debug)]
 pub struct JournalStream {
     state: State,
+    dir: PathBuf,
+    max_bucket_size: usize,
+    max_bucket_age: Duration,
     envelope: Envelope,
     buffer: Vec<u8>,
     block_size: usize,
     blocks: Vec<(Uuid, usize)>,
 }
 impl JournalStream {
-    pub(crate) fn new(bucket: Lease<Bucket>, envelope: Envelope) -> Self {
+    pub(crate) fn new(dir: PathBuf, bucket: Arc<Potential<Bucket>>, envelope: Envelope) -> Self {
         JournalStream {
             state: State::Ready(bucket),
+            dir,
+            max_bucket_size: 2_000_000_000,
+            max_bucket_age: Duration::from_secs(60 * 60 * 24 * 7),
             envelope,
             buffer: vec![],
             block_size: 1_000_000,
@@ -32,10 +44,11 @@ impl JournalStream {
     }
 }
 impl MailDataStream for JournalStream {
-    type Output = ();
-    type Error = JournalError;
-    fn result(&self) -> JournalResult<()> {
-        todo!()
+    fn is_done(&self) -> bool {
+        match self.state {
+            State::Invalid => self.buffer.is_empty() && self.blocks.is_empty(),
+            _ => false,
+        }
     }
 }
 
@@ -65,44 +78,22 @@ impl io::Write for JournalStream {
         info!("Flushing");
         loop {
             break match std::mem::take(&mut self.state) {
-                State::Ready(mut bucket) => {
-                    if Pin::new(&mut bucket.write).poll_flush(cx)?.is_pending() {
-                        self.state = State::Ready(bucket);
-                        Poll::Pending
-                    } else if self.buffer.is_empty() {
-                        self.state = State::Ready(bucket);
-                        Poll::Ready(Ok(()))
-                    } else {
-                        let buf = std::mem::take(&mut self.buffer);
-                        let fut = Box::pin(async move {
-                            use std::ops::DerefMut;
-                            let Bucket {
-                                ref mut sequence,
-                                ref mut write,
-                                ..
-                            } = bucket.deref_mut();
-                            let mut entry = lozizol::task::encode::entry(
-                                sequence,
-                                write,
-                                "urn:samotop:block-v1",
-                                &buf.len(),
-                            )
-                            .await?;
-
-                            io::copy(buf.as_slice(), &mut entry).await?;
-                            let position = entry.position().to_owned();
-                            drop(entry);
-                            Ok((bucket, position))
-                        });
-                        self.state = State::Encoding(fut);
-                        continue;
-                    }
+                State::Ready(bucket) => {
+                    self.state = State::Encoding(Box::pin(write_block(
+                        std::mem::take(&mut self.buffer),
+                        bucket,
+                        self.dir.clone(),
+                        self.max_bucket_size,
+                        self.max_bucket_age,
+                    )));
+                    continue;
                 }
                 State::Encoding(mut fut) => match fut.as_mut().poll(cx) {
-                    Poll::Ready(Ok((bucket, position))) => {
+                    Poll::Ready(Ok((bucket, block))) => {
                         // record the block reference to a sequence position
-                        let seq_id = bucket.sequence.id().parse().expect("valid uuid");
-                        self.blocks.push((seq_id, position));
+                        if let Some((sequence_id, position)) = block {
+                            self.blocks.push((sequence_id, position));
+                        }
                         self.state = State::Ready(bucket);
                         continue;
                     }
@@ -138,12 +129,20 @@ impl io::Write for JournalStream {
         };
         loop {
             break match std::mem::take(&mut self.state) {
-                State::Ready(mut bucket) => {
-                    if !self.buffer.is_empty() {
+                State::Ready(bucket) => {
+                    if !self.buffer.is_empty() && self.as_mut().poll_flush(cx).is_pending() {
                         self.state = State::Ready(bucket);
-                        self.poll_flush(cx)
-                    } else if self.blocks.is_empty() {
-                        Pin::new(&mut bucket.write).poll_close(cx)
+                        return Poll::Pending;
+                    }
+
+                    if self.blocks.is_empty() {
+                        let bucket = bucket.clone();
+                        self.state = State::Closing(Box::pin(async move {
+                            match bucket.lease().await {
+                                Err(_) => Ok(()),
+                                Ok(lease) => Ok(lease.steal().write.close().await?),
+                            }
+                        }));
                     } else {
                         let from = self
                             .envelope
@@ -162,35 +161,17 @@ impl io::Write for JournalStream {
                             },
                         );
 
-                        let fut = Box::pin(async move {
-                            use std::ops::DerefMut;
-                            let Bucket {
-                                ref mut sequence,
-                                ref mut write,
-                                ..
-                            } = bucket.deref_mut();
-
-                            for rcpt in rcpts {
-                                let len = rcpt.len() + blocks.len() + from.len();
-                                let mut entry = lozizol::task::encode::entry(
-                                    sequence,
-                                    &mut *write,
-                                    "urn:samotop:test",
-                                    &len,
-                                )
-                                .await?;
-
-                                io::copy(rcpt.as_slice(), &mut entry).await?;
-                                io::copy(from.as_slice(), &mut entry).await?;
-                                io::copy(blocks.as_slice(), &mut entry).await?;
-                                entry.flush().await?;
-                            }
-
-                            Ok(())
-                        });
-                        self.state = State::Closing(fut);
-                        continue;
+                        self.state = State::Closing(Box::pin(write_mail(
+                            from,
+                            rcpts,
+                            blocks,
+                            bucket,
+                            self.dir.clone(),
+                            self.max_bucket_size,
+                            self.max_bucket_age,
+                        )));
                     }
+                    continue;
                 }
                 State::Encoding(fut) => {
                     self.state = State::Encoding(fut);
@@ -215,10 +196,11 @@ impl io::Write for JournalStream {
     }
 }
 
+type BucketTuple = (Arc<Potential<Bucket>>, Option<(Uuid, usize)>);
 enum State {
-    Ready(Lease<Bucket>),
-    Encoding(S3Fut<JournalResult<(Lease<Bucket>, usize)>>),
-    Closing(S3Fut<JournalResult<()>>),
+    Ready(Arc<Potential<Bucket>>),
+    Encoding(S3Fut<Result<BucketTuple, Error>>),
+    Closing(S3Fut<Result<(), Error>>),
     Invalid,
 }
 impl Default for State {
@@ -236,13 +218,15 @@ impl fmt::Debug for State {
         }
     }
 }
+
 pub(crate) trait BucketWrite: io::Write + Send + Sync + Unpin + 'static {}
 impl<T> BucketWrite for T where T: io::Write + Send + Sync + Unpin + 'static {}
 
 pub(crate) struct Bucket {
-    pub(crate) write: Box<dyn BucketWrite>,
+    write: Box<dyn BucketWrite>,
     sequence: Sequence,
-    pub(crate) written: usize,
+    written: usize,
+    created: Instant,
 }
 impl Bucket {
     pub fn new<W>(write: W, sequence: Sequence) -> Self
@@ -253,11 +237,116 @@ impl Bucket {
             write: Box::new(write),
             sequence,
             written: 0,
+            created: Instant::now(),
         }
     }
 }
 impl fmt::Debug for Bucket {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct(stringify!(Bucket)).finish()
+    }
+}
+async fn write_mail<P: AsRef<Path>>(
+    from: Vec<u8>,
+    rcpts: Vec<Vec<u8>>,
+    blocks: Vec<u8>,
+    bucket: Arc<Potential<Bucket>>,
+    dir: P,
+    max_bucket_size: usize,
+    max_bucket_age: Duration,
+) -> Result<(), Error> {
+    use std::ops::DerefMut;
+    let mut bucket = get_bucket(bucket.lease().await, dir, max_bucket_size, max_bucket_age).await?;
+    let Bucket {
+        ref mut sequence,
+        ref mut write,
+        ..
+    } = bucket.deref_mut();
+
+    for rcpt in rcpts {
+        let len = rcpt.len() + blocks.len() + from.len();
+        let mut entry =
+            lozizol::task::encode::entry(sequence, &mut *write, "urn:samotop:test", &len).await?;
+
+        io::copy(rcpt.as_slice(), &mut entry).await?;
+        io::copy(from.as_slice(), &mut entry).await?;
+        io::copy(blocks.as_slice(), &mut entry).await?;
+        entry.flush().await?;
+    }
+
+    Ok(())
+}
+/// Writes a block of data to a lozizol sequence returning the sequence id and position of the block.
+/// It handles the potential bucket creation and archiving.
+async fn write_block<P: AsRef<Path>>(
+    buf: Vec<u8>,
+    bucket: Arc<Potential<Bucket>>,
+    dir: P,
+    max_bucket_size: usize,
+    max_bucket_age: Duration,
+) -> Result<(Arc<Potential<Bucket>>, Option<(Uuid, usize)>), Error> {
+    use std::ops::DerefMut;
+    let mut lease = get_bucket(bucket.lease().await, dir, max_bucket_size, max_bucket_age).await?;
+    let Bucket {
+        ref mut sequence,
+        ref mut write,
+        ..
+    } = lease.deref_mut();
+    let block = if buf.is_empty() {
+        write.flush().await?;
+        None
+    } else {
+        let mut entry =
+            lozizol::task::encode::entry(sequence, write, "urn:samotop:block-v1", &buf.len())
+                .await?;
+        // copy flushes
+        io::copy(buf.as_slice(), &mut entry).await?;
+        let position = entry.position().to_owned();
+        let seq_id = sequence.id().parse().expect("valid uuid");
+        Some((seq_id, position))
+    };
+
+    Ok((bucket, block))
+}
+/// Get, archive, create a potential bucket
+async fn get_bucket<P: AsRef<Path>>(
+    potential: std::result::Result<Lease<Bucket>, Gone<Bucket>>,
+    dir: P,
+    max_size: usize,
+    max_age: Duration,
+) -> Result<Lease<Bucket>, Error> {
+    match potential {
+        Ok(mut bucket) => {
+            if bucket.written >= max_size || bucket.created.elapsed() >= max_age {
+                bucket
+                    .replace(create_bucket(dir).await?)
+                    .write
+                    .close()
+                    .await?;
+            }
+            Ok(bucket)
+        }
+        Err(gone) => Ok(gone.set(create_bucket(dir).await?)),
+    }
+}
+/// Create a new bucket
+async fn create_bucket<P: AsRef<Path>>(dir: P) -> Result<Bucket, Error> {
+    let sequence_id = Uuid::new_v4().to_hyphenated().to_string();
+    ensure_dir(&dir).await?;
+    let file = OpenOptions::new()
+        .create_new(true)
+        .write(true)
+        .open(dir.as_ref().join(sequence_id.as_str()))
+        .await?;
+
+    let mut sequence = Sequence::new();
+    sequence.set_id(sequence_id)?;
+    Ok(Bucket::new(file, sequence))
+}
+async fn ensure_dir<P: AsRef<Path>>(dir: P) -> std::io::Result<()> {
+    if !dir.as_ref().exists().await {
+        create_dir_all(dir).await
+    } else {
+        Ok(())
     }
 }

@@ -7,13 +7,13 @@ impl SmtpSessionCommand for EsmtpCommand<SmtpRset> {
         "RSET"
     }
 
-    fn apply(&self, state: SmtpState) -> S2Fut<SmtpState> {
+    fn apply(&self, state: SmtpState) -> S1Fut<SmtpState> {
         Rfc5321::apply_cmd(&self.instruction, state)
     }
 }
 
 impl ApplyCommand<SmtpRset> for Rfc5321 {
-    fn apply_cmd(_cmd: &SmtpRset, mut state: SmtpState) -> S2Fut<SmtpState> {
+    fn apply_cmd(_cmd: &SmtpRset, mut state: SmtpState) -> S1Fut<SmtpState> {
         state.reset();
         state.say_ok();
         Box::pin(ready(state))
