@@ -136,14 +136,14 @@ impl Interpretter {
         }
         if !failures.is_empty() {
             let msg = failures.join("; ");
-            return Err(ParseError::Failed(msg));
+            Err(ParseError::Failed(msg))
         } else if incomplete {
-            return Err(ParseError::Incomplete);
+            Err(ParseError::Incomplete)
         } else if !mismatches.is_empty() {
             let msg = mismatches.join("; ");
-            return Err(ParseError::Mismatch(msg));
+            Err(ParseError::Mismatch(msg))
         } else {
-            return Err(ParseError::Mismatch("No parsers?".into()));
+            Err(ParseError::Mismatch("No parsers?".into()))
         }
     }
 }

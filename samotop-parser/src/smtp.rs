@@ -84,7 +84,7 @@ peg::parser! {
 
         rule invalid_command() -> ParseResult<SmtpCommand>
             = s:$(quiet!{ "\n" / (![b'\n'][_]) + "\n" } / expected!("invalid input"))
-            {ParseResult::Err(ParseError::Mismatch("unrecognized command".into()))}
+            {ParseResult::Err(ParseError::Mismatch("PEG - unrecognized command".into()))}
 
         pub rule cmd_starttls() -> SmtpCommand
             = i("starttls") NL()

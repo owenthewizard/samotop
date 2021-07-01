@@ -24,8 +24,8 @@ impl Action<SmtpData> for Esmtp {
                 state.say_mail_queue_failed_temporarily();
             }
             Ok(transaction) => {
-                state.say_start_data_challenge();
                 state.transaction = transaction;
+                state.say_start_data_challenge();
             }
             Err(DispatchError::Refused) => {
                 state.say_mail_queue_refused();

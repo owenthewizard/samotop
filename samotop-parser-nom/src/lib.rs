@@ -28,7 +28,7 @@ impl Parser<SmtpCommand> for SmtpParserNom {
         }
         if let Some(mode) = state.transaction.mode {
             return Err(ParseError::Mismatch(format!(
-                "Not parsing in {:?} mode",
+                "NOM - not parsing cmd in {:?} mode",
                 mode
             )));
         }
