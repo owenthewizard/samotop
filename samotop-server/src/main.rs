@@ -118,11 +118,16 @@ use async_tls::TlsAcceptor;
 use rustls::ServerConfig;
 use samotop::io::smtp::SmtpService;
 use samotop::io::tls::RustlsProvider;
+use samotop::mail::Esmtp;
+use samotop::mail::Rfc821;
 use samotop::mail::{Builder, Dir, Name};
-use samotop::parser::SmtpParser;
+use samotop::parser::Interpretter;
+use samotop::parser::{Impatient, SmtpParser};
 use samotop::server::TcpServer;
+use samotop::smtp::SmtpCommand;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::time::Duration;
 use structopt::StructOpt;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
@@ -141,7 +146,14 @@ async fn main_fut() -> Result<()> {
         .using(Name::new(setup.get_my_name()))
         .using(Dir::new(setup.get_mail_dir())?)
         .using(samotop::mail::spf::provide_viaspf())
-        .using(SmtpParser::default());
+        .using(SmtpParser::default())
+        .using(
+            Interpretter::default()
+                .parse::<SmtpCommand>()
+                .with(SmtpParser::default())
+                .and_apply(Esmtp),
+        )
+        .using(Impatient::after(Duration::from_secs(30)));
 
     if let Some(cfg) = setup.get_tls_config().await? {
         builder = builder.using(RustlsProvider::from(TlsAcceptor::from(cfg)));

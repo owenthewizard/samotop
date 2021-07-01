@@ -1,8 +1,12 @@
-use crate::{common::*, parser::Parser};
+use crate::{
+    common::*,
+    parser::{Interpret, Parser},
+};
 
 pub trait ParserProvider: fmt::Debug {
     fn get_parser_for_data(&self) -> Box<dyn Parser + Sync + Send>;
     fn get_parser_for_commands(&self) -> Box<dyn Parser + Sync + Send>;
+    fn get_interpretter(&self) -> Box<dyn Interpret + Sync + Send>;
 }
 impl<T> ParserProvider for Arc<T>
 where
@@ -13,5 +17,8 @@ where
     }
     fn get_parser_for_commands(&self) -> Box<dyn Parser + Sync + Send> {
         T::get_parser_for_commands(self)
+    }
+    fn get_interpretter(&self) -> Box<dyn Interpret + Sync + Send> {
+        T::get_interpretter(self)
     }
 }

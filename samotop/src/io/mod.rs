@@ -1,5 +1,6 @@
 pub mod dummy;
 pub mod smtp;
+mod smtp2;
 
 pub use samotop_core::io::*;
 

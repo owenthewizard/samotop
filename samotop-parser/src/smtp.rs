@@ -2,7 +2,7 @@ use crate::data::DataParserPeg;
 use samotop_core::{
     common::{Arc, Error},
     mail::{Configuration, MailSetup, Rfc5321},
-    parser::{ParseError, ParseResult, Parser},
+    parser::{ParseError, ParseResult, ParseResult2, Parser, Parser3},
     smtp::*,
 };
 use std::net::{Ipv4Addr, Ipv6Addr};
@@ -14,6 +14,19 @@ pub mod grammar {
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct SmtpParserPeg;
+
+impl Parser3<SmtpCommand> for SmtpParserPeg {
+    fn parse(&self, input: &[u8], state: &SmtpState) -> ParseResult2<SmtpCommand> {
+        if input.is_empty() {
+            return Err(ParseError::Incomplete);
+        }
+        match grammar::command(input) {
+            Err(e) => Err(ParseError::Failed(e.into())),
+            Ok(Err(e)) => Err(e),
+            Ok(Ok((i, cmd))) => Ok((i.len(), cmd)),
+        }
+    }
+}
 
 impl Parser for SmtpParserPeg {
     fn parse_command<'i>(&self, input: &'i [u8]) -> ParseResult<'i, Box<dyn SmtpSessionCommand>> {

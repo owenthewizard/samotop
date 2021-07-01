@@ -193,6 +193,7 @@ extern crate log;
 
 pub mod io;
 pub mod mail;
+pub mod parser;
 pub mod server;
 
 pub mod smtp {
@@ -204,17 +205,4 @@ mod common {
 
     #[derive(Clone)]
     pub struct Provider<T>(pub T);
-}
-
-pub mod parser {
-    pub use samotop_core::parser::*;
-    #[cfg(feature = "parser-peg")]
-    pub use samotop_parser::*;
-    #[cfg(feature = "parser-nom")]
-    pub use samotop_parser_nom::*;
-
-    #[cfg(feature = "parser-nom")]
-    pub type SmtpParser = samotop_parser_nom::SmtpParserNom;
-    #[cfg(all(feature = "parser-peg", not(feature = "parser-nom")))]
-    pub type SmtpParser = samotop_parser::SmtpParserPeg;
 }

@@ -1,8 +1,8 @@
 use crate::io::ConnectionInfo;
 use crate::smtp::*;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
-#[derive(Default, Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SessionInfo {
     /// Description of the underlying connection
     pub connection: ConnectionInfo,
@@ -13,9 +13,7 @@ pub struct SessionInfo {
     /// The name of the peer as introduced by the HELO command
     pub peer_name: Option<String>,
     /// records the last instant a command was received
-    pub last_command_at: Option<Instant>,
-    /// How long in total do we wait for a command?
-    pub command_timeout: Duration,
+    pub last_command_at: Instant,
 }
 
 impl SessionInfo {
@@ -24,6 +22,18 @@ impl SessionInfo {
             connection,
             service_name,
             ..Default::default()
+        }
+    }
+}
+
+impl Default for SessionInfo {
+    fn default() -> Self {
+        SessionInfo {
+            last_command_at: Instant::now(),
+            connection: Default::default(),
+            extensions: Default::default(),
+            service_name: Default::default(),
+            peer_name: Default::default(),
         }
     }
 }

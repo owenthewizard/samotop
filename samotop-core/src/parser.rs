@@ -6,6 +6,7 @@ use crate::{
 use std::{
     fmt::{self, Debug, Display},
     marker::PhantomData,
+    ops::Deref,
 };
 
 pub type ParseResult<'a, T> = std::result::Result<(&'a [u8], T), ParseError>;
@@ -41,6 +42,9 @@ impl Parser for Vec<Arc<dyn Parser + Sync + Send>> {
     }
 }
 
+#[derive(Debug, Copy, Clone)]
+pub struct Dummy;
+
 #[derive(Debug)]
 pub enum ParseError {
     Incomplete,
@@ -75,17 +79,12 @@ impl Parser for () {
 
 pub type ParseResult2<T> = std::result::Result<(usize, T), ParseError>;
 
-pub trait Parser2: fmt::Debug {
-    type Command;
-    fn parse_command(&self, input: &[u8]) -> ParseResult2<Self::Command>;
-}
-
 pub trait Parser3<CMD>: fmt::Debug {
-    fn parse_command(&self, input: &[u8], state: &SmtpState) -> ParseResult2<CMD>;
+    fn parse(&self, input: &[u8], state: &SmtpState) -> ParseResult2<CMD>;
 }
 
 impl Parser3<SmtpUnknownCommand> for () {
-    fn parse_command(&self, input: &[u8], _state: &SmtpState) -> ParseResult2<SmtpUnknownCommand> {
+    fn parse(&self, input: &[u8], _state: &SmtpState) -> ParseResult2<SmtpUnknownCommand> {
         if let Some(line) = input.split(|b| *b == b'\n').next() {
             Ok((line.len(), Default::default()))
         } else {
@@ -117,7 +116,7 @@ impl Display for DummyError {
 impl std::error::Error for DummyError {}
 
 pub trait Action<CMD> {
-    fn perform<'a, 'c, 's, 'f>(&'a self, cmd: CMD, state: &'s mut SmtpState) -> S1Fut<'f, ()>
+    fn apply<'a, 'c, 's, 'f>(&'a self, cmd: CMD, state: &'s mut SmtpState) -> S1Fut<'f, ()>
     where
         'a: 'f,
         'c: 'f,
@@ -125,7 +124,7 @@ pub trait Action<CMD> {
 }
 
 impl<CMD> Action<CMD> for () {
-    fn perform<'a, 'c, 's, 'f>(&'a self, _cmd: CMD, _state: &'s mut SmtpState) -> S1Fut<'f, ()>
+    fn apply<'a, 'c, 's, 'f>(&'a self, _cmd: CMD, _state: &'s mut SmtpState) -> S1Fut<'f, ()>
     where
         'a: 'f,
         'c: 'f,
@@ -135,7 +134,7 @@ impl<CMD> Action<CMD> for () {
     }
 }
 
-impl Interpret for () {
+impl Interpret for Dummy {
     fn interpret<'a, 'i, 's, 'f>(
         &'a self,
         _input: &'i [u8],
@@ -149,8 +148,26 @@ impl Interpret for () {
         Box::pin(ready(Err(ParseError::Mismatch(Box::new(DummyError {})))))
     }
 }
+impl<T: Deref> Interpret for T
+where
+    T::Target: Interpret,
+    T: Debug,
+{
+    fn interpret<'a, 'i, 's, 'f>(
+        &'a self,
+        input: &'i [u8],
+        state: &'s mut SmtpState,
+    ) -> S1Fut<'f, InterpretResult>
+    where
+        'a: 'f,
+        'i: 'f,
+        's: 'f,
+    {
+        todo!()
+    }
+}
 
-type InterpretResult = std::result::Result<usize, ParseError>;
+pub type InterpretResult = std::result::Result<usize, ParseError>;
 
 pub struct Interpretter {
     calls: Vec<Box<dyn Interpret + Send + Sync>>,
@@ -158,9 +175,8 @@ pub struct Interpretter {
 
 impl MailSetup for Interpretter {
     fn setup(mut self, config: &mut Configuration) {
-        let current = std::mem::replace(&mut config.interpretter, Box::new(()));
-        self.calls.push(current);
-        config.interpretter = Box::new(self)
+        self.calls.push(config.interpretter.clone());
+        config.interpretter = Box::new(Arc::new(self))
     }
 }
 impl Interpret for Interpretter {
@@ -284,7 +300,7 @@ impl<P, CMD> InterpretterBuilderParser<P, CMD> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct ParserAction<P, A, CMD> {
     parser: P,
     action: A,
@@ -298,8 +314,8 @@ where
     CMD: 'static + Send + Sync,
 {
     async fn perform_inner(&self, input: &[u8], state: &mut SmtpState) -> InterpretResult {
-        let (length, cmd) = self.parser.parse_command(input, state)?;
-        self.action.perform(cmd, state).await;
+        let (length, cmd) = self.parser.parse(input, state)?;
+        self.action.apply(cmd, state).await;
         Ok(length)
     }
 }

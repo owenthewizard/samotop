@@ -7,9 +7,6 @@ use crate::{
     mail::{MailService, SessionInfo},
     smtp::*,
 };
-use futures::StreamExt;
-use smol_timeout::TimeoutExt;
-use std::time::{Duration, Instant};
 
 /// `SmtpService` provides a stateful SMTP service on a TCP, Unix or other asyn IO conection.
 ///
@@ -74,34 +71,19 @@ where
                 sess.extensions.enable(&extension::STARTTLS);
             }
 
-            let parser = mail_service.get_parser_for_commands();
+            let interpretter = mail_service.get_interpretter();
             let mut state = SmtpState::new(mail_service);
-            let mut codec = SmtpCodec::new(io);
-            codec.send(CodecControl::Parser(parser));
+            let mut driver = SmtpDriver::new(io);
 
             // send connection info
             state = sess.apply(state).await;
-            let mut last = Instant::now();
-            loop {
+
+            while driver.is_open() {
                 // fetch and apply commands
-                match codec.next().timeout(Duration::from_secs(10)).await {
-                    Some(Some(command)) => {
-                        state = command.apply(state).await;
-                        state.session.last_command_at = last;
-                        last = Instant::now();
-                    }
-                    None => state = Timeout::new().apply(state).await,
-                    Some(None) => {
-                        // client went silent, we're done!
-                        SessionShutdown.apply(state).await;
-                        break Ok(());
-                    }
-                }
-                // write all pending responses
-                for response in state.writes.drain(..) {
-                    codec.send(response);
-                }
+                driver.drive(&interpretter, &mut state).await?
             }
+
+            Ok(())
         })
     }
 }

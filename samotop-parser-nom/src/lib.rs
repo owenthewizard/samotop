@@ -17,7 +17,7 @@ use rustyknife::{
 use samotop_core::{
     common::Arc,
     mail::{Configuration, MailSetup, Rfc5321},
-    parser::{ParseError, ParseResult, Parser},
+    parser::{ParseError, ParseResult, ParseResult2, Parser, Parser3},
     smtp::*,
 };
 use std::net::IpAddr;
@@ -28,6 +28,18 @@ pub struct SmtpParserNom;
 impl MailSetup for SmtpParserNom {
     fn setup(self, config: &mut Configuration) {
         config.command_parser.insert(0, Arc::new(self))
+    }
+}
+
+impl Parser3<SmtpCommand> for SmtpParserNom {
+    fn parse(&self, input: &[u8], state: &SmtpState) -> ParseResult2<SmtpCommand> {
+        if input.is_empty() {
+            return Err(ParseError::Incomplete);
+        }
+        match rustyknife::rfc5321::command::<rustyknife::behaviour::Intl>(input) {
+            Ok((i, cmd)) => Ok((i.len(), map_cmd(cmd))),
+            Err(e) => Err(map_error(e)),
+        }
     }
 }
 

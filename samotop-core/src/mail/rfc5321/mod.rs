@@ -11,6 +11,7 @@ mod unknown;
 
 use super::rfc3207::EsmtpStartTls;
 use crate::common::*;
+use crate::parser::Action;
 use crate::smtp::*;
 
 /// An implementation of ESMTP - RFC 5321 - SMTP Service Extension for Secure SMTP over Transport Layer Security
@@ -23,6 +24,38 @@ pub type Rfc5321 = Esmtp;
 impl Rfc5321 {
     pub fn command<I>(instruction: I) -> EsmtpCommand<I> {
         EsmtpCommand { instruction }
+    }
+}
+
+impl Action<SmtpCommand> for Rfc5321 {
+    fn apply<'a, 'c, 's, 'f>(
+        &'a self,
+        cmd: SmtpCommand,
+        state: &'s mut SmtpState,
+    ) -> S1Fut<'f, ()>
+    where
+        'a: 'f,
+        'c: 'f,
+        's: 'f,
+    {
+        use SmtpCommand as C;
+
+        Box::pin(async move {
+            let s = std::mem::take(state);
+            *state = match cmd {
+                C::Helo(ref helo) => Self::apply_cmd(helo, s).await,
+                C::Mail(ref mail) => Self::apply_cmd(mail, s).await,
+                C::Rcpt(ref rcpt) => Self::apply_cmd(rcpt, s).await,
+                C::Data => Self::apply_cmd(&SmtpData, s).await,
+                C::Quit => Self::apply_cmd(&SmtpQuit, s).await,
+                C::Rset => Self::apply_cmd(&SmtpRset, s).await,
+                C::Noop(_) => Self::apply_cmd(&SmtpNoop, s).await,
+                C::StartTls => EsmtpStartTls::command().apply(s).await,
+                C::Expn(_) | C::Vrfy(_) | C::Help(_) | C::Turn | C::Other(_, _) => {
+                    Self::apply_cmd(&SmtpUnknownCommand::default(), s).await
+                }
+            };
+        })
     }
 }
 

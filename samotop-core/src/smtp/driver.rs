@@ -2,18 +2,19 @@ use crate::common::*;
 use crate::io::tls::MayBeTls;
 use crate::parser::Interpret;
 use crate::smtp::CodecControl;
+use crate::smtp::SessionShutdown;
 use crate::smtp::SmtpState;
 use crate::{
     parser::ParseError,
     smtp::{ProcessingError, SmtpSessionCommand},
 };
-use bytes::{Buf, BufMut};
 use futures_util::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use std::fmt;
 
 pub struct SmtpDriver<IO> {
     /// the underlying IO, such as TcpStream
-    io: BufReader<IO>,
+    /// It will be set to None once closed
+    io: Option<BufReader<IO>>,
     buffer: Vec<u8>,
 }
 
@@ -23,18 +24,31 @@ where
 {
     pub fn new(io: IO) -> Self {
         SmtpDriver {
-            io: BufReader::new(io),
+            io: Some(BufReader::new(io)),
             buffer: vec![],
         }
     }
-    pub async fn drive(&mut self, interpret: &dyn Interpret, state: &mut SmtpState) -> Result<()> {
+    pub fn is_open(&self) -> bool {
+        self.io.is_some()
+    }
+    pub async fn drive(
+        &mut self,
+        interpretter: &(dyn Interpret + Sync),
+        state: &mut SmtpState,
+    ) -> Result<()> {
+        let mut io = if let Some(io) = self.io.take() {
+            io
+        } else {
+            return Err(todo!("closed"));
+        };
+
         // write all pending responses
         while let Some(response) = state.writes.pop_front() {
             trace!("Processing codec control {:?}", response);
             match response {
                 CodecControl::Parser(newparser) => unimplemented!(),
                 CodecControl::Response(bytes) => {
-                    match self.io.write_all(bytes.as_ref()).await {
+                    match io.write_all(bytes.as_ref()).await {
                         Ok(()) => {
                             // all good, carry on
                         }
@@ -44,48 +58,59 @@ where
                         }
                     }
                 }
-                CodecControl::Shutdown => match self.io.close().await {
+                CodecControl::Shutdown => match io.close().await {
                     Ok(()) => {
                         trace!("Close complete");
+                        //io stays None
+                        return Ok(());
                     }
                     Err(e) => {
                         return Err(processing_error("Close failed", e));
                     }
                 },
                 CodecControl::StartTls => {
-                    Pin::new(self.io.get_mut()).encrypt();
+                    Pin::new(io.get_mut()).encrypt();
                 }
             }
         }
 
-        loop {
-            break match interpret.interpret(self.buffer.as_slice(), state).await {
+        self.io = loop {
+            match interpretter.interpret(self.buffer.as_slice(), state).await {
                 Ok(consumed) => {
+                    assert!(consumed != 0, "if consumed is 0, infinite loop is likely");
                     // TODO: handle buffer more efficiently, now allocating all the time
                     self.buffer = self.buffer.split_off(consumed);
-                    continue;
+                    break Some(io);
                 }
                 Err(ParseError::Incomplete) => {
                     // TODO: take care of large chunks without LF
-                    match self.io.read_until(b'\n', &mut self.buffer).await? {
+                    match io.read_until(b'\n', &mut self.buffer).await? {
                         0 => {
                             let s = std::mem::take(state);
-                            *state = ProcessingError.apply(s).await;
-                            Err(processing_error(
-                                "Incomplete and finished",
-                                String::from_utf8_lossy(self.buffer.as_slice()),
-                            ))
+                            *state = if self.buffer.is_empty() {
+                                // client went silent, we're done!
+                                SessionShutdown.apply(s).await
+                            } else {
+                                error!(
+                                    "Incomplete and finished: {:?}",
+                                    String::from_utf8_lossy(self.buffer.as_slice())
+                                );
+                                // client did not finish the command and left.
+                                ProcessingError.apply(s).await
+                            };
+                            break Some(io);
                         }
-                        _ => continue,
+                        _ => {}
                     }
                 }
-                Err(e) => Err(processing_error("Parsing failed", e)),
+                Err(e) => return Err(processing_error("Parsing failed", e)),
             };
-        }
+        };
+
+        Ok(())
     }
 }
 
 fn processing_error(scope: &str, e: impl fmt::Debug) -> Error {
-    error!("{}: {:?}", scope, e);
     todo!()
 }

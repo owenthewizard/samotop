@@ -54,13 +54,12 @@ impl SmtpSessionCommand for SessionShutdown {
     }
 }
 
+// Represents an expired server timeout
 #[derive(Eq, PartialEq, Debug, Clone)]
-pub struct Timeout {
-    last: Instant,
-}
+pub struct Timeout;
 impl Timeout {
-    pub fn new(last: Instant) -> Self {
-        Self { last }
+    pub fn new() -> Self {
+        Self
     }
 }
 impl SmtpSessionCommand for Timeout {
@@ -69,11 +68,7 @@ impl SmtpSessionCommand for Timeout {
     }
 
     fn apply(&self, mut state: SmtpState) -> S1Fut<SmtpState> {
-        let timeout = state.session.command_timeout;
-        if timeout > Duration::default() && self.last.elapsed() > timeout {
-            state.say_shutdown_err("Timeout expired.".to_owned());
-        }
-
+        state.say_shutdown_err("Timeout expired.".to_owned());
         Box::pin(ready(state))
     }
 }

@@ -9,6 +9,7 @@ mod path;
 mod reply;
 mod state;
 
+pub use self::driver::*;
 pub use self::codec::*;
 pub use self::command::*;
 pub use self::extensions::*;
