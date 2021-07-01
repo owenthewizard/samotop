@@ -10,6 +10,7 @@ use samotop_core::{
 };
 use smol_timeout::TimeoutExt;
 
+/// Applies the specified command timeout
 #[derive(Debug)]
 pub struct Impatient {
     timeout: Duration,
@@ -27,7 +28,7 @@ impl Interpret for Impatient {
         'i: 'f,
         's: 'f,
     {
-        todo!()
+        Box::pin(self.interpret_inner(input, state))
     }
 }
 

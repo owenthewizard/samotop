@@ -71,9 +71,10 @@ where
                 sess.extensions.enable(&extension::STARTTLS);
             }
 
+            let mut driver = SmtpDriver::new(io);
+
             let interpretter = mail_service.get_interpretter();
             let mut state = SmtpState::new(mail_service);
-            let mut driver = SmtpDriver::new(io);
 
             // send connection info
             state = sess.apply(state).await;
