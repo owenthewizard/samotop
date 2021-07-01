@@ -3,7 +3,7 @@ use crate::smtp::{command::SmtpQuit, Action, SmtpState};
 
 #[async_trait::async_trait]
 impl Action<SmtpQuit> for Esmtp {
-    async fn apply(&self, cmd: SmtpQuit, state: &mut SmtpState) {
+    async fn apply(&self, _cmd: SmtpQuit, state: &mut SmtpState) {
         let name = state.session.service_name.clone();
         state.reset();
         state.say_shutdown_ok(name);

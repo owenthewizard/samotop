@@ -40,7 +40,7 @@ impl Parser<SmtpCommand> for SmtpParserNom {
 }
 
 impl SmtpParserNom {
-    pub fn forward_path<'i>(&self, input: &'i [u8]) -> ParseResult<SmtpPath> {
+    pub fn forward_path(&self, input: &[u8]) -> ParseResult<SmtpPath> {
         let len = input.len();
         let (input, _) = tag("<")(input).map_err(map_error)?;
         let (input, m) = mailbox::<rustyknife::behaviour::Intl>(input).map_err(map_error)?;

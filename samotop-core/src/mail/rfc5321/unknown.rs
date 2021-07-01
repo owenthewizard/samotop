@@ -3,7 +3,7 @@ use crate::smtp::{command::SmtpUnknownCommand, Action, SmtpState};
 
 #[async_trait::async_trait]
 impl Action<SmtpUnknownCommand> for Esmtp {
-    async fn apply(&self, cmd: SmtpUnknownCommand, state: &mut SmtpState) {
+    async fn apply(&self, _cmd: SmtpUnknownCommand, state: &mut SmtpState) {
         state.say_not_implemented();
     }
 }

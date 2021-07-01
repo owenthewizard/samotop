@@ -27,8 +27,6 @@ find tmp/journal -print -exec cat {} \;
 use async_std::task;
 use futures::AsyncRead as Read;
 use futures::AsyncWrite as Write;
-use samotop::smtp::command::SmtpCommand;
-use samotop::smtp::Interpretter;
 use samotop::{
     io::{smtp::SmtpService, tls::TlsCapable, ConnectionInfo, IoService},
     mail::{Builder, Journal, Lmtp},

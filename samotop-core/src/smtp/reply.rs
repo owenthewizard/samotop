@@ -234,7 +234,8 @@ impl SmtpReply {
             MailboxNotAvailableError => {
                 "Requested mail action not taken: mailbox unavailable".to_owned()
             }
-            ProcesingError => "Requested action aborted: error in processing".to_owned(),
+            ProcesingError => "Requested action aborted: error in processing.".to_owned(),
+
             StorageError => "Requested action not taken: insufficient system storage".to_owned(),
             ParametersNotAccommodatedError => "Server unable to accommodate parameters".to_owned(),
             MailboxNotAvailableFailure => {

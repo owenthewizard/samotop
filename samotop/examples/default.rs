@@ -21,8 +21,7 @@ EOF
 use async_std::task;
 use samotop::mail::{Builder, Esmtp};
 use samotop::server::TcpServer;
-use samotop::smtp::command::SmtpCommand;
-use samotop::smtp::{Interpretter, SmtpParserPeg};
+use samotop::smtp::SmtpParserPeg;
 use samotop::{io::smtp::SmtpService, mail::NullDispatch};
 use std::sync::Arc;
 

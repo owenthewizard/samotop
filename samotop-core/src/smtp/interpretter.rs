@@ -59,7 +59,7 @@ where
         'i: 'f,
         's: 'f,
     {
-        todo!()
+        Deref::deref(self).interpret(input, state)
     }
 }
 

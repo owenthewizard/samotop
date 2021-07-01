@@ -5,7 +5,7 @@ use crate::smtp::{extension, Action, SmtpState};
 impl Action<EsmtpStartTls> for EsmtpStartTls {
     /// Applies given helo to the state
     /// It asserts the right HELO/EHLO variant
-    async fn apply(&self, cmd: EsmtpStartTls, state: &mut SmtpState) {
+    async fn apply(&self, _cmd: EsmtpStartTls, state: &mut SmtpState) {
         if state.session.peer_name.is_none() {
             state.say_command_sequence_fail()
         } else {

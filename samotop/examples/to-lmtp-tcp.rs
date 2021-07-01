@@ -27,7 +27,7 @@ use samotop::{
     },
     mail::{Builder, Lmtp, LmtpDispatch, Mapper},
     server::TcpServer,
-    smtp::{command::SmtpCommand, Interpretter, SmtpParserPeg},
+    smtp::SmtpParserPeg,
 };
 use std::sync::Arc;
 

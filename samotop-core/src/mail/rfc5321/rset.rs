@@ -3,7 +3,7 @@ use crate::smtp::{command::SmtpRset, Action, SmtpState};
 
 #[async_trait::async_trait]
 impl Action<SmtpRset> for Esmtp {
-    async fn apply(&self, cmd: SmtpRset, state: &mut SmtpState) {
+    async fn apply(&self, _cmd: SmtpRset, state: &mut SmtpState) {
         state.reset();
         state.say_ok();
     }

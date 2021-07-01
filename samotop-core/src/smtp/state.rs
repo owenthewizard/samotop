@@ -102,10 +102,12 @@ impl SmtpState {
     }
     /// Service error
     pub fn say_shutdown_service_err(&mut self, description: String) -> SayResult {
+        error!("Service error: {}", description);
         self.say_shutdown(SmtpReply::ServiceNotAvailableError(description))
     }
     /// Processing error
     pub fn say_shutdown_processing_err(&mut self, description: String) -> SayResult {
+        error!("Processing error: {}", description);
         self.say_shutdown(SmtpReply::ProcesingError)
     }
     /// Normal response to quit command

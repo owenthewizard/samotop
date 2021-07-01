@@ -3,7 +3,7 @@ use crate::smtp::{command::SmtpInvalidCommand, Action, SmtpState};
 
 #[async_trait::async_trait]
 impl Action<SmtpInvalidCommand> for Esmtp {
-    async fn apply(&self, cmd: SmtpInvalidCommand, state: &mut SmtpState) {
+    async fn apply(&self, _cmd: SmtpInvalidCommand, state: &mut SmtpState) {
         state.say_invalid_syntax();
     }
 }

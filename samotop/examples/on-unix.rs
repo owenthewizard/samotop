@@ -44,6 +44,8 @@ async fn main_fut() -> Result<()> {
 
 #[cfg(unix)]
 async fn main_fut() -> Result<()> {
+    use samotop::{mail::Esmtp, server::UnixServer};
+
     let dir_service = Dir::new("tmp/samotop/spool/".into())?;
     let mail_service = Arc::new(
         Builder::default()
@@ -52,10 +54,5 @@ async fn main_fut() -> Result<()> {
             .into_service(),
     );
     let smtp_service = SmtpService::new(mail_service);
-    use samotop::{
-        mail::Esmtp,
-        server::UnixServer,
-        smtp::{command::SmtpCommand, Interpretter},
-    };
     UnixServer::on("local.socket").serve(smtp_service).await
 }

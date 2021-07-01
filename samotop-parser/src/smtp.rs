@@ -27,7 +27,7 @@ impl Parser<SmtpCommand> for SmtpParserPeg {
 }
 
 impl SmtpParserPeg {
-    pub fn forward_path<'i>(&self, input: &'i [u8]) -> ParseResult<SmtpPath> {
+    pub fn forward_path(&self, input: &[u8]) -> ParseResult<SmtpPath> {
         Self::map(input.len(), grammar::path_forward(input))
     }
     fn map<T, E>(len: usize, myres: std::result::Result<T, E>) -> ParseResult<T>

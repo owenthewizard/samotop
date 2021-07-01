@@ -3,6 +3,7 @@ use crate::io::tls::MayBeTls;
 use crate::smtp::{Interpret, ParseError, SmtpState};
 use futures_util::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use std::fmt;
+use std::fmt::Display;
 
 /// Represents the instructions for the client side of the stream.
 pub enum DriverControl {
@@ -60,11 +61,11 @@ where
         &mut self,
         interpretter: &(dyn Interpret + Sync),
         state: &mut SmtpState,
-    ) -> Result<()> {
+    ) -> std::result::Result<(), DriverError> {
         let mut io = if let Some(io) = self.io.take() {
             io
         } else {
-            return Err(todo!("closed"));
+            return Err(DriverError::IoClosed);
         };
 
         // write all pending responses
@@ -78,7 +79,7 @@ where
                         }
                         Err(e) => {
                             state.writes.push_front(DriverControl::Response(bytes));
-                            return Err(processing_error("Write failed", e));
+                            return Err(DriverError::WriteFailed(Box::new(e)));
                         }
                     }
                 }
@@ -89,7 +90,7 @@ where
                         return Ok(());
                     }
                     Err(e) => {
-                        return Err(processing_error("Close failed", e));
+                        return Err(DriverError::CloseFailed(Box::new(e)));
                     }
                 },
                 DriverControl::StartTls => {
@@ -108,25 +109,22 @@ where
                 }
                 Err(ParseError::Incomplete) => {
                     // TODO: take care of large chunks without LF
-                    match io.read_until(b'\n', &mut self.buffer).await? {
-                        0 => {
-                            if self.buffer.is_empty() {
-                                // client went silent, we're done!
-                                state.shutdown();
-                            } else {
-                                error!(
-                                    "Incomplete and finished: {:?}",
-                                    String::from_utf8_lossy(self.buffer.as_slice())
-                                );
-                                // client did not finish the command and left.
-                                state.say_shutdown_processing_err("Incomplete command".into());
-                            };
-                            break Some(io);
-                        }
-                        _ => {}
+                    if io.read_until(b'\n', &mut self.buffer).await? == 0 {
+                        if self.buffer.is_empty() {
+                            // client went silent, we're done!
+                            state.shutdown();
+                        } else {
+                            error!(
+                                "Incomplete and finished: {:?}",
+                                String::from_utf8_lossy(self.buffer.as_slice())
+                            );
+                            // client did not finish the command and left.
+                            state.say_shutdown_processing_err("Incomplete command".into());
+                        };
+                        break Some(io);
                     }
                 }
-                Err(e) => return Err(processing_error("Parsing failed", e)),
+                Err(e) => return Err(DriverError::ParsingFailed(Box::new(e))),
             };
         };
 
@@ -134,6 +132,22 @@ where
     }
 }
 
-fn processing_error(scope: &str, e: impl fmt::Debug) -> Error {
-    todo!()
+#[derive(Debug)]
+pub enum DriverError {
+    IoClosed,
+    WriteFailed(Error),
+    CloseFailed(Error),
+    ParsingFailed(Error),
+    IoFailed(Error),
+}
+impl Display for DriverError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+impl std::error::Error for DriverError {}
+impl From<std::io::Error> for DriverError {
+    fn from(e: std::io::Error) -> Self {
+        DriverError::IoFailed(Box::new(e))
+    }
 }

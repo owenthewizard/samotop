@@ -4,7 +4,7 @@ use crate::smtp::{command::SmtpData, Action, SmtpState};
 
 #[async_trait::async_trait]
 impl Action<SmtpData> for Esmtp {
-    async fn apply(&self, cmd: SmtpData, state: &mut SmtpState) {
+    async fn apply(&self, _cmd: SmtpData, state: &mut SmtpState) {
         if state.transaction.id.is_empty()
             || state.session.peer_name.is_none()
             || state.transaction.mail.is_none()

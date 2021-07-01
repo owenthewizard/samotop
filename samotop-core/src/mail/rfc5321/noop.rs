@@ -3,7 +3,7 @@ use crate::smtp::{command::SmtpNoop, Action, SmtpState};
 
 #[async_trait::async_trait]
 impl Action<SmtpNoop> for Esmtp {
-    async fn apply(&self, cmd: SmtpNoop, state: &mut SmtpState) {
+    async fn apply(&self, _cmd: SmtpNoop, state: &mut SmtpState) {
         state.say_ok();
     }
 }
