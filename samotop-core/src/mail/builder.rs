@@ -6,7 +6,7 @@ use crate::{
         MailGuard, MailService, MailSetup, SessionInfo, StartMailRequest, StartMailResult,
         Transaction,
     },
-    parser::{Dummy, Interpret, Parser},
+    smtp::{Dummy, Interpret},
 };
 
 use super::ParserProvider;
@@ -21,8 +21,6 @@ pub struct Configuration {
     pub id: String,
     pub tls: Box<dyn TlsProvider + Sync + Send + 'static>,
     pub interpretter: Box<Arc<dyn Interpret + Send + Sync>>,
-    pub data_parser: Vec<Arc<dyn Parser + Sync + Send + 'static>>,
-    pub command_parser: Vec<Arc<dyn Parser + Sync + Send + 'static>>,
     pub dispatch: Vec<Box<dyn MailDispatch + Sync + Send + 'static>>,
     pub guard: Vec<Box<dyn MailGuard + Sync + Send + 'static>>,
     pub esmtp: Vec<Box<dyn EsmtpService + Sync + Send + 'static>>,
@@ -45,8 +43,6 @@ impl Default for Configuration {
             id: Default::default(),
             tls: Box::new(NoTls),
             interpretter: Box::new(Arc::new(Dummy)),
-            data_parser: Default::default(),
-            command_parser: Default::default(),
             dispatch: Default::default(),
             guard: Default::default(),
             esmtp: Default::default(),
@@ -160,14 +156,6 @@ impl TlsProvider for Configuration {
 }
 
 impl ParserProvider for Configuration {
-    fn get_parser_for_data(&self) -> Box<dyn Parser + Sync + Send> {
-        Box::new(self.data_parser.clone())
-    }
-
-    fn get_parser_for_commands(&self) -> Box<dyn Parser + Sync + Send> {
-        Box::new(self.command_parser.clone())
-    }
-
     fn get_interpretter(&self) -> Box<dyn Interpret + Sync + Send> {
         Box::new(self.interpretter.clone())
     }

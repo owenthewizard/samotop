@@ -1,35 +1,20 @@
 use crate::{
-    common::*,
-    mail::{apply_helo, Rfc2033, Rfc5321},
-    smtp::{ApplyCommand, SmtpHelo, SmtpSessionCommand, SmtpState, SmtpUnknownCommand},
+    mail::{apply_helo, Esmtp, Lmtp},
+    smtp::{
+        command::{SmtpHelo, SmtpUnknownCommand},
+        Action, SmtpState,
+    },
 };
 
-use super::LmtpCommand;
-
-impl SmtpSessionCommand for LmtpCommand<SmtpHelo> {
-    fn verb(&self) -> &str {
-        self.instruction.verb.as_str()
-    }
-
-    fn apply(&self, state: SmtpState) -> S1Fut<SmtpState> {
-        Rfc2033::apply_cmd(&self.instruction, state)
-    }
-}
-
-impl ApplyCommand<SmtpHelo> for Rfc2033 {
+#[async_trait::async_trait]
+impl Action<SmtpHelo> for Lmtp {
     /// Applies given helo to the state
     /// It asserts the right HELO/EHLO variant
-    fn apply_cmd(helo: &SmtpHelo, state: SmtpState) -> S1Fut<SmtpState> {
-        Box::pin(async move {
-            match helo.verb.to_ascii_uppercase().as_str() {
-                "LHLO" => apply_helo(helo, true, state).await,
-                _ => {
-                    Rfc5321::command(SmtpUnknownCommand::default())
-                        .apply(state)
-                        .await
-                }
-            }
-        })
+    async fn apply(&self, cmd: SmtpHelo, state: &mut SmtpState) {
+        match cmd.verb.to_ascii_uppercase().as_str() {
+            "LHLO" => apply_helo(cmd, true, state),
+            _ => Esmtp.apply(SmtpUnknownCommand::default(), state).await,
+        }
     }
 }
 
@@ -38,7 +23,7 @@ mod tests {
     use super::*;
     use crate::{
         mail::{Builder, Recipient},
-        smtp::{SmtpHost, SmtpMail, SmtpPath},
+        smtp::{command::SmtpMail, SmtpHost, SmtpPath},
     };
     use futures_await_test::async_test;
 
@@ -49,33 +34,43 @@ mod tests {
         set.transaction.mail = Some(SmtpMail::Mail(SmtpPath::Null, vec![]));
         set.transaction.rcpts.push(Recipient::null());
         set.transaction.extra_headers.insert_str(0, "feeeha");
-        let sut = Rfc2033::command(SmtpHelo {
-            verb: "LHLO".to_string(),
-            host: SmtpHost::Domain("wex.xor.ro".to_owned()),
-        });
-        let res = sut.apply(set).await;
-        assert!(res.transaction.is_empty());
+
+        Lmtp.apply(
+            SmtpHelo {
+                verb: "LHLO".to_string(),
+                host: SmtpHost::Domain("wex.xor.ro".to_owned()),
+            },
+            &mut set,
+        )
+        .await;
+        assert!(set.transaction.is_empty());
     }
 
     #[async_test]
     async fn helo_is_set() {
-        let set = SmtpState::new(Builder::default().into_service());
-        let sut = Rfc2033::command(SmtpHelo {
-            verb: "LHLO".to_string(),
-            host: SmtpHost::Domain("wex.xor.ro".to_owned()),
-        });
-        let res = sut.apply(set).await;
-        assert_eq!(res.session.peer_name, Some("wex.xor.ro".to_owned()));
+        let mut set = SmtpState::new(Builder::default().into_service());
+
+        Lmtp.apply(
+            SmtpHelo {
+                verb: "LHLO".to_string(),
+                host: SmtpHost::Domain("wex.xor.ro".to_owned()),
+            },
+            &mut set,
+        )
+        .await;
+        assert_eq!(set.session.peer_name, Some("wex.xor.ro".to_owned()));
     }
 
     #[test]
     fn is_sync_and_send() {
-        let sut = Rfc2033::command(SmtpHelo {
-            verb: "LHLO".to_string(),
-            host: SmtpHost::Domain("wex.xor.ro".to_owned()),
-        });
-        let set = SmtpState::new(Builder::default().into_service());
-        let res = sut.apply(set);
+        let mut set = SmtpState::new(Builder::default().into_service());
+        let res = Lmtp.apply(
+            SmtpHelo {
+                verb: "LHLO".to_string(),
+                host: SmtpHost::Domain("wex.xor.ro".to_owned()),
+            },
+            &mut set,
+        );
 
         is_send(res);
     }

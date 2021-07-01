@@ -1,23 +1,10 @@
-use super::{EsmtpCommand, Rfc5321};
-use crate::{
-    common::*,
-    smtp::{ApplyCommand, SmtpInvalidCommand, SmtpSessionCommand, SmtpState},
-};
+use super::Esmtp;
+use crate::smtp::{command::SmtpInvalidCommand, Action, SmtpState};
 
-impl SmtpSessionCommand for EsmtpCommand<SmtpInvalidCommand> {
-    fn verb(&self) -> &str {
-        ""
-    }
-
-    fn apply(&self, state: SmtpState) -> S1Fut<SmtpState> {
-        Rfc5321::apply_cmd(&self.instruction, state)
-    }
-}
-
-impl ApplyCommand<SmtpInvalidCommand> for Rfc5321 {
-    fn apply_cmd(_cmd: &SmtpInvalidCommand, mut state: SmtpState) -> S1Fut<SmtpState> {
+#[async_trait::async_trait]
+impl Action<SmtpInvalidCommand> for Esmtp {
+    async fn apply(&self, cmd: SmtpInvalidCommand, state: &mut SmtpState) {
         state.say_invalid_syntax();
-        Box::pin(ready(state))
     }
 }
 
@@ -26,7 +13,7 @@ mod tests {
     use super::*;
     use crate::{
         mail::{Builder, Recipient},
-        smtp::{CodecControl, SmtpMail, SmtpPath},
+        smtp::{command::SmtpMail, DriverControl, SmtpPath},
     };
     use futures_await_test::async_test;
 
@@ -37,10 +24,12 @@ mod tests {
         set.transaction.mail = Some(SmtpMail::Mail(SmtpPath::Null, vec![]));
         set.transaction.rcpts.push(Recipient::null());
         set.transaction.extra_headers.insert_str(0, "feeeha");
-        let sut = Rfc5321::command(SmtpInvalidCommand::new(b"HOOO".to_vec()));
-        let mut res = sut.apply(set).await;
-        match res.writes.pop_front() {
-            Some(CodecControl::Response(bytes)) if bytes.starts_with(b"500 ") => {}
+
+        Esmtp
+            .apply(SmtpInvalidCommand::new(b"HOOO".to_vec()), &mut set)
+            .await;
+        match set.writes.pop_front() {
+            Some(DriverControl::Response(bytes)) if bytes.starts_with(b"500 ") => {}
             otherwise => panic!("Expected syntax failure, got {:?}", otherwise),
         }
     }

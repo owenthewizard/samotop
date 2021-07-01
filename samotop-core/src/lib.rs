@@ -5,7 +5,6 @@ extern crate log;
 
 pub mod io;
 pub mod mail;
-pub mod parser;
 pub mod smtp;
 
 pub mod common {

@@ -1593,6 +1593,7 @@ dependencies = [
 name = "samotop-core"
 version = "0.13.0-samotop-dev"
 dependencies = [
+ "async-trait",
  "bytes",
  "futures-await-test",
  "futures-core",

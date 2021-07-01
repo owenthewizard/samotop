@@ -1,81 +1,41 @@
+use crate::SmtpParserPeg;
 use samotop_core::{
-    common::*,
-    mail::{Configuration, MailSetup, Rfc2033, Rfc5321},
-    parser::{ParseError, ParseResult, Parser},
-    smtp::*,
+    mail::Transaction,
+    smtp::{command::MailBody, *},
 };
 
-use crate::SwitchParser;
-
-#[derive(Clone, Copy, Debug, Default)]
-pub struct DataParserPeg {
-    pub lmtp: bool,
-}
-
-impl MailSetup for DataParserPeg {
-    fn setup(self, config: &mut Configuration) {
-        config.data_parser.insert(0, Arc::new(self))
-    }
-}
-
-impl Parser for DataParserPeg {
-    fn parse_command<'i>(&self, input: &'i [u8]) -> ParseResult<'i, Box<dyn SmtpSessionCommand>> {
-        let res = map_cmd(self.lmtp, grammar::data(input, true));
-        trace!(
-            "Parsed fresh {:?} from {:?}",
-            res,
-            String::from_utf8_lossy(input)
-        );
-        res
-    }
-}
-
-#[derive(Clone, Copy, Debug, Default)]
-struct DataParserMidWayPeg {
-    lmtp: bool,
-}
-
-impl Parser for DataParserMidWayPeg {
-    fn parse_command<'i>(&self, input: &'i [u8]) -> ParseResult<'i, Box<dyn SmtpSessionCommand>> {
-        let res = map_cmd(self.lmtp, grammar::data(input, false));
-        trace!(
-            "Parsed midway {:?} from {:?}",
-            res,
-            String::from_utf8_lossy(input)
-        );
+impl Parser<MailBody<Vec<u8>>> for SmtpParserPeg {
+    fn parse(&self, input: &[u8], state: &SmtpState) -> ParseResult<MailBody<Vec<u8>>> {
+        let crlf = match state.transaction.mode {
+            Some(Transaction::DATA_MODE) => true,
+            Some(Transaction::DATA_PARTIAL_MODE) => false,
+            mode => {
+                return Err(ParseError::Mismatch(format!(
+                    "Not matching data stream in {:?} mode",
+                    mode
+                )))
+            }
+        };
+        let res = map_cmd(grammar::data(input, crlf));
+        trace!("Parsed {:?} from {:?}", res, String::from_utf8_lossy(input));
         res
     }
 }
 
 fn map_cmd(
-    lmtp: bool,
     res: std::result::Result<ParseResult<Vec<u8>>, peg::error::ParseError<usize>>,
-) -> ParseResult<Box<dyn SmtpSessionCommand>> {
+) -> ParseResult<MailBody<Vec<u8>>> {
     match res {
-        Ok(Ok((i, data))) if data.is_empty() => Ok((
-            i,
-            if lmtp {
-                Box::new(Rfc2033::command(MailBodyEnd)) as Box<dyn SmtpSessionCommand>
-            } else {
-                Box::new(Rfc5321::command(MailBodyEnd)) as Box<dyn SmtpSessionCommand>
-            },
-        )),
-        Ok(Ok((i, data))) if data.ends_with(b"\r\n") => Ok((
-            i,
-            Box::new(SwitchParser {
-                command: Rfc5321::command(MailBodyChunk(data)),
-                parser: DataParserPeg { lmtp },
-            }),
-        )),
+        Ok(Ok((i, data))) if data.is_empty() => Ok((i, MailBody::End)),
         Ok(Ok((i, data))) => Ok((
             i,
-            Box::new(SwitchParser {
-                command: Rfc5321::command(MailBodyChunk(data)),
-                parser: DataParserMidWayPeg { lmtp },
-            }),
+            MailBody::Chunk {
+                ends_with_new_line: data.ends_with(b"\r\n"),
+                data,
+            },
         )),
         Ok(Err(e)) => Err(e),
-        Err(e) => Err(ParseError::Failed(e.into())),
+        Err(e) => Err(ParseError::Failed(format!("Peg parser failed: {}", e))),
     }
 }
 
@@ -93,14 +53,14 @@ peg::parser! {
     ///    as otherwise the scheme is terribly ambiguous and complex.
     grammar grammar() for [u8] {
 
-        pub rule data(crlf:bool) -> ParseResult<'input, Vec<u8>>
+        pub rule data(crlf:bool) -> ParseResult< Vec<u8>>
             = complete(crlf) / incomplete(crlf)
 
-        rule complete(crlf:bool) -> ParseResult<'input, Vec<u8>>
-            = s:( eof(crlf) / data_part(crlf) ) rest:$([_]*)
-            {Ok((rest,s))}
+        rule complete(crlf:bool) -> ParseResult< Vec<u8>>
+            = s:( eof(crlf) / data_part(crlf) ) p:position!() rest:$([_]*)
+            {Ok((p,s))}
 
-        rule incomplete(crlf:bool) -> ParseResult<'input, Vec<u8>>
+        rule incomplete(crlf:bool) -> ParseResult< Vec<u8>>
             = rest:$([_]*)
             {Err(ParseError::Incomplete)}
 
@@ -129,13 +89,14 @@ peg::parser! {
 
 #[cfg(test)]
 mod without_crlf {
+
     use super::*;
     use samotop_core::common::Result;
     const CRLF: bool = false;
     #[test]
     fn plain_chunk() -> Result<()> {
         match grammar::data(b"abcd", CRLF)? {
-            Ok(([], b)) => assert_eq!(b, b"abcd".to_vec()),
+            Ok((4, b)) => assert_eq!(b, b"abcd".to_vec()),
             otherwise => panic!("Expected body chunk, got {:?}", otherwise),
         }
         Ok(())
@@ -144,7 +105,7 @@ mod without_crlf {
     #[test]
     fn crlf_chunk() -> Result<()> {
         match grammar::data(b"abcd\r\nxyz", CRLF)? {
-            Ok(([], b)) => assert_eq!(b, b"abcd\r\nxyz".to_vec()),
+            Ok((9, b)) => assert_eq!(b, b"abcd\r\nxyz".to_vec()),
             otherwise => panic!("Expected body chunk, got {:?}", otherwise),
         }
         Ok(())
@@ -153,7 +114,7 @@ mod without_crlf {
     #[test]
     fn lf_chunk() -> Result<()> {
         match grammar::data(b"abcd\nxyz", CRLF)? {
-            Ok(([], b)) => assert_eq!(b, b"abcd\nxyz".to_vec()),
+            Ok((8, b)) => assert_eq!(b, b"abcd\nxyz".to_vec()),
             otherwise => panic!("Expected body chunk, got {:?}", otherwise),
         }
         Ok(())
@@ -162,7 +123,7 @@ mod without_crlf {
     #[test]
     fn plain_eol() -> Result<()> {
         match grammar::data(b"foo\r\n", CRLF)? {
-            Ok((b"", b)) if b == b"foo\r\n".to_vec() => {}
+            Ok((5, b)) if b == b"foo\r\n".to_vec() => {}
             otherwise => panic!("Expected foo, got {:?}", otherwise),
         }
         Ok(())
@@ -171,7 +132,7 @@ mod without_crlf {
     #[test]
     fn cr_chunk() -> Result<()> {
         match grammar::data(b"abcd\rxyz", CRLF)? {
-            Ok(([], b)) => assert_eq!(b, b"abcd\rxyz".to_vec()),
+            Ok((8, b)) => assert_eq!(b, b"abcd\rxyz".to_vec()),
             otherwise => panic!("Expected body chunk, got {:?}", otherwise),
         }
         Ok(())
@@ -180,7 +141,7 @@ mod without_crlf {
     #[test]
     fn mid_way_dot() -> Result<()> {
         match grammar::data(b".\r\n", CRLF)? {
-            Ok((b"", b)) => assert_eq!(b, b".\r\n".to_vec()),
+            Ok((3, b)) => assert_eq!(b, b".\r\n".to_vec()),
             otherwise => panic!("Expected dot, got {:?}", otherwise),
         }
         Ok(())
@@ -189,7 +150,7 @@ mod without_crlf {
     #[test]
     fn midway_dot_foo() -> Result<()> {
         match grammar::data(b".foo", CRLF)? {
-            Ok(([], b)) if b == b".foo".to_vec() => {}
+            Ok((4, b)) if b == b".foo".to_vec() => {}
             otherwise => panic!("Expected dot foo, got {:?}", otherwise),
         }
         Ok(())
@@ -198,7 +159,7 @@ mod without_crlf {
     #[test]
     fn midway_dot_foo_crlf() -> Result<()> {
         match grammar::data(b".foo\r\n", CRLF)? {
-            Ok(([], b)) if b == b".foo\r\n".to_vec() => {}
+            Ok((6, b)) if b == b".foo\r\n".to_vec() => {}
             otherwise => panic!("Expected dot foo crlf, got {:?}", otherwise),
         }
         Ok(())
@@ -207,7 +168,7 @@ mod without_crlf {
     #[test]
     fn mid_way_lflf() -> Result<()> {
         match grammar::data(b"\n\nfoo", CRLF)? {
-            Ok(([], b)) => assert_eq!(b, b"\n\nfoo".to_vec()),
+            Ok((5, b)) => assert_eq!(b, b"\n\nfoo".to_vec()),
             otherwise => panic!("Expected chunk, got {:?}", otherwise),
         }
         Ok(())
@@ -215,20 +176,24 @@ mod without_crlf {
     #[test]
     fn complex() {
         let input = b"\r\n..\r\nxoxo\r\n.\r\n";
-        let (input, b) = grammar::data(input, CRLF).unwrap().unwrap();
+        let (len, b) = grammar::data(input, CRLF).unwrap().unwrap();
+        let input = &input[len..];
         assert_eq!(b, b"\r\n".to_vec());
-        let (input, b) = grammar::data(input, b.ends_with(b"\r\n")).unwrap().unwrap();
+        let (len, b) = grammar::data(input, b.ends_with(b"\r\n")).unwrap().unwrap();
+        let input = &input[len..];
         assert_eq!(b, b".".to_vec());
-        let (input, b) = grammar::data(input, b.ends_with(b"\r\n")).unwrap().unwrap();
+        let (len, b) = grammar::data(input, b.ends_with(b"\r\n")).unwrap().unwrap();
+        let input = &input[len..];
         assert_eq!(b, b"\r\nxoxo\r\n".to_vec());
-        let (input, b) = grammar::data(input, b.ends_with(b"\r\n")).unwrap().unwrap();
+        let (len, b) = grammar::data(input, b.ends_with(b"\r\n")).unwrap().unwrap();
+        let input = &input[len..];
         assert_eq!(b, b"".to_vec());
         assert!(input.is_empty());
     }
     #[test]
     fn full_dot_stop() -> Result<()> {
         match grammar::data(b"\r\n.\r\n", CRLF)? {
-            Ok((b".\r\n", b)) => assert_eq!(b, b"\r\n".to_vec()),
+            Ok((2, b)) => assert_eq!(b, b"\r\n".to_vec()),
             otherwise => panic!("Expected crlf, got {:?}", otherwise),
         }
         Ok(())
@@ -236,7 +201,7 @@ mod without_crlf {
     #[test]
     fn mid_way_dot_stop() -> Result<()> {
         match grammar::data(b".\r\n", CRLF)? {
-            Ok((b"", b)) => assert_eq!(b, b".\r\n".to_vec()),
+            Ok((3, b)) => assert_eq!(b, b".\r\n".to_vec()),
             otherwise => panic!("Expected chunk, got {:?}", otherwise),
         }
         Ok(())
@@ -244,7 +209,7 @@ mod without_crlf {
     #[test]
     fn get_crlf() -> Result<()> {
         match grammar::data(b"\r\n", CRLF)? {
-            Ok(([], b)) => assert_eq!(b, b"\r\n".to_vec()),
+            Ok((2, b)) => assert_eq!(b, b"\r\n".to_vec()),
             otherwise => panic!("Expected crlf, got {:?}", otherwise),
         }
         Ok(())
@@ -252,7 +217,7 @@ mod without_crlf {
     #[test]
     fn get_crlf_dot() -> Result<()> {
         match grammar::data(b"\r\n.", CRLF)? {
-            Ok((b".", b)) => assert_eq!(b, b"\r\n".to_vec()),
+            Ok((2, b)) => assert_eq!(b.as_slice(), b"\r\n"),
             otherwise => panic!("Expected crlf, got {:?}", otherwise),
         }
         Ok(())
@@ -283,14 +248,18 @@ mod after_crlf {
     #[test]
     fn complex() {
         let input = b"\r\n..\r\nxoxo\r\n.\r\n";
-        let (input, b) = grammar::data(input, CRLF).unwrap().unwrap();
+        let (len, b) = grammar::data(input, CRLF).unwrap().unwrap();
+        let input = &input[len..];
         assert_eq!(b, b"\r\n".to_vec());
-        let (input, b) = grammar::data(input, b.ends_with(b"\r\n")).unwrap().unwrap();
+        let (len, b) = grammar::data(input, b.ends_with(b"\r\n")).unwrap().unwrap();
+        let input = &input[len..];
         assert_eq!(b, b".".to_vec());
-        let (input, b) = grammar::data(input, b.ends_with(b"\r\n")).unwrap().unwrap();
+        let (len, b) = grammar::data(input, b.ends_with(b"\r\n")).unwrap().unwrap();
+        let input = &input[len..];
         assert_eq!(b, b"\r\nxoxo\r\n".to_vec());
         assert_eq!(input, b".\r\n".to_vec());
-        let (input, b) = grammar::data(input, true).unwrap().unwrap();
+        let (len, b) = grammar::data(input, true).unwrap().unwrap();
+        let input = &input[len..];
         assert_eq!(b, b"".to_vec(), "input: {:?}", input);
         assert!(input.is_empty());
     }
@@ -298,7 +267,7 @@ mod after_crlf {
     #[test]
     fn plain_chunk() -> Result<()> {
         match grammar::data(b"abcd", CRLF)? {
-            Ok(([], b)) => assert_eq!(b, b"abcd".to_vec()),
+            Ok((4, b)) => assert_eq!(b, b"abcd".to_vec()),
             otherwise => panic!("Expected body chunk, got {:?}", otherwise),
         }
         Ok(())
@@ -307,7 +276,7 @@ mod after_crlf {
     #[test]
     fn ignores_command() -> Result<()> {
         match grammar::data(b".\r\nquit\r\n\r\n", CRLF)? {
-            Ok((b"quit\r\n\r\n", b)) => assert_eq!(b, b"".to_vec()),
+            Ok((3, b)) => assert_eq!(b, b"".to_vec()),
             otherwise => panic!("Expected end, got {:?}", otherwise),
         }
         Ok(())
@@ -316,7 +285,7 @@ mod after_crlf {
     #[test]
     fn crlf_chunk() -> Result<()> {
         match grammar::data(b"abcd\r\nxyz", CRLF)? {
-            Ok(([], b)) => assert_eq!(b, b"abcd\r\nxyz".to_vec()),
+            Ok((9, b)) => assert_eq!(b, b"abcd\r\nxyz".to_vec()),
             otherwise => panic!("Expected body chunk, got {:?}", otherwise),
         }
         Ok(())
@@ -325,7 +294,7 @@ mod after_crlf {
     #[test]
     fn lf_chunk() -> Result<()> {
         match grammar::data(b"abcd\nxyz", CRLF)? {
-            Ok(([], b)) => assert_eq!(b, b"abcd\nxyz".to_vec()),
+            Ok((8, b)) => assert_eq!(b, b"abcd\nxyz".to_vec()),
             otherwise => panic!("Expected body chunk, got {:?}", otherwise),
         }
         Ok(())
@@ -334,7 +303,7 @@ mod after_crlf {
     #[test]
     fn plain_eol() -> Result<()> {
         match grammar::data(b"foo\r\n", CRLF)? {
-            Ok((b"", b)) if b == b"foo\r\n".to_vec() => {}
+            Ok((5, b)) if b == b"foo\r\n".to_vec() => {}
             otherwise => panic!("Expected foo crlf, got {:?}", otherwise),
         }
         Ok(())
@@ -343,7 +312,7 @@ mod after_crlf {
     #[test]
     fn cr_chunk() -> Result<()> {
         match grammar::data(b"abcd\rxyz", CRLF)? {
-            Ok(([], b)) => assert_eq!(b, b"abcd\rxyz".to_vec()),
+            Ok((8, b)) => assert_eq!(b, b"abcd\rxyz".to_vec()),
             otherwise => panic!("Expected body chunk, got {:?}", otherwise),
         }
         Ok(())
@@ -352,7 +321,7 @@ mod after_crlf {
     #[test]
     fn dot_stop() -> Result<()> {
         match grammar::data(b".\r\n", CRLF)? {
-            Ok(([], b)) => {
+            Ok((3, b)) => {
                 assert!(b.is_empty());
                 assert_eq!(b, b"");
             }
@@ -363,7 +332,7 @@ mod after_crlf {
     #[test]
     fn dot_stop_full() -> Result<()> {
         match grammar::data(b"\r\n.\r\n", CRLF)? {
-            Ok((b".\r\n", b)) => assert_eq!(b, b"\r\n".to_vec()),
+            Ok((2, b)) => assert_eq!(b, b"\r\n".to_vec()),
             otherwise => panic!("Expected crlf, got {:?}", otherwise),
         }
         Ok(())
@@ -372,7 +341,7 @@ mod after_crlf {
     #[test]
     fn dot_escape() -> Result<()> {
         match grammar::data(b".foo", CRLF)? {
-            Ok(([], b)) if b == b"foo".to_vec() => {}
+            Ok((4, b)) if b == b"foo".to_vec() => {}
             otherwise => panic!("Expected foo, got {:?}", otherwise),
         }
         Ok(())
@@ -381,7 +350,7 @@ mod after_crlf {
     #[test]
     fn dot_escape_crlf() -> Result<()> {
         match grammar::data(b".foo\r\n", CRLF)? {
-            Ok((b"", b)) if b == b"foo\r\n".to_vec() => {}
+            Ok((6, b)) if b == b"foo\r\n".to_vec() => {}
             otherwise => panic!("Expected foo crlf, got {:?}", otherwise),
         }
         Ok(())
@@ -390,7 +359,7 @@ mod after_crlf {
     #[test]
     fn trailing_lf() -> Result<()> {
         match grammar::data(b"\n\r\n.\r\n", CRLF)? {
-            Ok((b".\r\n", b)) if b == b"\n\r\n".to_vec() => {}
+            Ok((3, b)) if b == b"\n\r\n".to_vec() => {}
             otherwise => panic!("Expected lf, got {:?}", otherwise),
         }
         Ok(())
@@ -398,7 +367,7 @@ mod after_crlf {
     #[test]
     fn trailing_cr() -> Result<()> {
         match grammar::data(b"\r\r\n.\r\n", CRLF)? {
-            Ok((b".\r\n", b)) if b == b"\r\r\n".to_vec() => {}
+            Ok((3, b)) if b == b"\r\r\n".to_vec() => {}
             otherwise => panic!("Expected cr, got {:?}", otherwise),
         }
         Ok(())
@@ -406,7 +375,7 @@ mod after_crlf {
     #[test]
     fn get_crlf() -> Result<()> {
         match grammar::data(b"\r\n", CRLF)? {
-            Ok((b"", b)) if b == b"\r\n".to_vec() => {}
+            Ok((2, b)) if b == b"\r\n".to_vec() => {}
             otherwise => panic!("Expected crlf, got {:?}", otherwise),
         }
         Ok(())
@@ -414,7 +383,7 @@ mod after_crlf {
     #[test]
     fn get_crlf_dot() -> Result<()> {
         match grammar::data(b"\r\n.", CRLF)? {
-            Ok((b".", b)) if b == b"\r\n".to_vec() => {}
+            Ok((2, b)) if b == b"\r\n".to_vec() => {}
             otherwise => panic!("Expected crlf, got {:?}", otherwise),
         }
         Ok(())

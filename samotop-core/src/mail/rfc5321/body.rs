@@ -1,43 +1,47 @@
+use super::Esmtp;
 use crate::{
     common::*,
-    smtp::{ApplyCommand, CodecControl, MailBodyChunk, MailBodyEnd, SmtpSessionCommand, SmtpState},
+    mail::Transaction,
+    smtp::{command::MailBody, Action, SmtpState},
 };
 
-use super::{EsmtpCommand, Rfc5321};
-
-impl<B: AsRef<[u8]> + Sync + Send + fmt::Debug> SmtpSessionCommand
-    for EsmtpCommand<MailBodyChunk<B>>
-{
-    fn verb(&self) -> &str {
-        ""
-    }
-
-    fn apply(&self, state: SmtpState) -> S1Fut<SmtpState> {
-        Rfc5321::apply_cmd(&self.instruction, state)
+#[async_trait::async_trait]
+impl<B: AsRef<[u8]> + Sync + Send + fmt::Debug + 'static> Action<MailBody<B>> for Esmtp {
+    async fn apply(&self, cmd: MailBody<B>, state: &mut SmtpState) {
+        apply_mail_body(false, cmd, state).await
     }
 }
 
-impl<B: AsRef<[u8]> + Sync + Send + fmt::Debug> ApplyCommand<MailBodyChunk<B>> for Rfc5321 {
-    fn apply_cmd(data: &MailBodyChunk<B>, mut state: SmtpState) -> S1Fut<SmtpState> {
-        if state.transaction.sink.is_none() {
-            // CheckMe: silence. handle_data_end should respond with error.
-            return Box::pin(ready(state));
-        }
-        let sink = state
-            .transaction
-            .sink
-            .take()
-            .expect("Checked presence above");
-        let mailid = state.transaction.id.clone();
-        let fut = async move {
+pub async fn apply_mail_body<B>(lmtp: bool, cmd: MailBody<B>, state: &mut SmtpState)
+where
+    B: AsRef<[u8]> + Sync + Send + fmt::Debug + 'static,
+{
+    let sink = state.transaction.sink.take();
+    let mailid = state.transaction.id.clone();
+
+    match cmd {
+        MailBody::Chunk {
+            data,
+            ends_with_new_line,
+        } => {
+            let sink = if let Some(sink) = sink {
+                sink
+            } else {
+                // CheckMe: silence. MailBody::End should respond with error.
+                return;
+            };
             let mut write_all = WriteAll {
-                from: data.0.as_ref(),
+                from: data.as_ref(),
                 to: Box::pin(sink),
             };
             match (&mut write_all).await {
                 Ok(()) => {
                     let WriteAll { to, .. } = write_all;
                     state.transaction.sink = Some(to);
+                    state.transaction.mode = Some(match ends_with_new_line {
+                        true => Transaction::DATA_MODE,
+                        false => Transaction::DATA_PARTIAL_MODE,
+                    })
                 }
                 Err(e) => {
                     warn!("Failed to write mail data for {} - {}", mailid, e);
@@ -45,34 +49,15 @@ impl<B: AsRef<[u8]> + Sync + Send + fmt::Debug> ApplyCommand<MailBodyChunk<B>> f
                     // CheckMe: following this reset, we are not sending any response yet. MailBodyEnd should do that.
                 }
             };
-            state
-        };
-        Box::pin(fut)
-    }
-}
-
-impl SmtpSessionCommand for EsmtpCommand<MailBodyEnd> {
-    fn verb(&self) -> &str {
-        ""
-    }
-    fn apply(&self, state: SmtpState) -> S1Fut<SmtpState> {
-        Rfc5321::apply_cmd(&self.instruction, state)
-    }
-}
-
-impl ApplyCommand<MailBodyEnd> for Rfc5321 {
-    fn apply_cmd(_data: &MailBodyEnd, mut state: SmtpState) -> S1Fut<SmtpState> {
-        if state.transaction.sink.is_none() {
-            // CheckMe: silence. handle_data_end should respond with error.
-            return Box::pin(ready(state));
         }
-        let mut sink = state
-            .transaction
-            .sink
-            .take()
-            .expect("Checked presence above");
-        let mailid = state.transaction.id.clone();
-        let fut = async move {
+        MailBody::End => {
+            let mut sink = if let Some(sink) = sink {
+                sink
+            } else {
+                state.say_mail_queue_failed_temporarily();
+                state.reset();
+                return;
+            };
             if match poll_fn(move |cx| sink.as_mut().poll_close(cx)).await {
                 Ok(()) => true,
                 Err(e) if e.kind() == std::io::ErrorKind::NotConnected => true,
@@ -81,17 +66,24 @@ impl ApplyCommand<MailBodyEnd> for Rfc5321 {
                     false
                 }
             } {
-                state.say_mail_queued(mailid.as_str());
+                if lmtp {
+                    for msg in state
+                        .transaction
+                        .rcpts
+                        .iter()
+                        .map(|rcpt| format!("{} for {}", mailid, rcpt.address))
+                        .collect::<Vec<String>>()
+                    {
+                        state.say_mail_queued(msg.as_str());
+                    }
+                } else {
+                    state.say_mail_queued(mailid.as_str());
+                }
             } else {
                 state.say_mail_queue_failed_temporarily();
             }
             state.reset();
-            state.say(CodecControl::Parser(
-                state.service.get_parser_for_commands(),
-            ));
-            state
-        };
-        Box::pin(fut)
+        }
     }
 }
 

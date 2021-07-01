@@ -1,15 +1,40 @@
 use crate::common::*;
 use crate::io::tls::MayBeTls;
-use crate::parser::Interpret;
-use crate::smtp::CodecControl;
-use crate::smtp::SessionShutdown;
-use crate::smtp::SmtpState;
-use crate::{
-    parser::ParseError,
-    smtp::{ProcessingError, SmtpSessionCommand},
-};
-use futures_util::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
+use crate::smtp::{Interpret, ParseError, SmtpState};
+use futures_util::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use std::fmt;
+
+/// Represents the instructions for the client side of the stream.
+pub enum DriverControl {
+    /// Write an SMTP response
+    Response(Vec<u8>),
+    /// Start TLS encryption
+    StartTls,
+    /// Shut the stream down
+    Shutdown,
+}
+
+impl fmt::Debug for DriverControl {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        #[derive(Debug)]
+        enum TextOrBytes<'a> {
+            T(&'a str),
+            B(&'a [u8]),
+        }
+        fn tb(inp: &[u8]) -> TextOrBytes {
+            if let Ok(text) = std::str::from_utf8(inp) {
+                TextOrBytes::T(text)
+            } else {
+                TextOrBytes::B(inp)
+            }
+        }
+        match self {
+            DriverControl::Response(r) => f.debug_tuple("Response").field(&tb(r)).finish(),
+            DriverControl::StartTls => f.debug_tuple("StartTls").finish(),
+            DriverControl::Shutdown => f.debug_tuple("Shutdown").finish(),
+        }
+    }
+}
 
 pub struct SmtpDriver<IO> {
     /// the underlying IO, such as TcpStream
@@ -46,19 +71,18 @@ where
         while let Some(response) = state.writes.pop_front() {
             trace!("Processing codec control {:?}", response);
             match response {
-                CodecControl::Parser(newparser) => unimplemented!(),
-                CodecControl::Response(bytes) => {
+                DriverControl::Response(bytes) => {
                     match io.write_all(bytes.as_ref()).await {
                         Ok(()) => {
                             // all good, carry on
                         }
                         Err(e) => {
-                            state.writes.push_front(CodecControl::Response(bytes));
+                            state.writes.push_front(DriverControl::Response(bytes));
                             return Err(processing_error("Write failed", e));
                         }
                     }
                 }
-                CodecControl::Shutdown => match io.close().await {
+                DriverControl::Shutdown => match io.close().await {
                     Ok(()) => {
                         trace!("Close complete");
                         //io stays None
@@ -68,7 +92,7 @@ where
                         return Err(processing_error("Close failed", e));
                     }
                 },
-                CodecControl::StartTls => {
+                DriverControl::StartTls => {
                     Pin::new(io.get_mut()).encrypt();
                 }
             }
@@ -86,17 +110,16 @@ where
                     // TODO: take care of large chunks without LF
                     match io.read_until(b'\n', &mut self.buffer).await? {
                         0 => {
-                            let s = std::mem::take(state);
-                            *state = if self.buffer.is_empty() {
+                            if self.buffer.is_empty() {
                                 // client went silent, we're done!
-                                SessionShutdown.apply(s).await
+                                state.shutdown();
                             } else {
                                 error!(
                                     "Incomplete and finished: {:?}",
                                     String::from_utf8_lossy(self.buffer.as_slice())
                                 );
                                 // client did not finish the command and left.
-                                ProcessingError.apply(s).await
+                                state.say_shutdown_processing_err("Incomplete command".into());
                             };
                             break Some(io);
                         }

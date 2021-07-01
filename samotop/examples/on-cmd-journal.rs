@@ -27,10 +27,12 @@ find tmp/journal -print -exec cat {} \;
 use async_std::task;
 use futures::AsyncRead as Read;
 use futures::AsyncWrite as Write;
+use samotop::smtp::command::SmtpCommand;
+use samotop::smtp::Interpretter;
 use samotop::{
     io::{smtp::SmtpService, tls::TlsCapable, ConnectionInfo, IoService},
-    mail::{Builder, Journal},
-    parser::LmtpParserPeg,
+    mail::{Builder, Journal, Lmtp},
+    smtp::SmtpParserPeg,
 };
 use std::pin::Pin;
 use std::sync::Arc;
@@ -46,7 +48,7 @@ async fn main_fut() -> Result<()> {
     let mail_service = Arc::new(
         Builder::default()
             .using(Journal::new("tmp/journal/"))
-            .using(LmtpParserPeg::default())
+            .using(Lmtp.with(SmtpParserPeg))
             .into_service(),
     );
     let smtp_service = SmtpService::new(mail_service);

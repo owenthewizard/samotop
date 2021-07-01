@@ -1,23 +1,10 @@
-use super::{EsmtpCommand, Rfc5321};
-use crate::{
-    common::*,
-    smtp::{ApplyCommand, SmtpNoop, SmtpSessionCommand, SmtpState},
-};
+use super::Esmtp;
+use crate::smtp::{command::SmtpNoop, Action, SmtpState};
 
-impl SmtpSessionCommand for EsmtpCommand<SmtpNoop> {
-    fn verb(&self) -> &str {
-        "NOOP"
-    }
-
-    fn apply(&self, state: SmtpState) -> S1Fut<SmtpState> {
-        Rfc5321::apply_cmd(&self.instruction, state)
-    }
-}
-
-impl ApplyCommand<SmtpNoop> for Rfc5321 {
-    fn apply_cmd(_cmd: &SmtpNoop, mut state: SmtpState) -> S1Fut<SmtpState> {
+#[async_trait::async_trait]
+impl Action<SmtpNoop> for Esmtp {
+    async fn apply(&self, cmd: SmtpNoop, state: &mut SmtpState) {
         state.say_ok();
-        Box::pin(ready(state))
     }
 }
 
@@ -26,7 +13,7 @@ mod tests {
     use super::*;
     use crate::{
         mail::{Builder, Recipient},
-        smtp::{SmtpMail, SmtpPath},
+        smtp::{command::SmtpMail, SmtpPath},
     };
     use futures_await_test::async_test;
 
@@ -37,8 +24,8 @@ mod tests {
         set.transaction.mail = Some(SmtpMail::Mail(SmtpPath::Null, vec![]));
         set.transaction.rcpts.push(Recipient::null());
         set.transaction.extra_headers.insert_str(0, "feeeha");
-        let sut = Rfc5321::command(SmtpNoop);
-        let _res = sut.apply(set).await;
+
+        Esmtp.apply(SmtpNoop, &mut set).await;
         // TODO: assert
     }
 }

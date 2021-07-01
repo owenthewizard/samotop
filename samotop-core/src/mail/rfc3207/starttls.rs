@@ -1,21 +1,11 @@
-use crate::common::*;
-use crate::mail::{EsmtpStartTls, Rfc3207};
-use crate::smtp::{extension, ApplyCommand, SmtpSessionCommand, SmtpState};
+use crate::mail::EsmtpStartTls;
+use crate::smtp::{extension, Action, SmtpState};
 
-impl SmtpSessionCommand for EsmtpStartTls {
-    fn verb(&self) -> &str {
-        "STARTTLS"
-    }
-
-    fn apply(&self, state: SmtpState) -> S1Fut<SmtpState> {
-        EsmtpStartTls::apply_cmd(self, state)
-    }
-}
-
-impl ApplyCommand<EsmtpStartTls> for Rfc3207 {
+#[async_trait::async_trait]
+impl Action<EsmtpStartTls> for EsmtpStartTls {
     /// Applies given helo to the state
     /// It asserts the right HELO/EHLO variant
-    fn apply_cmd(_cmd: &EsmtpStartTls, mut state: SmtpState) -> S1Fut<SmtpState> {
+    async fn apply(&self, cmd: EsmtpStartTls, state: &mut SmtpState) {
         if state.session.peer_name.is_none() {
             state.say_command_sequence_fail()
         } else {
@@ -28,7 +18,5 @@ impl ApplyCommand<EsmtpStartTls> for Rfc3207 {
                 state.say_not_implemented()
             }
         }
-
-        Box::pin(ready(state))
     }
 }

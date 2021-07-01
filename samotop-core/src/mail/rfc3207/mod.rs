@@ -5,9 +5,3 @@ mod starttls;
 pub struct EsmtpStartTls;
 
 pub type Rfc3207 = EsmtpStartTls;
-
-impl Rfc3207 {
-    pub fn command() -> EsmtpStartTls {
-        EsmtpStartTls
-    }
-}

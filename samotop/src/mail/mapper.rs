@@ -2,7 +2,7 @@
 //! converting recipient addresses according to a regex map.
 
 use crate::mail::*;
-use crate::{common::*, parser::SmtpParser};
+use crate::{common::*, smtp::SmtpParser};
 use regex::Regex;
 
 /// A mail guard that converts recipient addresses according to a regex map.
@@ -43,7 +43,7 @@ impl MailGuard for Mapper {
         match SmtpParser::default().forward_path(rcpt.as_bytes()) {
             Ok((i, new_path)) => {
                 trace!("Converted {} into {}", request.rcpt.address, rcpt);
-                assert_eq!(i.len(), 0);
+                assert_eq!(i, rcpt.len());
                 request.rcpt.address = new_path;
                 Box::pin(ready(AddRecipientResult::Inconclusive(request)))
             }

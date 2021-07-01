@@ -25,9 +25,9 @@ find tmp/samotop/spool/
 use async_std::task;
 use samotop::{
     io::smtp::SmtpService,
-    mail::{Builder, Dir},
-    parser::SmtpParser,
+    mail::{Builder, Dir, Esmtp},
     server::TcpServer,
+    smtp::{command::SmtpCommand, Interpretter, SmtpParserPeg},
 };
 use std::sync::Arc;
 
@@ -43,7 +43,7 @@ async fn main_fut() -> Result<()> {
     let mail_service = Arc::new(
         Builder::default()
             .using(dir_service)
-            .using(SmtpParser::default())
+            .using(Esmtp.with(SmtpParserPeg))
             .into_service(),
     );
     let smtp_service = SmtpService::new(mail_service);

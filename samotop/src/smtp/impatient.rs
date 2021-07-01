@@ -4,9 +4,9 @@ use std::{
 };
 
 use samotop_core::{
-    mail::MailSetup,
-    parser::{Interpret, InterpretResult},
-    smtp::{SmtpSessionCommand, Timeout},
+    mail::{Esmtp, MailSetup},
+    smtp::{command::Timeout, Action, SmtpState},
+    smtp::{Interpret, InterpretResult},
 };
 use smol_timeout::TimeoutExt;
 
@@ -57,11 +57,7 @@ impl Impatient {
             timeout,
         }
     }
-    pub async fn interpret_inner(
-        &self,
-        input: &[u8],
-        state: &mut samotop_core::smtp::SmtpState,
-    ) -> InterpretResult {
+    pub async fn interpret_inner(&self, input: &[u8], state: &mut SmtpState) -> InterpretResult {
         match self
             .inner
             .interpret(input, state)
@@ -73,8 +69,7 @@ impl Impatient {
                 res
             }
             None => {
-                let s = std::mem::take(state);
-                *state = Timeout::new().apply(s).await;
+                Esmtp.apply(Timeout, state).await;
                 Err(todo!("timeout"))
             }
         }

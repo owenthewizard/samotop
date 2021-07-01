@@ -20,9 +20,10 @@ use async_std::io::ReadExt;
 use async_std::task;
 use async_tls::TlsAcceptor;
 use rustls::ServerConfig;
-use samotop::mail::{Builder, Dir, Name};
-use samotop::parser::SmtpParser;
+use samotop::mail::{Builder, Dir, Esmtp, Name};
 use samotop::server::TcpServer;
+use samotop::smtp::command::SmtpCommand;
+use samotop::smtp::{Interpretter, SmtpParser};
 use samotop::{io::smtp::SmtpService, mail::smime::SMimeMail};
 use samotop::{io::tls::RustlsProvider, mail::smime::Accounts};
 use std::path::{Path, PathBuf};
@@ -50,7 +51,7 @@ async fn main_fut() -> Result<()> {
         ))
         .using(Dir::new(setup.get_mail_dir())?)
         .using(samotop::mail::spf::provide_viaspf())
-        .using(SmtpParser::default())
+        .using(Esmtp.with(SmtpParser::default()))
         .using(RustlsProvider::from(TlsAcceptor::from(
             setup.get_tls_config().await?,
         )))

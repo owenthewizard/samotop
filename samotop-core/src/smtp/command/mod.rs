@@ -1,18 +1,26 @@
-pub use super::commands::*;
-use super::SmtpReply;
-use crate::{common::*, smtp::state::SmtpState};
-use std::fmt;
+mod body;
+mod data;
+mod helo;
+mod invalid;
+mod mail;
+mod noop;
+mod quit;
+mod rcpt;
+mod rset;
+mod session;
+mod unknown;
 
-pub trait SmtpSessionCommand: Sync + Send + fmt::Debug {
-    fn verb(&self) -> &str;
-    #[must_use = "apply must be awaited"]
-    fn apply(&self, state: SmtpState) -> S1Fut<SmtpState>;
-}
-
-pub trait ApplyCommand<Data> {
-    #[must_use = "apply must be awaited"]
-    fn apply_cmd(data: &Data, state: SmtpState) -> S1Fut<SmtpState>;
-}
+pub use self::body::*;
+pub use self::data::*;
+pub use self::helo::*;
+pub use self::invalid::*;
+pub use self::mail::*;
+pub use self::noop::*;
+pub use self::quit::*;
+pub use self::rcpt::*;
+pub use self::rset::*;
+pub use self::session::*;
+pub use self::unknown::*;
 
 #[derive(Eq, PartialEq, Debug, Clone)]
 pub enum SmtpCommand {
@@ -50,27 +58,6 @@ impl SmtpCommand {
             C::Help(_) => "HELP",
             C::Turn => "TURN",
             C::Other(ref verb, _) => verb.as_str(),
-        }
-    }
-}
-
-impl<T, E> SmtpSessionCommand for std::result::Result<T, E>
-where
-    T: SmtpSessionCommand,
-    E: fmt::Debug + Sync + Send,
-{
-    fn verb(&self) -> &str {
-        ""
-    }
-
-    fn apply(&self, mut state: SmtpState) -> S1Fut<SmtpState> {
-        match self {
-            Ok(command) => Box::pin(async move { command.apply(state).await }),
-            Err(e) => {
-                error!("reading SMTP input failed: {:?}", e);
-                state.say_shutdown(SmtpReply::ProcesingError);
-                Box::pin(ready(state))
-            }
         }
     }
 }

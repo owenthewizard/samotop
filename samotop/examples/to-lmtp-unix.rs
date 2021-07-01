@@ -23,7 +23,6 @@ use regex::Regex;
 use samotop::{
     io::{client::tls::NoTls, smtp::SmtpService},
     mail::{Builder, LmtpDispatch, Mapper},
-    parser::SmtpParser,
     server::TcpServer,
 };
 use std::sync::Arc;
@@ -46,12 +45,17 @@ async fn main_fut() -> Result<()> {
         (Regex::new(".*@(.*)")?, "$1@localhost".to_owned()), // use domain as a user name (all domain basket) anyone@example.org => example.org@localhost
         (Regex::new("[^@a-zA-Z0-9]+")?, "-".to_owned()), // sanitize the user name example.org@localhost => example-org@localhost
     ]);
-    use samotop::io::client::UnixConnector;
+    use samotop::{
+        io::client::UnixConnector,
+        mail::Lmtp,
+        smtp::{command::SmtpCommand, Interpretter},
+    };
+    use samotop_parser::SmtpParserPeg;
     let lmtp_connector: UnixConnector<NoTls> = UnixConnector::default();
     let mail_service = Builder::default()
         .using(LmtpDispatch::new("/var/run/dovecot/lmtp".to_owned(), lmtp_connector)?.reuse(0))
         .using(rcpt_map)
-        .using(SmtpParser::default())
+        .using(Lmtp.with(SmtpParserPeg))
         .into_service();
     let smtp_service = SmtpService::new(Arc::new(mail_service));
 

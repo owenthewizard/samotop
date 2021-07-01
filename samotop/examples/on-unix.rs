@@ -26,7 +26,7 @@ use async_std::task;
 use samotop::{
     io::smtp::SmtpService,
     mail::{Builder, Dir},
-    parser::SmtpParser,
+    smtp::SmtpParserPeg,
 };
 use std::sync::Arc;
 
@@ -48,10 +48,14 @@ async fn main_fut() -> Result<()> {
     let mail_service = Arc::new(
         Builder::default()
             .using(dir_service)
-            .using(SmtpParser::default())
+            .using(Esmtp.with(SmtpParserPeg))
             .into_service(),
     );
     let smtp_service = SmtpService::new(mail_service);
-    use samotop::server::UnixServer;
+    use samotop::{
+        mail::Esmtp,
+        server::UnixServer,
+        smtp::{command::SmtpCommand, Interpretter},
+    };
     UnixServer::on("local.socket").serve(smtp_service).await
 }

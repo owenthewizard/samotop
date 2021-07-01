@@ -14,27 +14,23 @@ use rustyknife::{
     types::AddressLiteral,
     types::DomainPart,
 };
-use samotop_core::{
-    common::Arc,
-    mail::{Configuration, MailSetup, Rfc5321},
-    parser::{ParseError, ParseResult, ParseResult2, Parser, Parser3},
-    smtp::*,
-};
+use samotop_core::smtp::{command::*, *};
+pub use samotop_core::smtp::{ParseError, ParseResult, Parser};
 use std::net::IpAddr;
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct SmtpParserNom;
 
-impl MailSetup for SmtpParserNom {
-    fn setup(self, config: &mut Configuration) {
-        config.command_parser.insert(0, Arc::new(self))
-    }
-}
-
-impl Parser3<SmtpCommand> for SmtpParserNom {
-    fn parse(&self, input: &[u8], state: &SmtpState) -> ParseResult2<SmtpCommand> {
+impl Parser<SmtpCommand> for SmtpParserNom {
+    fn parse(&self, input: &[u8], state: &SmtpState) -> ParseResult<SmtpCommand> {
         if input.is_empty() {
             return Err(ParseError::Incomplete);
+        }
+        if let Some(mode) = state.transaction.mode {
+            return Err(ParseError::Mismatch(format!(
+                "Not parsing in {:?} mode",
+                mode
+            )));
         }
         match rustyknife::rfc5321::command::<rustyknife::behaviour::Intl>(input) {
             Ok((i, cmd)) => Ok((i.len(), map_cmd(cmd))),
@@ -43,21 +39,13 @@ impl Parser3<SmtpCommand> for SmtpParserNom {
     }
 }
 
-impl Parser for SmtpParserNom {
-    fn parse_command<'i>(&self, input: &'i [u8]) -> ParseResult<'i, Box<dyn SmtpSessionCommand>> {
-        match rustyknife::rfc5321::command::<rustyknife::behaviour::Intl>(input) {
-            Ok((i, cmd)) => Ok((i, Box::new(Rfc5321::command(map_cmd(cmd))))),
-            Err(e) => Err(map_error(e)),
-        }
-    }
-}
-
 impl SmtpParserNom {
-    pub fn forward_path<'i>(&self, input: &'i [u8]) -> ParseResult<'i, SmtpPath> {
+    pub fn forward_path<'i>(&self, input: &'i [u8]) -> ParseResult<SmtpPath> {
+        let len = input.len();
         let (input, _) = tag("<")(input).map_err(map_error)?;
         let (input, m) = mailbox::<rustyknife::behaviour::Intl>(input).map_err(map_error)?;
         let (input, _) = tag(">")(input).map_err(map_error)?;
-        Ok((input, map_path(Path(m, vec![]))))
+        Ok((len - input.len(), map_path(Path(m, vec![]))))
     }
 }
 

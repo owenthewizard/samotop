@@ -2,7 +2,9 @@
 
 extern crate samotop;
 
-use crate::samotop::parser::*;
+use samotop::smtp::command::SmtpCommand;
+
+use crate::samotop::smtp::*;
 
 fn main() {
     let input = String::new()
@@ -13,10 +15,12 @@ fn main() {
         + "QUIT\r\n";
 
     let mut input = input.as_bytes();
+    let mut state = SmtpState::default();
 
     while !input.is_empty() {
-        let (i, item) = SmtpParser::default().parse_command(input).unwrap();
-        input = i;
+        let (i, item): (usize, SmtpCommand) =
+            SmtpParser::default().parse(input, &mut state).unwrap();
+        input = &input[i..];
         println!("Parsed: {:#?}", item);
     }
 }

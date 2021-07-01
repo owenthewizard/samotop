@@ -1,10 +1,5 @@
-use crate::data::DataParserPeg;
-use samotop_core::{
-    common::{Arc, Error},
-    mail::{Configuration, MailSetup, Rfc5321},
-    parser::{ParseError, ParseResult, ParseResult2, Parser, Parser3},
-    smtp::*,
-};
+use crate::SmtpParserPeg;
+use samotop_core::{common::Error, smtp::command::*, smtp::*};
 use std::net::{Ipv4Addr, Ipv6Addr};
 use std::str::FromStr;
 
@@ -12,55 +7,36 @@ pub mod grammar {
     pub(crate) use super::smtp_grammar::*;
 }
 
-#[derive(Clone, Copy, Debug, Default)]
-pub struct SmtpParserPeg;
-
-impl Parser3<SmtpCommand> for SmtpParserPeg {
-    fn parse(&self, input: &[u8], state: &SmtpState) -> ParseResult2<SmtpCommand> {
+impl Parser<SmtpCommand> for SmtpParserPeg {
+    fn parse(&self, input: &[u8], state: &SmtpState) -> ParseResult<SmtpCommand> {
         if input.is_empty() {
             return Err(ParseError::Incomplete);
         }
-        match grammar::command(input) {
-            Err(e) => Err(ParseError::Failed(e.into())),
-            Ok(Err(e)) => Err(e),
-            Ok(Ok((i, cmd))) => Ok((i.len(), cmd)),
-        }
-    }
-}
-
-impl Parser for SmtpParserPeg {
-    fn parse_command<'i>(&self, input: &'i [u8]) -> ParseResult<'i, Box<dyn SmtpSessionCommand>> {
-        if input.is_empty() {
-            return Err(ParseError::Incomplete);
+        if let Some(mode) = state.transaction.mode {
+            return Err(ParseError::Mismatch(format!(
+                "Not parsing in {:?} mode",
+                mode
+            )));
         }
         match grammar::command(input) {
-            Err(e) => Err(ParseError::Failed(e.into())),
+            Err(e) => Err(ParseError::Failed(format!("Peg parser failed: {}", e))),
             Ok(Err(e)) => Err(e),
-            Ok(Ok((i, cmd))) => Ok((i, Box::new(Rfc5321::command(cmd)))),
+            Ok(Ok((i, cmd))) => Ok((i, cmd)),
         }
-    }
-}
-
-impl MailSetup for SmtpParserPeg {
-    fn setup(self, config: &mut Configuration) {
-        config.command_parser.insert(0, Arc::new(self));
-        config
-            .data_parser
-            .insert(0, Arc::new(DataParserPeg { lmtp: false }));
     }
 }
 
 impl SmtpParserPeg {
-    pub fn forward_path<'i>(&self, input: &'i [u8]) -> ParseResult<'i, SmtpPath> {
-        Self::map(grammar::path_forward(input), b"")
+    pub fn forward_path<'i>(&self, input: &'i [u8]) -> ParseResult<SmtpPath> {
+        Self::map(input.len(), grammar::path_forward(input))
     }
-    fn map<T, E>(myres: std::result::Result<T, E>, input: &[u8]) -> ParseResult<T>
+    fn map<T, E>(len: usize, myres: std::result::Result<T, E>) -> ParseResult<T>
     where
         E: Into<Error>,
     {
         match myres {
-            Ok(item) => Ok((input, item)),
-            Err(e) => Err(ParseError::Mismatch(e.into())),
+            Ok(item) => Ok((len, item)),
+            Err(e) => Err(ParseError::Mismatch(e.into().to_string())),
         }
     }
 }
@@ -80,11 +56,11 @@ peg::parser! {
             = input:$([_]*<{literal.len()}>)
             {? if input.eq_ignore_ascii_case(literal.as_bytes()) { Ok(()) } else { Err(literal) } }
 
-        pub rule command() -> ParseResult<'input, SmtpCommand>
+        pub rule command() -> ParseResult< SmtpCommand>
             = cmd:(valid_command() / invalid_command() / incomplete_command())
             {cmd}
 
-        pub rule valid_command() -> ParseResult<'input, SmtpCommand>
+        pub rule valid_command() -> ParseResult<SmtpCommand>
             = cmd: (cmd_starttls() /
                 cmd_helo() /
                 cmd_mail() /
@@ -99,14 +75,14 @@ peg::parser! {
                 cmd_turn() /
                 cmd_vrfy() /
                 cmd_expn() /
-                cmd_help()) rest:$([_]*)
-            {Ok((rest, cmd))}
+                cmd_help()) p:position!() rest:$([_]*)
+            {Ok((p, cmd))}
 
-        rule incomplete_command() -> ParseResult<'input, SmtpCommand>
+        rule incomplete_command() -> ParseResult<SmtpCommand>
             = s:$(quiet!{ [_]+ } / expected!("incomplete input"))
             {Err(ParseError::Incomplete)}
 
-        rule invalid_command() -> ParseResult<'input, SmtpCommand>
+        rule invalid_command() -> ParseResult<SmtpCommand>
             = s:$(quiet!{ "\n" / (![b'\n'][_]) + "\n" } / expected!("invalid input"))
             {ParseResult::Err(ParseError::Mismatch("unrecognized command".into()))}
 
@@ -363,22 +339,19 @@ mod tests {
     #[test]
     fn session_parses_wrong_newline() {
         let cmd = command(b"QUIT\nQUIT\r\nquit\r\n").unwrap().unwrap();
-        assert_eq!(cmd, (b"QUIT\r\nquit\r\n".as_ref(), SmtpCommand::Quit));
+        assert_eq!(cmd, (5, SmtpCommand::Quit));
     }
 
     #[test]
     fn session_parses_incomplete_command() {
         let cmd = command(b"QUIT\r\nQUI").unwrap().unwrap();
-        assert_eq!(cmd, (b"QUI".as_ref(), SmtpCommand::Quit));
+        assert_eq!(cmd, (6, SmtpCommand::Quit));
     }
 
     #[test]
     fn session_parses_valid_utf8() {
         let cmd = command("Help \"ěščř\"\r\n".as_bytes()).unwrap().unwrap();
-        assert_eq!(
-            cmd,
-            (b"".as_ref(), SmtpCommand::Help(vec!["ěščř".to_owned()]))
-        );
+        assert_eq!(cmd, (17, SmtpCommand::Help(vec!["ěščř".to_owned()])));
     }
 
     #[test]
@@ -406,12 +379,7 @@ mod tests {
         assert_eq!(
             cmd,
             (
-                concat!(
-                    "mail from:<me@there.net>\r\n",
-                    "rcpt to:<@relay.net:him@unreachable.local>\r\n",
-                    "quit\r\n"
-                )
-                .as_bytes(),
+                17,
                 SmtpCommand::Helo(SmtpHelo {
                     verb: "HELO".to_owned(),
                     host: SmtpHost::Domain("domain.com".to_owned())

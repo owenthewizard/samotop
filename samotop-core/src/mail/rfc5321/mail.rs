@@ -1,30 +1,15 @@
-use super::{EsmtpCommand, Rfc5321};
+use super::Esmtp;
 use crate::{
-    common::*,
     mail::{StartMailFailure, StartMailResult, Transaction},
-    smtp::{ApplyCommand, SmtpMail, SmtpSessionCommand, SmtpState},
+    smtp::{command::SmtpMail, Action, SmtpState},
 };
 
-impl SmtpSessionCommand for EsmtpCommand<SmtpMail> {
-    fn verb(&self) -> &str {
-        match self.instruction {
-            SmtpMail::Mail(_, _) => "MAIL",
-            SmtpMail::Send(_, _) => "SEND",
-            SmtpMail::Saml(_, _) => "SAML",
-            SmtpMail::Soml(_, _) => "SOML",
-        }
-    }
-
-    fn apply(&self, state: SmtpState) -> S1Fut<SmtpState> {
-        Rfc5321::apply_cmd(&self.instruction, state)
-    }
-}
-
-impl ApplyCommand<SmtpMail> for Rfc5321 {
-    fn apply_cmd(cmd: &SmtpMail, mut state: SmtpState) -> S1Fut<SmtpState> {
+#[async_trait::async_trait]
+impl Action<SmtpMail> for Esmtp {
+    async fn apply(&self, cmd: SmtpMail, state: &mut SmtpState) {
         if state.session.peer_name.is_none() {
             state.say_command_sequence_fail();
-            return Box::pin(ready(state));
+            return;
         }
         state.reset();
 
@@ -33,36 +18,31 @@ impl ApplyCommand<SmtpMail> for Rfc5321 {
             ..Transaction::default()
         };
 
-        let fut = async move {
-            use StartMailResult as R;
-            match state.service.start_mail(&state.session, transaction).await {
-                R::Failed(StartMailFailure::TerminateSession, description) => {
-                    state.say_shutdown_err(description);
-                }
-                R::Failed(failure, description) => {
-                    state.say_mail_failed(failure, description);
-                }
-                R::Accepted(mut transaction) => {
-                    if transaction.id.is_empty() {
-                        fn nunnumber(input: char) -> bool {
-                            !input.is_ascii_digit()
-                        }
-                        // for the lack of better unique string without extra dependencies
-                        let id = format!("{:?}", std::time::Instant::now()).replace(nunnumber, "");
-                        warn!(
-                            "Mail transaction ID is empty. Will use time based ID {}",
-                            id
-                        );
-                        transaction.id = id;
+        use StartMailResult as R;
+        match state.service.start_mail(&state.session, transaction).await {
+            R::Failed(StartMailFailure::TerminateSession, description) => {
+                state.say_shutdown_service_err(description);
+            }
+            R::Failed(failure, description) => {
+                state.say_mail_failed(failure, description);
+            }
+            R::Accepted(mut transaction) => {
+                if transaction.id.is_empty() {
+                    fn nunnumber(input: char) -> bool {
+                        !input.is_ascii_digit()
                     }
-                    state.say_ok_info(format!("Ok! Transaction {} started.", transaction.id));
-                    state.transaction = transaction;
+                    // for the lack of better unique string without extra dependencies
+                    let id = format!("{:?}", std::time::Instant::now()).replace(nunnumber, "");
+                    warn!(
+                        "Mail transaction ID is empty. Will use time based ID {}",
+                        id
+                    );
+                    transaction.id = id;
                 }
-            };
-            state
-        };
-
-        Box::pin(fut)
+                state.say_ok_info(format!("Ok! Transaction {} started.", transaction.id));
+                state.transaction = transaction;
+            }
+        }
     }
 }
 
@@ -70,8 +50,8 @@ impl ApplyCommand<SmtpMail> for Rfc5321 {
 mod tests {
     use super::*;
     use crate::{
-        mail::{Builder, Recipient},
-        smtp::{CodecControl, SmtpMail, SmtpPath},
+        mail::{Builder, Esmtp, Recipient},
+        smtp::{command::SmtpMail, DriverControl, SmtpPath},
     };
     use futures_await_test::async_test;
 
@@ -83,29 +63,33 @@ mod tests {
         set.transaction.mail = Some(SmtpMail::Mail(SmtpPath::Null, vec![]));
         set.transaction.rcpts.push(Recipient::null());
         set.transaction.extra_headers.insert_str(0, "feeeha");
-        let sut = Rfc5321::command(SmtpMail::Mail(SmtpPath::Postmaster, vec![]));
-        let mut res = sut.apply(set).await;
-        match res.writes.pop_front() {
-            Some(CodecControl::Response(bytes)) if bytes.starts_with(b"250 ") => {}
+
+        Esmtp
+            .apply(SmtpMail::Mail(SmtpPath::Postmaster, vec![]), &mut set)
+            .await;
+        match set.writes.pop_front() {
+            Some(DriverControl::Response(bytes)) if bytes.starts_with(b"250 ") => {}
             otherwise => panic!("Expected OK, got {:?}", otherwise),
         }
-        assert_ne!(res.transaction.id, "someid");
-        assert!(res.transaction.rcpts.is_empty());
-        assert!(res.transaction.extra_headers.is_empty());
+        assert_ne!(set.transaction.id, "someid");
+        assert!(set.transaction.rcpts.is_empty());
+        assert!(set.transaction.extra_headers.is_empty());
     }
 
     #[async_test]
     async fn mail_is_set() {
         let mut set = SmtpState::new(Builder::default().into_service());
         set.session.peer_name = Some("xx.io".to_owned());
-        let sut = Rfc5321::command(SmtpMail::Mail(SmtpPath::Postmaster, vec![]));
-        let mut res = sut.apply(set).await;
-        match res.writes.pop_front() {
-            Some(CodecControl::Response(bytes)) if bytes.starts_with(b"250 ") => {}
+
+        Esmtp
+            .apply(SmtpMail::Mail(SmtpPath::Postmaster, vec![]), &mut set)
+            .await;
+        match set.writes.pop_front() {
+            Some(DriverControl::Response(bytes)) if bytes.starts_with(b"250 ") => {}
             otherwise => panic!("Expected OK, got {:?}", otherwise),
         }
         assert_eq!(
-            res.transaction.mail,
+            set.transaction.mail,
             Some(SmtpMail::Mail(SmtpPath::Postmaster, vec![]))
         );
     }
@@ -113,13 +97,15 @@ mod tests {
     #[async_test]
     async fn command_sequence_is_enforced() {
         // MAIL command requires HELO/EHLO
-        let set = SmtpState::new(Builder::default().into_service());
-        let sut = Rfc5321::command(SmtpMail::Mail(SmtpPath::Postmaster, vec![]));
-        let mut res = sut.apply(set).await;
-        match res.writes.pop_front() {
-            Some(CodecControl::Response(bytes)) if bytes.starts_with(b"503 ") => {}
+        let mut set = SmtpState::new(Builder::default().into_service());
+
+        Esmtp
+            .apply(SmtpMail::Mail(SmtpPath::Postmaster, vec![]), &mut set)
+            .await;
+        match set.writes.pop_front() {
+            Some(DriverControl::Response(bytes)) if bytes.starts_with(b"503 ") => {}
             otherwise => panic!("Expected command sequence failure, got {:?}", otherwise),
         }
-        assert_eq!(res.transaction.mail, None);
+        assert_eq!(set.transaction.mail, None);
     }
 }
