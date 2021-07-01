@@ -135,13 +135,15 @@ impl Interpretter {
             }
         }
         if !failures.is_empty() {
-            return todo!("failures");
+            let msg = failures.join("; ");
+            return Err(ParseError::Failed(msg));
         } else if incomplete {
-            return todo!("incomplete");
+            return Err(ParseError::Incomplete);
         } else if !mismatches.is_empty() {
-            return todo!("mismatches");
+            let msg = mismatches.join("; ");
+            return Err(ParseError::Mismatch(msg));
         } else {
-            return todo!("no match");
+            return Err(ParseError::Mismatch("No parsers?".into()));
         }
     }
 }
