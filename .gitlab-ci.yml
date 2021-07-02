@@ -126,7 +126,6 @@ nightly-test:
     INPUT: samotop/examples/mailsession.txt
     OUTPUT: samotop/examples/mailbody.txt
   script:
-    - apt-get install -y --no-install-recommends netcat
     - cargo build --example ${EXAMPLE:?} --color always
     - RUST_LOG=trace cargo run --example ${EXAMPLE:?} &
     - sleep 5
