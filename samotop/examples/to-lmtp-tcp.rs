@@ -20,10 +20,15 @@ EOF
 
 use async_std::task;
 use regex::Regex;
-use samotop::{io::{
+use samotop::{
+    io::{
         client::{tls::NoTls, TcpConnector},
         smtp::SmtpService,
-    }, mail::{Builder, Esmtp, Lmtp, LmtpDispatch, Mapper}, server::TcpServer, smtp::SmtpParserPeg};
+    },
+    mail::{Builder, Esmtp, LmtpDispatch, Mapper},
+    server::TcpServer,
+    smtp::SmtpParserPeg,
+};
 use std::sync::Arc;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
