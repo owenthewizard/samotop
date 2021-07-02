@@ -92,7 +92,24 @@ where
                         break Some(io);
                     }
                 }
-                Err(e) => return Err(DriverError::ParsingFailed(Box::new(e))),
+                Err(e) => {
+                    warn!(
+                        "Invalid command {:?} - {}",
+                        String::from_utf8_lossy(self.buffer.as_slice()),
+                        e
+                    );
+                    state.say_invalid_syntax();
+                    
+                    // remove one line from the buffer
+                    let split = self
+                        .buffer
+                        .iter()
+                        .position(|b| *b == b'\n')
+                        .map(|p| p + 1)
+                        .unwrap_or(self.buffer.len());
+                    self.buffer = self.buffer.split_off(split);
+                    break Some(io);
+                }
             };
         };
 

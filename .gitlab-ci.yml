@@ -129,7 +129,7 @@ nightly-test:
     - apt-get install -y --no-install-recommends netcat
     - cargo build --example ${EXAMPLE:?} --color always
     - RUST_LOG=trace cargo run --example ${EXAMPLE:?} &
-    - sleep 1
+    - sleep 5
     - nc localhost 2525 <"$INPUT" >client.log
     - cat client.log
     - cat tmp/samotop/spool/new/*
