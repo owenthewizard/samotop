@@ -18,7 +18,9 @@ impl Parser<SmtpCommand> for SmtpParserPeg {
                 mode
             )));
         }
-        match grammar::command(input) {
+        let res = grammar::command(input);
+        trace!("Parsed {:?} from {:?}", res, String::from_utf8_lossy(input));
+        match res {
             Err(e) => Err(ParseError::Failed(format!("Peg parser failed: {}", e))),
             Ok(Err(e)) => Err(e),
             Ok(Ok((i, cmd))) => Ok((i, cmd)),

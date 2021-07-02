@@ -124,15 +124,15 @@ nightly-test:
     - cargo --version --verbose
   variables:
     INPUT: samotop/examples/mailsession.txt
-    OUTPUT: samotop/examples/mailbody.txt
   script:
     - cargo build --example ${EXAMPLE:?} --color always
     - RUST_LOG=trace cargo run --example ${EXAMPLE:?} &
     - sleep 5
     - nc localhost 2525 <"$INPUT" >client.log
+    - cat "$INPUT"
     - cat client.log
-    - cat tmp/samotop/spool/new/*
-    - diff tmp/samotop/spool/new/* "$OUTPUT"
+    - find tmp/samotop/spool/new/ -type f -print -exec cat {} \;
+    - test -z "$OUTPUT" || diff tmp/samotop/spool/new/* "$OUTPUT"
 
 example-lmtp:
   extends: .example-template
@@ -151,6 +151,7 @@ example-dir:
   extends: .example-template
   variables:
     EXAMPLE: to-dirmail
+    OUTPUT: samotop/examples/mailbody.txt
 
 example-cmd:
   extends: .example-template
