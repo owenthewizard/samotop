@@ -1,41 +1,9 @@
+use crate::common::io::{prelude::BufReadExt, BufReader};
 use crate::common::*;
 use crate::io::tls::MayBeTls;
-use crate::smtp::{Interpret, ParseError, SmtpState};
-use futures_util::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use crate::smtp::{DriverControl, Interpret, ParseError, SmtpState};
 use std::fmt;
 use std::fmt::Display;
-
-/// Represents the instructions for the client side of the stream.
-pub enum DriverControl {
-    /// Write an SMTP response
-    Response(Vec<u8>),
-    /// Start TLS encryption
-    StartTls,
-    /// Shut the stream down
-    Shutdown,
-}
-
-impl fmt::Debug for DriverControl {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        #[derive(Debug)]
-        enum TextOrBytes<'a> {
-            T(&'a str),
-            B(&'a [u8]),
-        }
-        fn tb(inp: &[u8]) -> TextOrBytes {
-            if let Ok(text) = std::str::from_utf8(inp) {
-                TextOrBytes::T(text)
-            } else {
-                TextOrBytes::B(inp)
-            }
-        }
-        match self {
-            DriverControl::Response(r) => f.debug_tuple("Response").field(&tb(r)).finish(),
-            DriverControl::StartTls => f.debug_tuple("StartTls").finish(),
-            DriverControl::Shutdown => f.debug_tuple("Shutdown").finish(),
-        }
-    }
-}
 
 pub struct SmtpDriver<IO> {
     /// the underlying IO, such as TcpStream
@@ -73,7 +41,7 @@ where
             trace!("Processing codec control {:?}", response);
             match response {
                 DriverControl::Response(bytes) => {
-                    match io.write_all(bytes.as_ref()).await {
+                    match io.get_mut().write_all(bytes.as_ref()).await {
                         Ok(()) => {
                             // all good, carry on
                         }
@@ -83,7 +51,7 @@ where
                         }
                     }
                 }
-                DriverControl::Shutdown => match io.close().await {
+                DriverControl::Shutdown => match io.get_mut().close().await {
                     Ok(()) => {
                         trace!("Close complete");
                         //io stays None

@@ -183,7 +183,7 @@ dependencies = [
  "memchr",
  "num_cpus",
  "once_cell",
- "pin-project-lite 0.2.7",
+ "pin-project-lite",
  "pin-utils",
  "slab",
  "wasm-bindgen-futures",
@@ -661,32 +661,10 @@ checksum = "0e7e43a803dae2fa37c1f6a8fe121e1f7bf9548b4dfc0522a42f34145dadfc27"
 dependencies = [
  "futures-channel",
  "futures-core",
- "futures-executor",
  "futures-io",
  "futures-sink",
  "futures-task",
  "futures-util",
-]
-
-[[package]]
-name = "futures-await-test"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ae0d3d05bce73a572ba581e4f4a7f20164c18150169c3a67f406aada3e48c7e8"
-dependencies = [
- "futures-await-test-macro",
- "futures-executor",
-]
-
-[[package]]
-name = "futures-await-test-macro"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4f150175e6832600500334550e00e4dc563a0b32f58a9d1ad407f6473378c839"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
 ]
 
 [[package]]
@@ -706,17 +684,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0402f765d8a89a26043b889b26ce3c4679d268fa6bb22cd7c6aad98340e179d1"
 
 [[package]]
-name = "futures-executor"
-version = "0.3.15"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "badaa6a909fac9e7236d0620a2f57f7664640c56575b71a7552fbd68deafab79"
-dependencies = [
- "futures-core",
- "futures-task",
- "futures-util",
-]
-
-[[package]]
 name = "futures-io"
 version = "0.3.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -733,21 +700,8 @@ dependencies = [
  "futures-io",
  "memchr",
  "parking",
- "pin-project-lite 0.2.7",
+ "pin-project-lite",
  "waker-fn",
-]
-
-[[package]]
-name = "futures-macro"
-version = "0.3.15"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a4c40298486cdf52cc00cd6d6987892ba502c7656a16a4192a9992b1ccedd121"
-dependencies = [
- "autocfg",
- "proc-macro-hack",
- "proc-macro2",
- "quote",
- "syn",
 ]
 
 [[package]]
@@ -769,17 +723,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "feb5c238d27e2bf94ffdfd27b2c29e3df4a68c4193bb6427384259e2bf191967"
 dependencies = [
  "autocfg",
- "futures-channel",
  "futures-core",
- "futures-io",
- "futures-macro",
  "futures-sink",
  "futures-task",
- "memchr",
- "pin-project-lite 0.2.7",
+ "pin-project-lite",
  "pin-utils",
- "proc-macro-hack",
- "proc-macro-nested",
  "slab",
 ]
 
@@ -1240,12 +1188,6 @@ dependencies = [
 
 [[package]]
 name = "pin-project-lite"
-version = "0.1.12"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "257b64915a082f7811703966789728173279bdebb956b143dbcd23f6f970a777"
-
-[[package]]
-name = "pin-project-lite"
 version = "0.2.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8d31d11c69a6b52a174b42bdc0c30e5e11670f90788b2c471c31c1d17d449443"
@@ -1343,18 +1285,6 @@ dependencies = [
  "quote",
  "version_check",
 ]
-
-[[package]]
-name = "proc-macro-hack"
-version = "0.5.19"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dbf0c48bc1d91375ae5c3cd81e3722dff1abcf81a30960240640d223f59fe0e5"
-
-[[package]]
-name = "proc-macro-nested"
-version = "0.1.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bc881b2c22681370c6a780e47af9840ef841837bc98118431d4e1868bd0c1086"
 
 [[package]]
 name = "proc-macro2"
@@ -1571,10 +1501,8 @@ name = "samotop"
 version = "0.13.0-samotop-dev"
 dependencies = [
  "async-std",
- "bytes",
  "env_logger",
  "futures",
- "futures-await-test",
  "log",
  "pin-project",
  "regex",
@@ -1586,18 +1514,13 @@ dependencies = [
  "samotop-with-native-tls",
  "samotop-with-rustls",
  "samotop-with-spf",
- "smol-timeout",
 ]
 
 [[package]]
 name = "samotop-core"
 version = "0.13.0-samotop-dev"
 dependencies = [
- "async-trait",
- "bytes",
- "futures-await-test",
- "futures-core",
- "futures-io",
+ "async-std",
  "futures-util",
  "log",
 ]
@@ -1613,7 +1536,6 @@ dependencies = [
  "criterion",
  "env_logger",
  "fast_chemail",
- "futures",
  "glob",
  "hostname",
  "log",
@@ -1672,7 +1594,6 @@ dependencies = [
  "async-macros",
  "async-process",
  "async-std",
- "futures-await-test",
  "futures-lite",
  "log",
  "pin-project",
@@ -1843,16 +1764,6 @@ name = "smallvec"
 version = "1.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fe0f37c9e8f3c5a4a66ad655a93c74daac4ad00c441533bf5c6e7990bb42604e"
-
-[[package]]
-name = "smol-timeout"
-version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "847d777e2c6c166bad26264479e80a9820f3d364fcb4a0e23cd57bbfa8e94961"
-dependencies = [
- "async-io",
- "pin-project-lite 0.1.12",
-]
 
 [[package]]
 name = "socket2"

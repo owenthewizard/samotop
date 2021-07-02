@@ -1,14 +1,14 @@
+use crate::{
+    common::S1Fut,
+    mail::{Configuration, Esmtp, MailSetup},
+    smtp::{command::Timeout, Action, SmtpState},
+    smtp::{Interpret, InterpretResult},
+};
+use async_std::prelude::FutureExt;
 use std::{
     sync::Arc,
     time::{Duration, Instant},
 };
-
-use samotop_core::{
-    mail::{Esmtp, MailSetup},
-    smtp::{command::Timeout, Action, SmtpState},
-    smtp::{Interpret, InterpretResult},
-};
-use smol_timeout::TimeoutExt;
 
 /// Applies the specified command timeout
 #[derive(Debug)]
@@ -21,8 +21,8 @@ impl Interpret for Impatient {
     fn interpret<'a, 'i, 's, 'f>(
         &'a self,
         input: &'i [u8],
-        state: &'s mut samotop_core::smtp::SmtpState,
-    ) -> samotop_core::common::S1Fut<'f, InterpretResult>
+        state: &'s mut SmtpState,
+    ) -> S1Fut<'f, InterpretResult>
     where
         'a: 'f,
         'i: 'f,
@@ -38,7 +38,7 @@ struct ImpatientSetup {
 }
 
 impl MailSetup for ImpatientSetup {
-    fn setup(self, config: &mut samotop_core::mail::Configuration) {
+    fn setup(self, config: &mut Configuration) {
         config.interpretter = Box::new(Arc::new(Impatient::new(
             config.interpretter.clone(),
             self.timeout,
@@ -64,13 +64,13 @@ impl Impatient {
             .timeout(self.timeout)
             .await
         {
-            Some(res) => {
+            Ok(res) => {
                 state.session.last_command_at = Instant::now();
                 res
             }
-            None => {
+            Err(_e) => {
                 Esmtp.apply(Timeout, state).await;
-                Err(todo!("timeout"))
+                Ok(0)
             }
         }
     }

@@ -40,7 +40,7 @@ impl MailGuard for Mapper {
         }
         let rcpt = format!("<{}>", rcpt);
 
-        match SmtpParser::default().forward_path(rcpt.as_bytes()) {
+        match SmtpParser.forward_path(rcpt.as_bytes()) {
             Ok((i, new_path)) => {
                 trace!("Converted {} into {}", request.rcpt.address, rcpt);
                 assert_eq!(i, rcpt.len());
@@ -80,34 +80,35 @@ impl MailGuard for Mapper {
 mod tests {
     use crate::smtp::SmtpHost;
     use crate::smtp::SmtpPath;
-    use futures_await_test::async_test;
     use regex::Regex;
 
     use super::*;
 
-    #[async_test]
-    async fn test() -> Result<()> {
-        // use the domain as a user, converting to linux like user name
-        let sut = Mapper::new(vec![
-            (Regex::new(".*@(.*)")?, "$1@localhost".to_owned()),
-            (Regex::new("[^@a-zA-Z0-9]")?, "-".to_owned()),
-        ]);
-        let req = AddRecipientRequest {
-            transaction: Transaction::default(),
-            rcpt: Recipient::new(SmtpPath::Mailbox {
-                name: "user".to_owned(),
-                host: SmtpHost::Domain("example.org".to_owned()),
-                relays: vec![],
-            }),
-        };
+    #[test]
+    fn test() -> Result<()> {
+        async_std::task::block_on(async move {
+            // use the domain as a user, converting to linux like user name
+            let sut = Mapper::new(vec![
+                (Regex::new(".*@(.*)")?, "$1@localhost".to_owned()),
+                (Regex::new("[^@a-zA-Z0-9]")?, "-".to_owned()),
+            ]);
+            let req = AddRecipientRequest {
+                transaction: Transaction::default(),
+                rcpt: Recipient::new(SmtpPath::Mailbox {
+                    name: "user".to_owned(),
+                    host: SmtpHost::Domain("example.org".to_owned()),
+                    relays: vec![],
+                }),
+            };
 
-        let res = sut.add_recipient(req).await;
-        match res {
-            AddRecipientResult::Inconclusive(request) => {
-                assert_eq!(request.rcpt.address.address(), "example-org@localhost")
+            let res = sut.add_recipient(req).await;
+            match res {
+                AddRecipientResult::Inconclusive(request) => {
+                    assert_eq!(request.rcpt.address.address(), "example-org@localhost")
+                }
+                other => panic!("Unexpected {:?}", other),
             }
-            other => panic!("Unexpected {:?}", other),
-        }
-        Ok(())
+            Ok(())
+        })
     }
 }

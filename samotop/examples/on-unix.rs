@@ -26,7 +26,7 @@ use async_std::task;
 use samotop::{
     io::smtp::SmtpService,
     mail::{Builder, Dir},
-    smtp::SmtpParserPeg,
+    smtp::SmtpParser,
 };
 use std::sync::Arc;
 
@@ -50,7 +50,7 @@ async fn main_fut() -> Result<()> {
     let mail_service = Arc::new(
         Builder::default()
             .using(dir_service)
-            .using(Esmtp.with(SmtpParserPeg))
+            .using(Esmtp.with(SmtpParser))
             .into_service(),
     );
     let smtp_service = SmtpService::new(mail_service);

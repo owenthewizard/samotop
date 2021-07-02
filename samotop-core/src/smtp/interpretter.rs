@@ -20,14 +20,22 @@ pub trait Interpret: Debug {
         's: 'f;
 }
 
-#[async_trait::async_trait]
+//#[async_trait::async_trait]
 pub trait Action<CMD> {
-    async fn apply(&self, cmd: CMD, state: &mut SmtpState);
+    fn apply<'a, 's, 'f>(&'a self, cmd: CMD, state: &'s mut SmtpState) -> S1Fut<'f, ()>
+    where
+        'a: 'f,
+        's: 'f;
 }
 
-#[async_trait::async_trait]
 impl<CMD: Send + 'static> Action<CMD> for Dummy {
-    async fn apply(&self, _cmd: CMD, _state: &mut SmtpState) {}
+    fn apply<'a, 's, 'f>(&'a self, _cmd: CMD, _state: &'s mut SmtpState) -> S1Fut<'f, ()>
+    where
+        'a: 'f,
+        's: 'f,
+    {
+        Box::pin(ready(()))
+    }
 }
 
 impl Interpret for Dummy {

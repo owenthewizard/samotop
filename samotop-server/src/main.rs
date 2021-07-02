@@ -118,11 +118,9 @@ use async_tls::TlsAcceptor;
 use rustls::ServerConfig;
 use samotop::io::smtp::SmtpService;
 use samotop::io::tls::RustlsProvider;
-use samotop::mail::Esmtp;
-use samotop::mail::{Builder, Dir, Name};
+use samotop::mail::{Builder, Dir, Esmtp, Name};
 use samotop::server::TcpServer;
-use samotop::smtp::Impatient;
-use samotop::smtp::SmtpParserPeg;
+use samotop::smtp::{Impatient, SmtpParser};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
@@ -144,7 +142,7 @@ async fn main_fut() -> Result<()> {
         .using(Name::new(setup.get_my_name()))
         .using(Dir::new(setup.get_mail_dir())?)
         .using(samotop::mail::spf::provide_viaspf())
-        .using(Esmtp.with(SmtpParserPeg))
+        .using(Esmtp.with(SmtpParser))
         .using(Impatient::after(Duration::from_secs(30)));
 
     if let Some(cfg) = setup.get_tls_config().await? {

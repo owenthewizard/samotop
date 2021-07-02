@@ -181,10 +181,9 @@ mod tests {
         mail::{Builder, Recipient},
         smtp::{command::SmtpMail, SmtpPath},
     };
-    use futures_await_test::async_test;
 
-    #[async_test]
-    async fn transaction_gets_reset() {
+    #[test]
+    fn transaction_gets_reset() {
         let mut sut = SmtpState::new(Builder::default().into_service());
         sut.transaction.id = "someid".to_owned();
         sut.transaction.mail = Some(SmtpMail::Mail(SmtpPath::Null, vec![]));

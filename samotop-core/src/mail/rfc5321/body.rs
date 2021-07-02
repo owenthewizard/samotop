@@ -5,10 +5,13 @@ use crate::{
     smtp::{command::MailBody, Action, SmtpState},
 };
 
-#[async_trait::async_trait]
 impl<B: AsRef<[u8]> + Sync + Send + fmt::Debug + 'static> Action<MailBody<B>> for Esmtp {
-    async fn apply(&self, cmd: MailBody<B>, state: &mut SmtpState) {
-        apply_mail_body(false, cmd, state).await
+    fn apply<'a, 's, 'f>(&'a self, cmd: MailBody<B>, state: &'s mut SmtpState) -> S1Fut<'f, ()>
+    where
+        'a: 'f,
+        's: 'f,
+    {
+        Box::pin(apply_mail_body(false, cmd, state))
     }
 }
 
@@ -24,20 +27,22 @@ where
             data,
             ends_with_new_line,
         } => {
-            let sink = if let Some(sink) = sink {
+            let mut sink = if let Some(sink) = sink {
                 sink
             } else {
                 // CheckMe: silence. MailBody::End should respond with error.
                 return;
             };
-            let mut write_all = WriteAll {
+            let mut write_all = sink.write_all(data.as_ref());
+            /*WriteAll {
                 from: data.as_ref(),
                 to: Box::pin(sink),
-            };
+            };*/
+
             match (&mut write_all).await {
                 Ok(()) => {
-                    let WriteAll { to, .. } = write_all;
-                    state.transaction.sink = Some(to);
+                    //let WriteAll { to, .. } = write_all;
+                    state.transaction.sink = Some(sink);
                     state.transaction.mode = Some(match ends_with_new_line {
                         true => Transaction::DATA_MODE,
                         false => Transaction::DATA_PARTIAL_MODE,
@@ -86,7 +91,7 @@ where
         }
     }
 }
-
+/*
 struct WriteAll<'a, W> {
     pub from: &'a [u8],
     pub to: Pin<Box<W>>,
@@ -117,3 +122,4 @@ where
         Poll::Ready(Ok(()))
     }
 }
+*/

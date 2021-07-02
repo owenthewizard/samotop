@@ -163,13 +163,14 @@ impl fmt::Debug for DebugSink {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use futures_await_test::async_test;
 
-    #[async_test]
-    async fn test_setup() {
-        let sess = SessionInfo::default();
-        let tran = Transaction::default();
-        let sut = DebugMailService::default();
-        let _tran = sut.start_mail(&sess, tran).await;
+    #[test]
+    fn test_setup() {
+        async_std::task::block_on(async move {
+            let sess = SessionInfo::default();
+            let tran = Transaction::default();
+            let sut = DebugMailService::default();
+            let _tran = sut.start_mail(&sess, tran).await;
+        })
     }
 }

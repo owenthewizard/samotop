@@ -5,9 +5,12 @@ use crate::{
     smtp::{command::MailBody, Action, SmtpState},
 };
 
-#[async_trait::async_trait]
 impl<B: AsRef<[u8]> + Sync + Send + fmt::Debug + 'static> Action<MailBody<B>> for Lmtp {
-    async fn apply(&self, cmd: MailBody<B>, state: &mut SmtpState) {
-        apply_mail_body(true, cmd, state).await
+    fn apply<'a, 's, 'f>(&'a self, cmd: MailBody<B>, state: &'s mut SmtpState) -> S1Fut<'f, ()>
+    where
+        'a: 'f,
+        's: 'f,
+    {
+        Box::pin(apply_mail_body(true, cmd, state))
     }
 }

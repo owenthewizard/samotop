@@ -1,6 +1,7 @@
 mod body;
 mod helo;
 
+use crate::common::S1Fut;
 use crate::mail::Esmtp;
 use crate::smtp::command::MailBody;
 use crate::smtp::command::SmtpCommand;
@@ -30,13 +31,18 @@ impl Lmtp {
     }
 }
 
-#[async_trait::async_trait]
 impl Action<SmtpCommand> for Lmtp {
-    async fn apply(&self, cmd: SmtpCommand, state: &mut SmtpState) {
-        use SmtpCommand as C;
-        match cmd {
-            C::Helo(helo) => Lmtp.apply(helo, state).await,
-            cmd => Esmtp.apply(cmd, state).await,
-        }
+    fn apply<'a, 's, 'f>(&'a self, cmd: SmtpCommand, state: &'s mut SmtpState) -> S1Fut<'f, ()>
+    where
+        'a: 'f,
+        's: 'f,
+    {
+        Box::pin(async move {
+            use SmtpCommand as C;
+            match cmd {
+                C::Helo(helo) => Lmtp.apply(helo, state).await,
+                cmd => Esmtp.apply(cmd, state).await,
+            }
+        })
     }
 }

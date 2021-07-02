@@ -24,13 +24,13 @@ find tmp/samotop/spool/new/ -print -exec cat {} \;
 ```
  */
 
+use async_std::io::Read;
+use async_std::io::Write;
 use async_std::task;
-use futures::AsyncRead as Read;
-use futures::AsyncWrite as Write;
 use samotop::{
     io::{smtp::SmtpService, tls::TlsCapable, ConnectionInfo, IoService},
     mail::{Builder, Dir, Lmtp},
-    smtp::SmtpParserPeg,
+    smtp::SmtpParser,
 };
 use std::pin::Pin;
 use std::sync::Arc;
@@ -47,7 +47,7 @@ async fn main_fut() -> Result<()> {
     let mail_service = Arc::new(
         Builder::default()
             .using(dir_service)
-            .using(Lmtp.with(SmtpParserPeg))
+            .using(Lmtp.with(SmtpParser))
             .into_service(),
     );
     let smtp_service = SmtpService::new(Arc::new(mail_service));

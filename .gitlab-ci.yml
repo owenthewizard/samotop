@@ -95,7 +95,7 @@ nightly-test:
   only:
     - branches
   cache:
-    key: 
+    key:
       prefix: nightly
       files:
         - Cargo.lock
@@ -122,28 +122,17 @@ nightly-test:
   before_script:
     - rustc --version --verbose
     - cargo --version --verbose
+  variables:
+    INPUT: samotop/examples/mailsession.txt
+    OUTPUT: samotop/examples/mailbody.txt
   script:
     - cargo build --example ${EXAMPLE:?} --color always
     - RUST_LOG=trace cargo run --example ${EXAMPLE:?} &
-    - sleep 10
-    - |
-      sed -e 's/$/\r/' <<EOF | curl -v --url 'smtp://localhost:2525' \
-      --mail-from from@spf.org \
-      --mail-rcpt to@mikesh.info \
-      --upload-file - > client.log 2>&1 \
-      || echo "${FAILED:=sending mail failed}"
-      From: Moohoo <moo@hoo.com>
-      To: Yeeehaw <ye@haw.com>
-      Subject: Try me
-
-
-      .
-      ..
-      xoxo
-      EOF
-    - cat client.log | grep -v '* Expire in'
-    - find tmp/samotop/spool/new/ -print -exec cat {} \; || true
-    - test -z "${FAILED}"
+    - sleep 1
+    - nc localhost 2525 <"$INPUT" >client.log 2>&1
+    - cat client.log
+    - cat tmp/samotop/spool/new/*
+    - diff tmp/samotop/spool/new/* "$OUTPUT"
 
 example-lmtp:
   extends: .example-template
@@ -224,8 +213,7 @@ server-version:
     policy: pull
   artifacts:
     reports:
-      dotenv:
-        vars.env
+      dotenv: vars.env
 
 server-docker-image:
   extends: .kaniko-build-template

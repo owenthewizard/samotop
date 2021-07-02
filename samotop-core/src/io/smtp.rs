@@ -1,12 +1,10 @@
-use samotop_core::mail::Esmtp;
-
 use crate::{
     common::*,
     io::{
         tls::{Io, MayBeTls, TlsCapable},
         ConnectionInfo, IoService,
     },
-    mail::{MailService, SessionInfo},
+    mail::{Esmtp, MailService, SessionInfo},
     smtp::*,
 };
 

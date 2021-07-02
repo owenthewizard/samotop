@@ -1,11 +1,7 @@
 use crate::MailDataStream;
 use async_std::fs::File;
-use futures::{ready, AsyncWrite as Write, Future};
 use pin_project::pin_project;
-use std::{
-    pin::Pin,
-    task::{Context, Poll},
-};
+use samotop_core::common::*;
 
 #[pin_project(project=MailFileProj)]
 pub struct MailFile {

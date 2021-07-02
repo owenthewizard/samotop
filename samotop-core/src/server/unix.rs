@@ -1,42 +1,36 @@
 use crate::common::*;
 use crate::io::tls::{Io, MayBeTls, TlsCapable};
 use crate::io::*;
-use async_std::net::{TcpListener, ToSocketAddrs};
 use async_std::stream::StreamExt;
 use async_std::task;
-use futures::{
-    future::{BoxFuture, TryFutureExt},
-    stream::FuturesUnordered,
-};
-use std::net::SocketAddr;
+use futures_util::stream::FuturesUnordered;
 
-/// `TcpServer` takes care of accepting TCP connections and passing them to an `IoService` to `handle()`.
+use async_std::{os::unix::net::UnixListener, path::PathBuf as SocketAddr};
+
+/// `UnixServer` takes care of accepting Unix socket connections and passing them to an `IoService` to `handle()`.
 #[derive(Default)]
-pub struct TcpServer<'a> {
-    ports: Vec<BoxFuture<'a, Result<Vec<SocketAddr>>>>,
+pub struct UnixServer<'a> {
+    ports: Vec<S1Fut<'a, Result<Vec<SocketAddr>>>>,
 }
 
-impl<'a> TcpServer<'a> {
+impl<'a> UnixServer<'a> {
     pub fn on<N>(ports: N) -> Self
     where
-        N: ToSocketAddrs + 'a,
-        N::Iter: Send,
+        N: Into<SocketAddr> + 'a,
     {
         Self::default().and(ports)
     }
     pub fn on_all<I, N>(ports: I) -> Self
     where
         I: IntoIterator<Item = N>,
-        N: ToSocketAddrs + 'a,
-        N::Iter: Send,
+        N: Into<SocketAddr> + 'a,
     {
         Self::default().and_all(ports)
     }
     pub fn and_all<I, N>(mut self, ports: I) -> Self
     where
         I: IntoIterator<Item = N>,
-        N: ToSocketAddrs + 'a,
-        N::Iter: Send,
+        N: Into<SocketAddr> + 'a,
     {
         for port in ports.into_iter() {
             self = self.and(port);
@@ -45,17 +39,14 @@ impl<'a> TcpServer<'a> {
     }
     pub fn and<N>(mut self, ports: N) -> Self
     where
-        N: ToSocketAddrs + 'a,
-        N::Iter: Send,
+        N: Into<SocketAddr> + 'a,
     {
         self.ports.push(Box::pin(Self::map_ports(ports)));
         self
     }
-    fn map_ports(addrs: impl ToSocketAddrs) -> impl Future<Output = Result<Vec<SocketAddr>>> {
-        addrs
-            .to_socket_addrs()
-            .map_ok(|i| i.into_iter().collect())
-            .map_err(|e| e.into())
+    fn map_ports(addrs: impl Into<SocketAddr>) -> impl Future<Output = Result<Vec<SocketAddr>>> {
+        // todo: check if file exists and is a socket here?
+        ready(Ok(vec![addrs.into()]))
     }
     pub async fn resolve_ports(&mut self) -> Result<Vec<SocketAddr>> {
         let mut result = vec![];
@@ -65,7 +56,7 @@ impl<'a> TcpServer<'a> {
         }
         Ok(result)
     }
-    pub async fn serve<S>(mut self: TcpServer<'a>, service: S) -> Result<()>
+    pub async fn serve<S>(mut self, service: S) -> Result<()>
     where
         S: IoService + Send + Sync,
     {
@@ -76,6 +67,7 @@ impl<'a> TcpServer<'a> {
         S: IoService + Send + Sync,
     {
         let svc = Arc::new(service);
+
         addrs
             .into_iter()
             .map(|a| Self::serve_port(svc.clone(), a))
@@ -92,10 +84,10 @@ impl<'a> TcpServer<'a> {
     where
         S: IoService + Clone,
     {
-        trace!("Binding on {}", addr);
-        let listener = TcpListener::bind(addr)
+        trace!("Binding on {:?}", addr);
+        let listener = UnixListener::bind(addr.clone())
             .await
-            .map_err(|e| format!("Unable to bind {}: {}", addr, e))?;
+            .map_err(|e| format!("Unable to bind {:?}: {}", addr, e))?;
         let mut incoming = listener.incoming();
         info!("Listening on {:?}", listener.local_addr());
         while let Some(stream) = incoming.next().await {
@@ -103,11 +95,21 @@ impl<'a> TcpServer<'a> {
                 ConnectionInfo::new(
                     stream
                         .local_addr()
-                        .map(|s| s.to_string())
+                        .ok()
+                        .and_then(|s| {
+                            s.as_pathname()
+                                .and_then(|p| p.to_str())
+                                .map(|s| s.to_owned())
+                        })
                         .unwrap_or_default(),
                     stream
                         .peer_addr()
-                        .map(|s| s.to_string())
+                        .ok()
+                        .and_then(|s| {
+                            s.as_pathname()
+                                .and_then(|p| p.to_str())
+                                .map(|s| s.to_owned())
+                        })
                         .unwrap_or_default(),
                 )
             } else {
@@ -121,7 +123,6 @@ impl<'a> TcpServer<'a> {
                 }
                 Err(e) => (Err(e.into())),
             };
-
             let service = service.clone();
             spawn_task_and_swallow_log_errors(
                 format!("TCP transmission {}", conn),

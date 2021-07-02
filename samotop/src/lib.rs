@@ -106,7 +106,7 @@ extern crate samotop;
 use std::sync::Arc;
 fn main() {
     env_logger::init();
-    let interpretter = samotop::mail::Esmtp.with(samotop::smtp::SmtpParser::default());
+    let interpretter = samotop::mail::Esmtp.with(samotop::smtp::SmtpParser);
     let mail = samotop::mail::Builder::default().using(interpretter).into_service();
     let svc = samotop::io::smtp::SmtpService::new(Arc::new(mail));
     let srv = samotop::server::TcpServer::on("localhost:25").serve(svc);
@@ -197,7 +197,6 @@ pub mod server;
 pub mod smtp;
 
 mod common {
-    pub use bytes::{Bytes, BytesMut};
     pub use samotop_core::common::*;
 
     #[derive(Clone)]

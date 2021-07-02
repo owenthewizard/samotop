@@ -18,8 +18,7 @@ fn main() {
     let mut state = SmtpState::default();
 
     while !input.is_empty() {
-        let (i, item): (usize, SmtpCommand) =
-            SmtpParser::default().parse(input, &mut state).unwrap();
+        let (i, item): (usize, SmtpCommand) = SmtpParser.parse(input, &mut state).unwrap();
         input = &input[i..];
         println!("Parsed: {:#?}", item);
     }

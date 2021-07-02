@@ -1,14 +1,10 @@
-mod impatient;
-
-pub use impatient::*;
-
 pub use samotop_core::smtp::*;
 #[cfg(feature = "parser-peg")]
 pub use samotop_parser::*;
 #[cfg(feature = "parser-nom")]
 pub use samotop_parser_nom::*;
 
-#[cfg(feature = "parser-nom")]
-pub type SmtpParser = samotop_parser_nom::SmtpParserNom;
-#[cfg(all(feature = "parser-peg", not(feature = "parser-nom")))]
-pub type SmtpParser = samotop_parser::SmtpParserPeg;
+#[cfg(feature = "parser-peg")]
+pub use samotop_parser::SmtpParserPeg as SmtpParser;
+#[cfg(all(feature = "parser-nom", not(feature = "parser-peg")))]
+pub use samotop_parser_nom::SmtpParserNom as SmtpParser;

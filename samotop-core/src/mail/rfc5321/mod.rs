@@ -13,6 +13,7 @@ mod unknown;
 pub(crate) use self::body::apply_mail_body;
 pub(crate) use self::helo::apply_helo;
 use super::rfc3207::EsmtpStartTls;
+use crate::common::S1Fut;
 use crate::smtp::command::*;
 use crate::smtp::*;
 
@@ -41,22 +42,27 @@ impl Esmtp {
     }
 }
 
-#[async_trait::async_trait]
 impl Action<SmtpCommand> for Esmtp {
-    async fn apply(&self, cmd: SmtpCommand, state: &mut SmtpState) {
-        use SmtpCommand as C;
-        match cmd {
-            C::Helo(helo) => self.apply(helo, state).await,
-            C::Mail(mail) => self.apply(mail, state).await,
-            C::Rcpt(rcpt) => self.apply(rcpt, state).await,
-            C::Data => self.apply(SmtpData, state).await,
-            C::Quit => self.apply(SmtpQuit, state).await,
-            C::Rset => self.apply(SmtpRset, state).await,
-            C::Noop(_) => self.apply(SmtpNoop, state).await,
-            C::StartTls => EsmtpStartTls.apply(EsmtpStartTls, state).await,
-            C::Expn(_) | C::Vrfy(_) | C::Help(_) | C::Turn | C::Other(_, _) => {
-                self.apply(SmtpUnknownCommand::default(), state).await
-            }
-        };
+    fn apply<'a, 's, 'f>(&'a self, cmd: SmtpCommand, state: &'s mut SmtpState) -> S1Fut<'f, ()>
+    where
+        'a: 'f,
+        's: 'f,
+    {
+        Box::pin(async move {
+            use SmtpCommand as C;
+            match cmd {
+                C::Helo(helo) => self.apply(helo, state).await,
+                C::Mail(mail) => self.apply(mail, state).await,
+                C::Rcpt(rcpt) => self.apply(rcpt, state).await,
+                C::Data => self.apply(SmtpData, state).await,
+                C::Quit => self.apply(SmtpQuit, state).await,
+                C::Rset => self.apply(SmtpRset, state).await,
+                C::Noop(_) => self.apply(SmtpNoop, state).await,
+                C::StartTls => EsmtpStartTls.apply(EsmtpStartTls, state).await,
+                C::Expn(_) | C::Vrfy(_) | C::Help(_) | C::Turn | C::Other(_, _) => {
+                    self.apply(SmtpUnknownCommand::default(), state).await
+                }
+            };
+        })
     }
 }

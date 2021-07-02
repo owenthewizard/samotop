@@ -1,0 +1,10 @@
+X-Samotop-From: moo@hoo.com
+X-Samotop-To: ye@haw.com
+From: Moohoo <moo@hoo.com>
+To: Yeeehaw <ye@haw.com>
+Subject: Try me
+
+.
+.fooo
+bar
+xoxo

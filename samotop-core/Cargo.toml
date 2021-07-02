@@ -10,23 +10,16 @@ repository = "https://gitlab.com/BrightOpen/Samotop/"
 keywords = ["smtp", "model", "async", "server"]
 edition = "2018"
 
-categories = [
-    "email",
-    "asynchronous",
-    "network-programming",
-]
+categories = ["email", "asynchronous", "network-programming"]
 
 [badges]
-gitlab = { repository = "BrightOpen/Samotop", branch = "develop" }
-maintenance = { status = "actively-developed" }
+gitlab = { repository="BrightOpen/Samotop", branch="develop" }
+maintenance = { status="actively-developed" }
+
+[features]
+server = ["futures-util"]
 
 [dependencies]
-futures-core = "0.3"
-futures-io = "0.3"
-futures-util = "0.3"
-bytes = "1.0"
+futures-util = { version="0.3", default-features=false, optional=true }
+async-std = { version="1.9", default-features=false }
 log = "0.4"
-async-trait = "0.1"
-
-[dev-dependencies]
-futures-await-test = "0.3"

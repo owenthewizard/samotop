@@ -5,7 +5,6 @@ use async_std::{
     io,
     path::{Path, PathBuf},
 };
-use futures::AsyncWriteExt;
 use lozizol::model::{Sequence, Vuint};
 use potential::{Gone, Lease, Potential};
 use samotop_core::common::*;

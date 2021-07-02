@@ -1,12 +1,20 @@
 use super::Esmtp;
-use crate::smtp::{command::SmtpQuit, Action, SmtpState};
+use crate::{
+    common::S1Fut,
+    smtp::{command::SmtpQuit, Action, SmtpState},
+};
 
-#[async_trait::async_trait]
 impl Action<SmtpQuit> for Esmtp {
-    async fn apply(&self, _cmd: SmtpQuit, state: &mut SmtpState) {
-        let name = state.session.service_name.clone();
-        state.reset();
-        state.say_shutdown_ok(name);
+    fn apply<'a, 's, 'f>(&'a self, _cmd: SmtpQuit, state: &'s mut SmtpState) -> S1Fut<'f, ()>
+    where
+        'a: 'f,
+        's: 'f,
+    {
+        Box::pin(async move {
+            let name = state.session.service_name.clone();
+            state.reset();
+            state.say_shutdown_ok(name);
+        })
     }
 }
 
@@ -17,17 +25,18 @@ mod tests {
         mail::{Builder, Recipient},
         smtp::{command::SmtpMail, SmtpPath},
     };
-    use futures_await_test::async_test;
 
-    #[async_test]
-    async fn transaction_gets_reset() {
-        let mut set = SmtpState::new(Builder::default().into_service());
-        set.transaction.id = "someid".to_owned();
-        set.transaction.mail = Some(SmtpMail::Mail(SmtpPath::Null, vec![]));
-        set.transaction.rcpts.push(Recipient::null());
-        set.transaction.extra_headers.insert_str(0, "feeeha");
+    #[test]
+    fn transaction_gets_reset() {
+        async_std::task::block_on(async move {
+            let mut set = SmtpState::new(Builder::default().into_service());
+            set.transaction.id = "someid".to_owned();
+            set.transaction.mail = Some(SmtpMail::Mail(SmtpPath::Null, vec![]));
+            set.transaction.rcpts.push(Recipient::null());
+            set.transaction.extra_headers.insert_str(0, "feeeha");
 
-        Esmtp.apply(SmtpQuit, &mut set).await;
-        assert!(set.transaction.is_empty())
+            Esmtp.apply(SmtpQuit, &mut set).await;
+            assert!(set.transaction.is_empty())
+        })
     }
 }

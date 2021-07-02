@@ -9,10 +9,7 @@ use crate::{
     stub::error::{Error, StubResult},
     Envelope, MailDataStream, SyncFuture, Transport,
 };
-use async_std::io::Write;
-use futures::future;
-use std::pin::Pin;
-use std::task::{Context, Poll};
+use samotop_core::common::*;
 
 /// This transport logs the message envelope and returns the given response
 #[derive(Debug)]
@@ -38,7 +35,7 @@ impl Transport for StubTransport {
     fn send_stream<'life1, 'async_trait>(
         &'life1 self,
         envelope: Envelope,
-    ) -> SyncFuture<Result<StubStream, Error>>
+    ) -> SyncFuture<std::result::Result<StubStream, Error>>
     where
         'life1: 'async_trait,
     {
@@ -51,7 +48,7 @@ impl Transport for StubTransport {
             },
             envelope.to()
         );
-        Box::pin(future::ready(Ok(StubStream {
+        Box::pin(ready(Ok(StubStream {
             response: self.response.clone(),
         })))
     }

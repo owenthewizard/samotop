@@ -1,6 +1,3 @@
-pub mod dummy;
-pub mod smtp;
-
 pub use samotop_core::io::*;
 
 #[cfg(feature = "delivery")]

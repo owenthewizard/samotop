@@ -1,4 +1,5 @@
 use crate::{
+    common::S1Fut,
     mail::Esmtp,
     smtp::{
         command::{SmtpHelo, SmtpUnknownCommand},
@@ -6,21 +7,26 @@ use crate::{
     },
 };
 
-#[async_trait::async_trait]
 impl Action<SmtpHelo> for Esmtp {
-    async fn apply(&self, cmd: SmtpHelo, state: &mut SmtpState) {
-        match cmd.verb.to_ascii_uppercase().as_str() {
-            "EHLO" => apply_helo(cmd, true, state),
-            "HELO" => apply_helo(cmd, false, state),
-            verb => {
-                Esmtp
-                    .apply(
-                        SmtpUnknownCommand::new(verb.to_owned(), vec![cmd.host.to_string()]),
-                        state,
-                    )
-                    .await
+    fn apply<'a, 's, 'f>(&'a self, cmd: SmtpHelo, state: &'s mut SmtpState) -> S1Fut<'f, ()>
+    where
+        'a: 'f,
+        's: 'f,
+    {
+        Box::pin(async move {
+            match cmd.verb.to_ascii_uppercase().as_str() {
+                "EHLO" => apply_helo(cmd, true, state),
+                "HELO" => apply_helo(cmd, false, state),
+                verb => {
+                    Esmtp
+                        .apply(
+                            SmtpUnknownCommand::new(verb.to_owned(), vec![cmd.host.to_string()]),
+                            state,
+                        )
+                        .await
+                }
             }
-        }
+        })
     }
 }
 
@@ -48,42 +54,45 @@ mod tests {
         mail::{Builder, Recipient},
         smtp::{command::SmtpMail, SmtpHost, SmtpPath},
     };
-    use futures_await_test::async_test;
 
-    #[async_test]
-    async fn transaction_gets_reset() {
-        let mut set = SmtpState::new(Builder::default().into_service());
-        set.transaction.id = "someid".to_owned();
-        set.transaction.mail = Some(SmtpMail::Mail(SmtpPath::Null, vec![]));
-        set.transaction.rcpts.push(Recipient::null());
-        set.transaction.extra_headers.insert_str(0, "feeeha");
+    #[test]
+    fn transaction_gets_reset() {
+        async_std::task::block_on(async move {
+            let mut set = SmtpState::new(Builder::default().into_service());
+            set.transaction.id = "someid".to_owned();
+            set.transaction.mail = Some(SmtpMail::Mail(SmtpPath::Null, vec![]));
+            set.transaction.rcpts.push(Recipient::null());
+            set.transaction.extra_headers.insert_str(0, "feeeha");
 
-        Esmtp
-            .apply(
-                SmtpHelo {
-                    verb: "EHLO".to_string(),
-                    host: SmtpHost::Domain("wex.xor.ro".to_owned()),
-                },
-                &mut set,
-            )
-            .await;
-        assert!(set.transaction.is_empty());
+            Esmtp
+                .apply(
+                    SmtpHelo {
+                        verb: "EHLO".to_string(),
+                        host: SmtpHost::Domain("wex.xor.ro".to_owned()),
+                    },
+                    &mut set,
+                )
+                .await;
+            assert!(set.transaction.is_empty());
+        })
     }
 
-    #[async_test]
-    async fn helo_is_set() {
-        let mut set = SmtpState::new(Builder::default().into_service());
+    #[test]
+    fn helo_is_set() {
+        async_std::task::block_on(async move {
+            let mut set = SmtpState::new(Builder::default().into_service());
 
-        Esmtp
-            .apply(
-                SmtpHelo {
-                    verb: "EHLO".to_string(),
-                    host: SmtpHost::Domain("wex.xor.ro".to_owned()),
-                },
-                &mut set,
-            )
-            .await;
-        assert_eq!(set.session.peer_name, Some("wex.xor.ro".to_owned()));
+            Esmtp
+                .apply(
+                    SmtpHelo {
+                        verb: "EHLO".to_string(),
+                        host: SmtpHost::Domain("wex.xor.ro".to_owned()),
+                    },
+                    &mut set,
+                )
+                .await;
+            assert_eq!(set.session.peer_name, Some("wex.xor.ro".to_owned()));
+        })
     }
 
     #[test]

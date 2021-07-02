@@ -21,7 +21,7 @@ EOF
 use async_std::task;
 use samotop::mail::{Builder, Esmtp};
 use samotop::server::TcpServer;
-use samotop::smtp::SmtpParserPeg;
+use samotop::smtp::SmtpParser;
 use samotop::{io::smtp::SmtpService, mail::NullDispatch};
 use std::sync::Arc;
 
@@ -35,7 +35,7 @@ fn main() -> Result<()> {
 async fn main_fut() -> Result<()> {
     let mail_service = Builder::default()
         .using(NullDispatch)
-        .using(Esmtp.with(SmtpParserPeg))
+        .using(Esmtp.with(SmtpParser))
         .into_service();
     let smtp_service = SmtpService::new(Arc::new(mail_service));
 

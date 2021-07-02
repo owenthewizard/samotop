@@ -4,12 +4,9 @@ use crate::smtp::util::SmtpDataCodec;
 use crate::smtp::util::SmtpProto;
 use crate::MailDataStream;
 use async_std::io::Read;
-use futures::io::{AsyncWrite as Write, AsyncWriteExt as WriteExt};
-use futures::{ready, Future};
 use potential::Lease;
+use samotop_core::common::*;
 use std::fmt;
-use std::pin::Pin;
-use std::task::{Context, Poll};
 use std::time::Duration;
 
 /// FIXME: this needs to be gracefully degraded to 7bit if 8bit/utf8 is not available
