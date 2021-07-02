@@ -20,15 +20,10 @@ EOF
 
 use async_std::task;
 use regex::Regex;
-use samotop::{
-    io::{
+use samotop::{io::{
         client::{tls::NoTls, TcpConnector},
         smtp::SmtpService,
-    },
-    mail::{Builder, Lmtp, LmtpDispatch, Mapper},
-    server::TcpServer,
-    smtp::SmtpParserPeg,
-};
+    }, mail::{Builder, Esmtp, Lmtp, LmtpDispatch, Mapper}, server::TcpServer, smtp::SmtpParserPeg};
 use std::sync::Arc;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
@@ -47,7 +42,7 @@ async fn main_fut() -> Result<()> {
     let mail_service = Builder::default()
         .using(LmtpDispatch::new("dovecot:24".to_owned(), lmtp_connector)?.reuse(0))
         .using(rcpt_map)
-        .using(Lmtp.with(SmtpParserPeg))
+        .using(Esmtp.with(SmtpParserPeg))
         .into_service();
     let smtp_service = SmtpService::new(Arc::new(mail_service));
 
