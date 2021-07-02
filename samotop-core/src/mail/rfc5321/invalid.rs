@@ -1,6 +1,6 @@
 use super::Esmtp;
 use crate::{
-    common::{ready, S1Fut},
+    common::S1Fut,
     smtp::{command::SmtpInvalidCommand, Action, SmtpState},
 };
 
@@ -14,7 +14,7 @@ impl Action<SmtpInvalidCommand> for Esmtp {
         'a: 'f,
         's: 'f,
     {
-        Box::pin(ready(state.say_invalid_syntax()))
+        Box::pin(async move { state.say_invalid_syntax() })
     }
 }
 

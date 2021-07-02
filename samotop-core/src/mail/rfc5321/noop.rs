@@ -1,6 +1,6 @@
 use super::Esmtp;
 use crate::{
-    common::{ready, S1Fut},
+    common::S1Fut,
     smtp::{command::SmtpNoop, Action, SmtpState},
 };
 
@@ -10,7 +10,7 @@ impl Action<SmtpNoop> for Esmtp {
         'a: 'f,
         's: 'f,
     {
-        Box::pin(ready(state.say_ok()))
+        Box::pin(async move { state.say_ok() })
     }
 }
 
