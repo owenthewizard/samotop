@@ -157,25 +157,15 @@ example-cmd:
   extends: .example-template
   variables:
     EXAMPLE: on-cmd
+    INPUT: samotop/examples/mailsessionlmtp.txt
+    OUTPUT: samotop/examples/mailbody.txt
   script:
     - cargo build --example ${EXAMPLE:?}
-    - |
-      sed -e 's/$/\r/' <<EOF | cargo run --example ${EXAMPLE:?}
-      lhlo boogie
-      mail from:<from@spf.org>
-      rcpt to:<komu@makesh.info>
-      rcpt to:<to@mikesh.info>
-      rcpt to:<za@mukesh.info>
-      data
-      From: Moohoo <moo@hoo.com>
-      To: Yeeehaw <ye@haw.com>
-      Subject: Try me
-
-      xoxo
-      .
-      quit
-      EOF
-    - find tmp/samotop/spool/new/ -print -exec cat {} \;
+    - cargo run --example ${EXAMPLE:?} <"$INPUT" >client.log
+    - cat "$INPUT"
+    - cat client.log
+    - find tmp/samotop/spool/new/ -type f -print -exec cat {} \;
+    - test -z "$OUTPUT" || diff tmp/samotop/spool/new/* "$OUTPUT"
 
 publish-crate:
   variables:

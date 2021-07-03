@@ -99,7 +99,7 @@ where
                         e
                     );
                     state.say_invalid_syntax();
-                    
+
                     // remove one line from the buffer
                     let split = self
                         .buffer

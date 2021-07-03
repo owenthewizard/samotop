@@ -82,3 +82,4 @@ optional = true
 
 [dev-dependencies]
 env_logger = "0.8"
+insta = { version="1.7", features=["redactions"] }
