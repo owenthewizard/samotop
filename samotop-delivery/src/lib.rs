@@ -76,12 +76,12 @@ pub mod prelude {
 }
 
 use crate::types::*;
-use async_std::io::{copy, Read, Write};
-use futures::{io::AsyncWriteExt, Future};
+use samotop_core::common::io::copy;
+use samotop_core::common::*;
 use std::{fmt, pin::Pin};
 
 pub type SyncFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Sync + Send + 'a>>;
-type SendResult<T> = Result<<T as Transport>::DataStream, <T as Transport>::Error>;
+type SendResult<T> = std::result::Result<<T as Transport>::DataStream, <T as Transport>::Error>;
 
 /// Transport method for emails
 pub trait Transport: std::fmt::Debug {

@@ -22,9 +22,9 @@ use async_std::task;
 use regex::Regex;
 use samotop::{
     io::{client::tls::NoTls, smtp::SmtpService},
-    mail::{Builder, LmtpDispatch, Mapper},
-    parser::SmtpParser,
+    mail::{Builder, Lmtp, LmtpDispatch, Mapper},
     server::TcpServer,
+    smtp::SmtpParser,
 };
 use std::sync::Arc;
 
@@ -51,7 +51,8 @@ async fn main_fut() -> Result<()> {
     let mail_service = Builder::default()
         .using(LmtpDispatch::new("/var/run/dovecot/lmtp".to_owned(), lmtp_connector)?.reuse(0))
         .using(rcpt_map)
-        .using(SmtpParser::default());
+        .using(Lmtp.with(SmtpParser))
+        .into_service();
     let smtp_service = SmtpService::new(Arc::new(mail_service));
 
     TcpServer::on("localhost:2525").serve(smtp_service).await

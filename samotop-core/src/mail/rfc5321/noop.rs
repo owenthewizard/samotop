@@ -1,23 +1,16 @@
-use super::{EsmtpCommand, Rfc5321};
+use super::Esmtp;
 use crate::{
-    common::*,
-    smtp::{ApplyCommand, SmtpNoop, SmtpSessionCommand, SmtpState},
+    common::S1Fut,
+    smtp::{command::SmtpNoop, Action, SmtpState},
 };
 
-impl SmtpSessionCommand for EsmtpCommand<SmtpNoop> {
-    fn verb(&self) -> &str {
-        "NOOP"
-    }
-
-    fn apply(&self, state: SmtpState) -> S1Fut<SmtpState> {
-        Rfc5321::apply_cmd(&self.instruction, state)
-    }
-}
-
-impl ApplyCommand<SmtpNoop> for Rfc5321 {
-    fn apply_cmd(_cmd: &SmtpNoop, mut state: SmtpState) -> S1Fut<SmtpState> {
-        state.say_ok();
-        Box::pin(ready(state))
+impl Action<SmtpNoop> for Esmtp {
+    fn apply<'a, 's, 'f>(&'a self, _cmd: SmtpNoop, state: &'s mut SmtpState) -> S1Fut<'f, ()>
+    where
+        'a: 'f,
+        's: 'f,
+    {
+        Box::pin(async move { state.say_ok() })
     }
 }
 
@@ -26,19 +19,20 @@ mod tests {
     use super::*;
     use crate::{
         mail::{Builder, Recipient},
-        smtp::{SmtpMail, SmtpPath},
+        smtp::{command::SmtpMail, SmtpPath},
     };
-    use futures_await_test::async_test;
 
-    #[async_test]
-    async fn transaction_gets_reset() {
-        let mut set = SmtpState::new(Builder::default());
-        set.transaction.id = "someid".to_owned();
-        set.transaction.mail = Some(SmtpMail::Mail(SmtpPath::Null, vec![]));
-        set.transaction.rcpts.push(Recipient::null());
-        set.transaction.extra_headers.insert_str(0, "feeeha");
-        let sut = Rfc5321::command(SmtpNoop);
-        let _res = sut.apply(set).await;
-        // TODO: assert
+    #[test]
+    fn transaction_gets_reset() {
+        async_std::task::block_on(async move {
+            let mut set = SmtpState::new(Builder::default().into_service());
+            set.transaction.id = "someid".to_owned();
+            set.transaction.mail = Some(SmtpMail::Mail(SmtpPath::Null, vec![]));
+            set.transaction.rcpts.push(Recipient::null());
+            set.transaction.extra_headers.insert_str(0, "feeeha");
+
+            Esmtp.apply(SmtpNoop, &mut set).await;
+            // TODO: assert
+        })
     }
 }

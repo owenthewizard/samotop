@@ -24,17 +24,16 @@ find tmp/samotop/spool/new/ -print -exec cat {} \;
 ```
  */
 
+use async_std::io::Read;
+use async_std::io::Write;
 use async_std::task;
-use futures::AsyncRead as Read;
-use futures::AsyncWrite as Write;
 use samotop::{
     io::{smtp::SmtpService, tls::TlsCapable, ConnectionInfo, IoService},
-    mail::MailSetup,
-    mail::{Builder, Dir, EsmtpService},
-    parser::LmtpParserPeg,
+    mail::{Builder, Dir, Lmtp},
+    smtp::SmtpParser,
 };
+use std::pin::Pin;
 use std::sync::Arc;
-use std::{pin::Pin, time::Duration};
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
@@ -48,8 +47,8 @@ async fn main_fut() -> Result<()> {
     let mail_service = Arc::new(
         Builder::default()
             .using(dir_service)
-            .using(LmtpParserPeg::default())
-            .using(NoTimeout),
+            .using(Lmtp.with(SmtpParser))
+            .into_service(),
     );
     let smtp_service = SmtpService::new(Arc::new(mail_service));
 
@@ -61,21 +60,6 @@ async fn main_fut() -> Result<()> {
     let conn = ConnectionInfo::default();
 
     smtp_service.handle(Ok(Box::new(stream)), conn).await
-}
-
-#[derive(Debug)]
-struct NoTimeout;
-
-impl EsmtpService for NoTimeout {
-    fn prepare_session(&self, session: &mut samotop::mail::SessionInfo) {
-        session.command_timeout = Duration::default();
-    }
-}
-
-impl MailSetup for NoTimeout {
-    fn setup(self, builder: &mut Builder) {
-        builder.esmtp.insert(0, Box::new(self))
-    }
 }
 
 struct MyIo<R, W> {

@@ -20,8 +20,8 @@ impl SMimeMail {
 }
 
 impl MailSetup for SMimeMail {
-    fn setup(self, builder: &mut Builder) {
-        builder.dispatch.insert(0, Box::new(self))
+    fn setup(self, config: &mut Configuration) {
+        config.dispatch.insert(0, Box::new(self))
     }
 }
 

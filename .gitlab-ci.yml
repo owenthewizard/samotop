@@ -1,5 +1,5 @@
 include:
-  - ".gitlab-ci.builder.yml"
+  - "/.gitlab-ci.builder.yml"
 
 variables:
   CARGO_HOME: "$CI_PROJECT_DIR/.cargo"
@@ -95,7 +95,7 @@ nightly-test:
   only:
     - branches
   cache:
-    key: 
+    key:
       prefix: nightly
       files:
         - Cargo.lock
@@ -122,28 +122,17 @@ nightly-test:
   before_script:
     - rustc --version --verbose
     - cargo --version --verbose
+  variables:
+    INPUT: samotop/examples/mailsession.txt
   script:
     - cargo build --example ${EXAMPLE:?} --color always
     - RUST_LOG=trace cargo run --example ${EXAMPLE:?} &
-    - sleep 10
-    - |
-      sed -e 's/$/\r/' <<EOF | curl -v --url 'smtp://localhost:2525' \
-      --mail-from from@spf.org \
-      --mail-rcpt to@mikesh.info \
-      --upload-file - > client.log 2>&1 \
-      || echo "${FAILED:=sending mail failed}"
-      From: Moohoo <moo@hoo.com>
-      To: Yeeehaw <ye@haw.com>
-      Subject: Try me
-
-
-      .
-      ..
-      xoxo
-      EOF
-    - cat client.log | grep -v '* Expire in'
-    - find tmp/samotop/spool/new/ -print -exec cat {} \; || true
-    - test -z "${FAILED}"
+    - sleep 5
+    - nc localhost 2525 <"$INPUT" >client.log
+    - cat "$INPUT"
+    - cat client.log
+    - find tmp/samotop/spool/new/ -type f -print -exec cat {} \; || true
+    - test -z "$OUTPUT" || diff tmp/samotop/spool/new/* "$OUTPUT"
 
 example-lmtp:
   extends: .example-template
@@ -162,30 +151,21 @@ example-dir:
   extends: .example-template
   variables:
     EXAMPLE: to-dirmail
+    OUTPUT: samotop/examples/mailbody.txt
 
 example-cmd:
   extends: .example-template
   variables:
     EXAMPLE: on-cmd
+    INPUT: samotop/examples/mailsessionlmtp.txt
+    OUTPUT: samotop/examples/mailbody.txt
   script:
     - cargo build --example ${EXAMPLE:?}
-    - |
-      sed -e 's/$/\r/' <<EOF | cargo run --example ${EXAMPLE:?}
-      lhlo boogie
-      mail from:<from@spf.org>
-      rcpt to:<komu@makesh.info>
-      rcpt to:<to@mikesh.info>
-      rcpt to:<za@mukesh.info>
-      data
-      From: Moohoo <moo@hoo.com>
-      To: Yeeehaw <ye@haw.com>
-      Subject: Try me
-
-      xoxo
-      .
-      quit
-      EOF
-    - find tmp/samotop/spool/new/ -print -exec cat {} \;
+    - cargo run --example ${EXAMPLE:?} <"$INPUT" >client.log
+    - cat "$INPUT"
+    - cat client.log
+    - find tmp/samotop/spool/new/ -type f -print -exec cat {} \;
+    - test -z "$OUTPUT" || diff tmp/samotop/spool/new/* "$OUTPUT"
 
 publish-crate:
   variables:
@@ -224,8 +204,7 @@ server-version:
     policy: pull
   artifacts:
     reports:
-      dotenv:
-        vars.env
+      dotenv: vars.env
 
 server-docker-image:
   extends: .kaniko-build-template

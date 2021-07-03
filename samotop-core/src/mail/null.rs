@@ -21,8 +21,8 @@ impl MailDispatch for NullDispatch {
     }
 }
 impl MailSetup for NullDispatch {
-    fn setup(self, builder: &mut super::Builder) {
-        builder.dispatch.insert(0, Box::new(self))
+    fn setup(self, config: &mut super::Configuration) {
+        config.dispatch.insert(0, Box::new(self))
     }
 }
 

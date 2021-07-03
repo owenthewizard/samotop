@@ -25,9 +25,9 @@ use samotop::{
         client::{tls::NoTls, TcpConnector},
         smtp::SmtpService,
     },
-    mail::{Builder, LmtpDispatch, Mapper},
-    parser::SmtpParser,
+    mail::{Builder, Esmtp, LmtpDispatch, Mapper},
     server::TcpServer,
+    smtp::SmtpParser,
 };
 use std::sync::Arc;
 
@@ -47,7 +47,8 @@ async fn main_fut() -> Result<()> {
     let mail_service = Builder::default()
         .using(LmtpDispatch::new("dovecot:24".to_owned(), lmtp_connector)?.reuse(0))
         .using(rcpt_map)
-        .using(SmtpParser::default());
+        .using(Esmtp.with(SmtpParser))
+        .into_service();
     let smtp_service = SmtpService::new(Arc::new(mail_service));
 
     TcpServer::on("localhost:2525").serve(smtp_service).await

@@ -17,7 +17,7 @@ impl EsmtpService for Name {
     }
 }
 impl MailSetup for Name {
-    fn setup(self, builder: &mut super::Builder) {
-        builder.esmtp.insert(0, Box::new(self))
+    fn setup(self, config: &mut super::Configuration) {
+        config.esmtp.insert(0, Box::new(self))
     }
 }

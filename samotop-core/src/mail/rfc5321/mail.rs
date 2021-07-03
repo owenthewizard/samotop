@@ -1,43 +1,32 @@
-use super::{EsmtpCommand, Rfc5321};
+use super::Esmtp;
 use crate::{
-    common::*,
+    common::S1Fut,
     mail::{StartMailFailure, StartMailResult, Transaction},
-    smtp::{ApplyCommand, SmtpMail, SmtpSessionCommand, SmtpState},
+    smtp::{command::SmtpMail, Action, SmtpState},
 };
 
-impl SmtpSessionCommand for EsmtpCommand<SmtpMail> {
-    fn verb(&self) -> &str {
-        match self.instruction {
-            SmtpMail::Mail(_, _) => "MAIL",
-            SmtpMail::Send(_, _) => "SEND",
-            SmtpMail::Saml(_, _) => "SAML",
-            SmtpMail::Soml(_, _) => "SOML",
-        }
-    }
+impl Action<SmtpMail> for Esmtp {
+    fn apply<'a, 's, 'f>(&'a self, cmd: SmtpMail, state: &'s mut SmtpState) -> S1Fut<'f, ()>
+    where
+        'a: 'f,
+        's: 'f,
+    {
+        Box::pin(async move {
+            if state.session.peer_name.is_none() {
+                state.say_command_sequence_fail();
+                return;
+            }
+            state.reset();
 
-    fn apply(&self, state: SmtpState) -> S1Fut<SmtpState> {
-        Rfc5321::apply_cmd(&self.instruction, state)
-    }
-}
+            let transaction = Transaction {
+                mail: Some(cmd.clone()),
+                ..Transaction::default()
+            };
 
-impl ApplyCommand<SmtpMail> for Rfc5321 {
-    fn apply_cmd(cmd: &SmtpMail, mut state: SmtpState) -> S1Fut<SmtpState> {
-        if state.session.peer_name.is_none() {
-            state.say_command_sequence_fail();
-            return Box::pin(ready(state));
-        }
-        state.reset();
-
-        let transaction = Transaction {
-            mail: Some(cmd.clone()),
-            ..Transaction::default()
-        };
-
-        let fut = async move {
             use StartMailResult as R;
             match state.service.start_mail(&state.session, transaction).await {
                 R::Failed(StartMailFailure::TerminateSession, description) => {
-                    state.say_shutdown_err(description);
+                    state.say_shutdown_service_err(description);
                 }
                 R::Failed(failure, description) => {
                     state.say_mail_failed(failure, description);
@@ -58,11 +47,8 @@ impl ApplyCommand<SmtpMail> for Rfc5321 {
                     state.say_ok_info(format!("Ok! Transaction {} started.", transaction.id));
                     state.transaction = transaction;
                 }
-            };
-            state
-        };
-
-        Box::pin(fut)
+            }
+        })
     }
 }
 
@@ -70,56 +56,67 @@ impl ApplyCommand<SmtpMail> for Rfc5321 {
 mod tests {
     use super::*;
     use crate::{
-        mail::{Builder, Recipient},
-        smtp::{CodecControl, SmtpMail, SmtpPath},
+        mail::{Builder, Esmtp, Recipient},
+        smtp::{command::SmtpMail, DriverControl, SmtpPath},
     };
-    use futures_await_test::async_test;
 
-    #[async_test]
-    async fn transaction_gets_reset() {
-        let mut set = SmtpState::new(Builder::default());
-        set.session.peer_name = Some("xx.io".to_owned());
-        set.transaction.id = "someid".to_owned();
-        set.transaction.mail = Some(SmtpMail::Mail(SmtpPath::Null, vec![]));
-        set.transaction.rcpts.push(Recipient::null());
-        set.transaction.extra_headers.insert_str(0, "feeeha");
-        let sut = Rfc5321::command(SmtpMail::Mail(SmtpPath::Postmaster, vec![]));
-        let mut res = sut.apply(set).await;
-        match res.writes.pop_front() {
-            Some(CodecControl::Response(bytes)) if bytes.starts_with(b"250 ") => {}
-            otherwise => panic!("Expected OK, got {:?}", otherwise),
-        }
-        assert_ne!(res.transaction.id, "someid");
-        assert!(res.transaction.rcpts.is_empty());
-        assert!(res.transaction.extra_headers.is_empty());
+    #[test]
+    fn transaction_gets_reset() {
+        async_std::task::block_on(async move {
+            let mut set = SmtpState::new(Builder::default().into_service());
+            set.session.peer_name = Some("xx.io".to_owned());
+            set.transaction.id = "someid".to_owned();
+            set.transaction.mail = Some(SmtpMail::Mail(SmtpPath::Null, vec![]));
+            set.transaction.rcpts.push(Recipient::null());
+            set.transaction.extra_headers.insert_str(0, "feeeha");
+
+            Esmtp
+                .apply(SmtpMail::Mail(SmtpPath::Postmaster, vec![]), &mut set)
+                .await;
+            match set.writes.pop_front() {
+                Some(DriverControl::Response(bytes)) if bytes.starts_with(b"250 ") => {}
+                otherwise => panic!("Expected OK, got {:?}", otherwise),
+            }
+            assert_ne!(set.transaction.id, "someid");
+            assert!(set.transaction.rcpts.is_empty());
+            assert!(set.transaction.extra_headers.is_empty());
+        })
     }
 
-    #[async_test]
-    async fn mail_is_set() {
-        let mut set = SmtpState::new(Builder::default());
-        set.session.peer_name = Some("xx.io".to_owned());
-        let sut = Rfc5321::command(SmtpMail::Mail(SmtpPath::Postmaster, vec![]));
-        let mut res = sut.apply(set).await;
-        match res.writes.pop_front() {
-            Some(CodecControl::Response(bytes)) if bytes.starts_with(b"250 ") => {}
-            otherwise => panic!("Expected OK, got {:?}", otherwise),
-        }
-        assert_eq!(
-            res.transaction.mail,
-            Some(SmtpMail::Mail(SmtpPath::Postmaster, vec![]))
-        );
+    #[test]
+    fn mail_is_set() {
+        async_std::task::block_on(async move {
+            let mut set = SmtpState::new(Builder::default().into_service());
+            set.session.peer_name = Some("xx.io".to_owned());
+
+            Esmtp
+                .apply(SmtpMail::Mail(SmtpPath::Postmaster, vec![]), &mut set)
+                .await;
+            match set.writes.pop_front() {
+                Some(DriverControl::Response(bytes)) if bytes.starts_with(b"250 ") => {}
+                otherwise => panic!("Expected OK, got {:?}", otherwise),
+            }
+            assert_eq!(
+                set.transaction.mail,
+                Some(SmtpMail::Mail(SmtpPath::Postmaster, vec![]))
+            );
+        })
     }
 
-    #[async_test]
-    async fn command_sequence_is_enforced() {
-        // MAIL command requires HELO/EHLO
-        let set = SmtpState::new(Builder::default());
-        let sut = Rfc5321::command(SmtpMail::Mail(SmtpPath::Postmaster, vec![]));
-        let mut res = sut.apply(set).await;
-        match res.writes.pop_front() {
-            Some(CodecControl::Response(bytes)) if bytes.starts_with(b"503 ") => {}
-            otherwise => panic!("Expected command sequence failure, got {:?}", otherwise),
-        }
-        assert_eq!(res.transaction.mail, None);
+    #[test]
+    fn command_sequence_is_enforced() {
+        async_std::task::block_on(async move {
+            // MAIL command requires HELO/EHLO
+            let mut set = SmtpState::new(Builder::default().into_service());
+
+            Esmtp
+                .apply(SmtpMail::Mail(SmtpPath::Postmaster, vec![]), &mut set)
+                .await;
+            match set.writes.pop_front() {
+                Some(DriverControl::Response(bytes)) if bytes.starts_with(b"503 ") => {}
+                otherwise => panic!("Expected command sequence failure, got {:?}", otherwise),
+            }
+            assert_eq!(set.transaction.mail, None);
+        })
     }
 }

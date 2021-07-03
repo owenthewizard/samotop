@@ -20,8 +20,8 @@ categories = [
 ]
 
 [badges]
-gitlab = { repository = "BrightOpen/Samotop", branch = "develop" }
-maintenance = { status = "actively-developed" }
+gitlab = { repository="BrightOpen/Samotop", branch="develop" }
+maintenance = { status="actively-developed" }
 
 [features]
 default = ["rust-tls", "spf", "parser-peg", "smime", "delivery"]
@@ -35,16 +35,15 @@ parser-nom = ["samotop-parser-nom"]
 
 [dependencies]
 log = "0.4"
-bytes = "1.0"
 pin-project = "1.0"
-futures = "0.3"
-async-std = "1.9"
+futures = { version="0.3", default-features=false }
+async-std = { version="1.9", default-features=false, features=["unstable"] }
 regex = "1.5"
-smol-timeout = "0.6"
 
 [dependencies.samotop-core]
 version = "0.13.0-samotop-dev"
 path = "../samotop-core"
+features = ["server"]
 
 [dependencies.samotop-parser]
 version = "0.13.0-samotop-dev"
@@ -72,7 +71,7 @@ path = "../samotop-with-native-tls"
 optional = true
 
 [dependencies.samotop-smime]
-version="0.13.0-samotop-dev"
+version = "0.13.0-samotop-dev"
 path = "../samotop-smime"
 optional = true
 
@@ -82,5 +81,5 @@ path = "../samotop-delivery"
 optional = true
 
 [dev-dependencies]
-futures-await-test = "0.3"
 env_logger = "0.8"
+insta = { version="1.7", features=["redactions"] }

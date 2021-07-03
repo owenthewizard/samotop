@@ -1,37 +1,40 @@
-mod codec;
-mod command;
-mod commands;
+pub mod command;
+mod driver;
 pub mod extension;
 mod extensions;
 mod host;
+mod impatient;
+mod interpretter;
+mod parser;
 mod path;
 mod reply;
 mod state;
 
-pub use self::codec::*;
-pub use self::command::*;
+pub use self::driver::*;
 pub use self::extensions::*;
 pub use self::host::*;
+pub use self::impatient::*;
+pub use self::interpretter::*;
+pub use self::parser::*;
 pub use self::path::*;
 pub use self::reply::*;
 pub use self::state::*;
-use crate::parser::Parser;
-use std::fmt;
+
+#[derive(Debug, Copy, Clone)]
+pub struct Dummy;
 
 /// Represents the instructions for the client side of the stream.
-pub enum CodecControl {
+pub enum DriverControl {
     /// Write an SMTP response
     Response(Vec<u8>),
-    /// Switch parser
-    Parser(Box<dyn Parser + Sync + Send>),
     /// Start TLS encryption
     StartTls,
     /// Shut the stream down
     Shutdown,
 }
 
-impl fmt::Debug for CodecControl {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl std::fmt::Debug for DriverControl {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         #[derive(Debug)]
         enum TextOrBytes<'a> {
             T(&'a str),
@@ -45,10 +48,9 @@ impl fmt::Debug for CodecControl {
             }
         }
         match self {
-            CodecControl::Parser(p) => f.debug_tuple("Parser").field(&p).finish(),
-            CodecControl::Response(r) => f.debug_tuple("Response").field(&tb(r)).finish(),
-            CodecControl::StartTls => f.debug_tuple("StartTls").finish(),
-            CodecControl::Shutdown => f.debug_tuple("Shutdown").finish(),
+            DriverControl::Response(r) => f.debug_tuple("Response").field(&tb(r)).finish(),
+            DriverControl::StartTls => f.debug_tuple("StartTls").finish(),
+            DriverControl::Shutdown => f.debug_tuple("Shutdown").finish(),
         }
     }
 }

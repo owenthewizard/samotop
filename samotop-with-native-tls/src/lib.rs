@@ -5,7 +5,7 @@ use samotop_core::io::tls::TlsUpgrade;
 use samotop_core::{
     common::*,
     io::tls::Io,
-    mail::{Builder, MailSetup},
+    mail::{Configuration, MailSetup},
 };
 use std::fmt;
 
@@ -114,13 +114,13 @@ impl fmt::Debug for NativeTlsProvider<TlsConnector> {
 }
 
 impl MailSetup for NativeTlsProvider<TlsConnector> {
-    fn setup(self, builder: &mut Builder) {
-        builder.tls = Box::new(self);
+    fn setup(self, config: &mut Configuration) {
+        config.tls = Box::new(self);
     }
 }
 
 impl MailSetup for NativeTlsProvider<TlsAcceptor> {
-    fn setup(self, builder: &mut Builder) {
-        builder.tls = Box::new(self);
+    fn setup(self, config: &mut Configuration) {
+        config.tls = Box::new(self);
     }
 }

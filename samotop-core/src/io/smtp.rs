@@ -4,12 +4,9 @@ use crate::{
         tls::{Io, MayBeTls, TlsCapable},
         ConnectionInfo, IoService,
     },
-    mail::{MailService, SessionInfo},
+    mail::{Esmtp, MailService, SessionInfo},
     smtp::*,
 };
-use futures::StreamExt;
-use smol_timeout::TimeoutExt;
-use std::time::{Duration, Instant};
 
 /// `SmtpService` provides a stateful SMTP service on a TCP, Unix or other asyn IO conection.
 ///
@@ -23,8 +20,8 @@ use std::time::{Duration, Instant};
 /// This is essential because the commands drive the session. All commands
 /// are `apply()`d to the `SmtpState`.
 ///
-/// Internally it uses the `SmtpCodec` responsible for extracting `ReadControl`
-/// and serializing `CodecControl` items.
+/// Internally it uses the `SmtpDriver` responsible for parsing commands and applying `Action`s
+/// and serializing `DriverControl` items.
 ///
 /// It is effectively a composition and setup of components required to serve SMTP.
 ///
@@ -60,7 +57,6 @@ where
 
             let mut io = io?;
             let mut sess = SessionInfo::new(connection, "".to_owned());
-            sess.command_timeout = Duration::from_secs(10);
 
             // Add tls if needed and available
             if !io.can_encrypt() && !io.is_encrypted() {
@@ -75,34 +71,20 @@ where
                 sess.extensions.enable(&extension::STARTTLS);
             }
 
-            let parser = mail_service.get_parser_for_commands();
+            let mut driver = SmtpDriver::new(io);
+
+            let interpretter = mail_service.get_interpretter();
             let mut state = SmtpState::new(mail_service);
-            let mut codec = SmtpCodec::new(io);
-            codec.send(CodecControl::Parser(parser));
 
             // send connection info
-            state = sess.apply(state).await;
-            let mut last = Instant::now();
-            loop {
+            Esmtp.apply(sess, &mut state).await;
+
+            while driver.is_open() {
                 // fetch and apply commands
-                match codec.next().timeout(Duration::from_secs(1)).await {
-                    Some(Some(command)) => {
-                        state.session.last_command_at = Some(last);
-                        state = command.apply(state).await;
-                        last = Instant::now();
-                    }
-                    None => state = Timeout::new(last).apply(state).await,
-                    Some(None) => {
-                        // client went silent, we're done!
-                        SessionShutdown.apply(state).await;
-                        break Ok(());
-                    }
-                }
-                // write all pending responses
-                for response in state.writes.drain(..) {
-                    codec.send(response);
-                }
+                driver.drive(&interpretter, &mut state).await?
             }
+
+            Ok(())
         })
     }
 }

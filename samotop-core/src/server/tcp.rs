@@ -3,33 +3,39 @@ use crate::io::tls::{Io, MayBeTls, TlsCapable};
 use crate::io::*;
 use async_std::stream::StreamExt;
 use async_std::task;
-use async_std::{os::unix::net::UnixListener, path::PathBuf};
-use futures::{future::BoxFuture, stream::FuturesUnordered};
+use futures_util::stream::FuturesUnordered;
 
-/// `UnixServer` takes care of accepting Unix socket connections and passing them to an `IoService` to `handle()`.
+use async_std::net::{TcpListener, ToSocketAddrs};
+use futures_util::TryFutureExt;
+use std::net::SocketAddr;
+
+/// `TcpServer` takes care of accepting TCP connections and passing them to an `IoService` to `handle()`.
 #[derive(Default)]
-pub struct UnixServer<'a> {
-    ports: Vec<BoxFuture<'a, Result<Vec<PathBuf>>>>,
+pub struct TcpServer<'a> {
+    ports: Vec<S1Fut<'a, Result<Vec<SocketAddr>>>>,
 }
 
-impl<'a> UnixServer<'a> {
+impl<'a> TcpServer<'a> {
     pub fn on<N>(ports: N) -> Self
     where
-        N: Into<PathBuf> + 'a,
+        N: ToSocketAddrs + 'a,
+        N::Iter: Send,
     {
         Self::default().and(ports)
     }
     pub fn on_all<I, N>(ports: I) -> Self
     where
         I: IntoIterator<Item = N>,
-        N: Into<PathBuf> + 'a,
+        N: ToSocketAddrs + 'a,
+        N::Iter: Send,
     {
         Self::default().and_all(ports)
     }
     pub fn and_all<I, N>(mut self, ports: I) -> Self
     where
         I: IntoIterator<Item = N>,
-        N: Into<PathBuf> + 'a,
+        N: ToSocketAddrs + 'a,
+        N::Iter: Send,
     {
         for port in ports.into_iter() {
             self = self.and(port);
@@ -38,16 +44,19 @@ impl<'a> UnixServer<'a> {
     }
     pub fn and<N>(mut self, ports: N) -> Self
     where
-        N: Into<PathBuf> + 'a,
+        N: ToSocketAddrs + 'a,
+        N::Iter: Send,
     {
         self.ports.push(Box::pin(Self::map_ports(ports)));
         self
     }
-    fn map_ports(addrs: impl Into<PathBuf>) -> impl Future<Output = Result<Vec<PathBuf>>> {
-        // todo: check if file exists and is a socket here?
-        ready(Ok(vec![addrs.into()]))
+    fn map_ports(addrs: impl ToSocketAddrs) -> impl Future<Output = Result<Vec<SocketAddr>>> {
+        addrs
+            .to_socket_addrs()
+            .map_ok(|i| i.into_iter().collect())
+            .map_err(|e| e.into())
     }
-    pub async fn resolve_ports(&mut self) -> Result<Vec<PathBuf>> {
+    pub async fn resolve_ports(&mut self) -> Result<Vec<SocketAddr>> {
         let mut result = vec![];
         for port in self.ports.iter_mut() {
             let port = port.await?;
@@ -61,11 +70,12 @@ impl<'a> UnixServer<'a> {
     {
         Self::serve_ports(service, self.resolve_ports().await?).await
     }
-    async fn serve_ports<S>(service: S, addrs: impl IntoIterator<Item = PathBuf>) -> Result<()>
+    async fn serve_ports<S>(service: S, addrs: impl IntoIterator<Item = SocketAddr>) -> Result<()>
     where
         S: IoService + Send + Sync,
     {
         let svc = Arc::new(service);
+
         addrs
             .into_iter()
             .map(|a| Self::serve_port(svc.clone(), a))
@@ -78,12 +88,12 @@ impl<'a> UnixServer<'a> {
             })
             .await
     }
-    async fn serve_port<S>(service: S, addr: PathBuf) -> Result<()>
+    async fn serve_port<S>(service: S, addr: SocketAddr) -> Result<()>
     where
         S: IoService + Clone,
     {
         trace!("Binding on {:?}", addr);
-        let listener = UnixListener::bind(addr.clone())
+        let listener = TcpListener::bind(addr)
             .await
             .map_err(|e| format!("Unable to bind {:?}: {}", addr, e))?;
         let mut incoming = listener.incoming();
@@ -93,21 +103,11 @@ impl<'a> UnixServer<'a> {
                 ConnectionInfo::new(
                     stream
                         .local_addr()
-                        .ok()
-                        .and_then(|s| {
-                            s.as_pathname()
-                                .and_then(|p| p.to_str())
-                                .map(|s| s.to_owned())
-                        })
+                        .map(|s| s.to_string())
                         .unwrap_or_default(),
                     stream
                         .peer_addr()
-                        .ok()
-                        .and_then(|s| {
-                            s.as_pathname()
-                                .and_then(|p| p.to_str())
-                                .map(|s| s.to_owned())
-                        })
+                        .map(|s| s.to_string())
                         .unwrap_or_default(),
                 )
             } else {
