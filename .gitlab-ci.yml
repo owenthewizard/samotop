@@ -131,7 +131,7 @@ nightly-test:
     - nc localhost 2525 <"$INPUT" >client.log
     - cat "$INPUT"
     - cat client.log
-    - find tmp/samotop/spool/new/ -type f -print -exec cat {} \;
+    - find tmp/samotop/spool/new/ -type f -print -exec cat {} \; || true
     - test -z "$OUTPUT" || diff tmp/samotop/spool/new/* "$OUTPUT"
 
 example-lmtp:
@@ -164,7 +164,7 @@ example-cmd:
     - cargo run --example ${EXAMPLE:?} <"$INPUT" >client.log
     - cat "$INPUT"
     - cat client.log
-    - find tmp/samotop/spool/new/ -type f -print -exec cat {} \; || true
+    - find tmp/samotop/spool/new/ -type f -print -exec cat {} \;
     - test -z "$OUTPUT" || diff tmp/samotop/spool/new/* "$OUTPUT"
 
 publish-crate:
