@@ -1,6 +1,12 @@
-#[cfg(any(feature = "parser-peg", feature = "parser-nom"))]
+#[cfg(all(
+    feature = "mapper",
+    any(feature = "parser-peg", feature = "parser-nom")
+))]
 mod mapper;
-#[cfg(any(feature = "parser-peg", feature = "parser-nom"))]
+#[cfg(all(
+    feature = "mapper",
+    any(feature = "parser-peg", feature = "parser-nom")
+))]
 pub use self::mapper::*;
 
 pub use samotop_core::mail::*;

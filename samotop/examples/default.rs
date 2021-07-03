@@ -18,7 +18,6 @@ EOF
 
  */
 
-use async_std::task;
 use samotop::mail::{Builder, Esmtp};
 use samotop::server::TcpServer;
 use samotop::smtp::SmtpParser;
@@ -27,12 +26,9 @@ use std::sync::Arc;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
-fn main() -> Result<()> {
+#[async_std::main]
+async fn main() -> Result<()> {
     env_logger::init();
-    task::block_on(main_fut())
-}
-
-async fn main_fut() -> Result<()> {
     let mail_service = Builder::default()
         .using(NullDispatch)
         .using(Esmtp.with(SmtpParser))
