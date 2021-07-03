@@ -17,6 +17,7 @@ RUN cat /etc/apt/sources.list | sed 's/^deb /deb-src /g' > /etc/apt/sources.list
 # - pkg-config - so that rust build scripts find the right lib headers (openssl)
 RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
     musl-dev musl-tools build-essential \
+    netcat \
     jq \
     git \
     curl \

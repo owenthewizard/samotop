@@ -2,21 +2,25 @@
 
 extern crate samotop;
 
-use crate::samotop::parser::*;
+use std::io::stdin;
 
-fn main() {
-    let input = String::new()
-        + "EHLO there\r\n"
-        + "MAIL FROM:<a@b.c> param1=value1 param2=value2\r\n"
-        + "RCPT TO:<x@y.z>\r\n"
-        + "DATA\r\n"
-        + "QUIT\r\n";
+use samotop::smtp::command::SmtpCommand;
 
-    let mut input = input.as_bytes();
+use crate::samotop::smtp::*;
 
-    while !input.is_empty() {
-        let (i, item) = SmtpParser::default().parse_command(input).unwrap();
-        input = i;
-        println!("Parsed: {:#?}", item);
+fn main() -> std::io::Result<()> {
+    let mut input = String::new();
+
+    let mut state = SmtpState::default();
+
+    loop {
+        let _len = stdin().read_line(&mut input)?;
+
+        while !input.is_empty() {
+            let (i, item): (usize, SmtpCommand) =
+                SmtpParser.parse(input.as_bytes(), &mut state).unwrap();
+            println!("Parsed: {:#?}", item);
+            input = input.split_off(i);
+        }
     }
 }

@@ -1,7 +1,6 @@
 use crate::{
-    mail::{AddRecipientFailure, MailService, SessionInfo, StartMailFailure, Transaction},
-    parser::Parser,
-    smtp::{CodecControl, SmtpPath, SmtpReply},
+    mail::{AddRecipientFailure, Builder, MailService, SessionInfo, StartMailFailure, Transaction},
+    smtp::{DriverControl, SmtpPath, SmtpReply},
 };
 use std::collections::VecDeque;
 
@@ -9,7 +8,18 @@ pub struct SmtpState {
     pub service: Box<dyn SyncMailService>,
     pub session: SessionInfo,
     pub transaction: Transaction,
-    pub writes: VecDeque<CodecControl>,
+    pub writes: VecDeque<DriverControl>,
+}
+
+impl Default for SmtpState {
+    fn default() -> Self {
+        SmtpState {
+            service: Box::new(Builder::default().into_service()),
+            session: SessionInfo::default(),
+            transaction: Transaction::default(),
+            writes: vec![].into(),
+        }
+    }
 }
 
 impl SmtpState {
@@ -26,8 +36,15 @@ impl SmtpState {
         self.session.peer_name = Some(peer_name);
     }
 
-    pub fn reset(&mut self) {
+    pub fn reset(&mut self) -> SayResult {
         self.transaction = Transaction::default();
+    }
+
+    /// Shut the session down without a response
+    pub fn shutdown(&mut self) -> SayResult {
+        self.reset();
+        self.session = SessionInfo::default();
+        self.say(DriverControl::Shutdown)
     }
 }
 
@@ -35,11 +52,11 @@ impl SmtpState {
     //TODO: split say into action and response
     //fn start_tls(&mut self) -> Pin<Box<dyn Future<Output = Result<()>>>>;
 
-    pub fn say(&mut self, what: CodecControl) -> SayResult {
+    pub fn say(&mut self, what: DriverControl) -> SayResult {
         self.writes.push_back(what);
     }
     pub fn say_reply(&mut self, c: SmtpReply) -> SayResult {
-        self.say(CodecControl::Response(c.to_string().into()))
+        self.say(DriverControl::Response(c.to_string().into()))
     }
     pub fn say_ok(&mut self) -> SayResult {
         self.say_reply(SmtpReply::OkInfo)
@@ -78,20 +95,29 @@ impl SmtpState {
             extensions,
         })
     }
+    /// Shut the session down with a response
     pub fn say_shutdown(&mut self, reply: SmtpReply) -> SayResult {
         self.say_reply(reply);
-        self.say(CodecControl::Shutdown);
+        self.shutdown()
     }
-    pub fn say_shutdown_err(&mut self, description: String) -> SayResult {
+    /// Service error
+    pub fn say_shutdown_service_err(&mut self, description: String) -> SayResult {
+        error!("Service error: {}", description);
         self.say_shutdown(SmtpReply::ServiceNotAvailableError(description))
     }
+    /// Processing error
+    pub fn say_shutdown_processing_err(&mut self, description: String) -> SayResult {
+        error!("Processing error: {}", description);
+        self.say_shutdown(SmtpReply::ProcesingError)
+    }
+    /// Normal response to quit command
     pub fn say_shutdown_ok(&mut self, description: String) -> SayResult {
         self.say_shutdown(SmtpReply::ClosingConnectionInfo(description))
     }
     pub fn say_mail_failed(&mut self, failure: StartMailFailure, description: String) -> SayResult {
         use StartMailFailure as F;
         match failure {
-            F::TerminateSession => self.say_shutdown_err(description),
+            F::TerminateSession => self.say_shutdown_service_err(description),
             F::Rejected => self.say_reply(SmtpReply::MailboxNotAvailableFailure),
             F::InvalidSender => self.say_reply(SmtpReply::MailboxNameInvalidFailure),
             F::InvalidParameter => self.say_reply(SmtpReply::UnknownMailParametersFailure),
@@ -125,14 +151,14 @@ impl SmtpState {
     pub fn say_mail_queue_refused(&mut self) -> SayResult {
         self.say_reply(SmtpReply::MailboxNotAvailableFailure)
     }
-    pub fn say_start_data_challenge(&mut self, parser: Box<dyn Parser + Sync + Send>) -> SayResult {
+    pub fn say_start_data_challenge(&mut self) -> SayResult {
         self.say_reply(SmtpReply::StartMailInputChallenge);
-        self.say(CodecControl::Parser(parser));
+        self.transaction.mode = Some(Transaction::DATA_MODE);
     }
     pub fn say_start_tls(&mut self, name: String) -> SayResult {
         // TODO: better message response
         self.say_reply(SmtpReply::ServiceReadyInfo(name));
-        self.say(CodecControl::StartTls);
+        self.say(DriverControl::StartTls);
     }
     pub fn say_mail_queue_failed_temporarily(&mut self) -> SayResult {
         self.say_reply(SmtpReply::MailboxNotAvailableError)
@@ -153,13 +179,12 @@ mod tests {
     use super::*;
     use crate::{
         mail::{Builder, Recipient},
-        smtp::{SmtpMail, SmtpPath},
+        smtp::{command::SmtpMail, SmtpPath},
     };
-    use futures_await_test::async_test;
 
-    #[async_test]
-    async fn transaction_gets_reset() {
-        let mut sut = SmtpState::new(Builder::default());
+    #[test]
+    fn transaction_gets_reset() {
+        let mut sut = SmtpState::new(Builder::default().into_service());
         sut.transaction.id = "someid".to_owned();
         sut.transaction.mail = Some(SmtpMail::Mail(SmtpPath::Null, vec![]));
         sut.transaction.rcpts.push(Recipient::null());

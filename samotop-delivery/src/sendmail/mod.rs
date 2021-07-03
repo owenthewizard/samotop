@@ -5,13 +5,10 @@ mod error;
 pub use self::error::*;
 use crate::{sendmail::error::Error, SyncFuture};
 use crate::{Envelope, MailDataStream, Transport};
-use async_std::io::Write;
 use async_std::task;
-use futures::{ready, Future};
+use samotop_core::common::*;
 use std::ops::DerefMut;
-use std::pin::Pin;
 use std::process::{Child, Command, Stdio};
-use std::task::{Context, Poll};
 use std::{convert::AsRef, fmt};
 
 /// Sends an envelope using the `sendmail` command
@@ -43,7 +40,10 @@ impl SendmailTransport {
 impl Transport for SendmailTransport {
     type DataStream = ProcStream;
     type Error = Error;
-    fn send_stream<'s, 'a>(&'s self, envelope: Envelope) -> SyncFuture<Result<ProcStream, Error>>
+    fn send_stream<'s, 'a>(
+        &'s self,
+        envelope: Envelope,
+    ) -> SyncFuture<std::result::Result<ProcStream, Error>>
     where
         's: 'a,
     {

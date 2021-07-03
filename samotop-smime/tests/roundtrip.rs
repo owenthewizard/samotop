@@ -1,9 +1,8 @@
-use futures_await_test::async_test;
 use futures_lite::AsyncWriteExt;
 use samotop_core::common::Result;
 use samotop_smime::SMime;
 
-#[async_test]
+#[async_std::test]
 async fn sign_and_encrypt() -> Result<()> {
     let secret = b"secret stuff";
     let mut encrypted = Vec::new();

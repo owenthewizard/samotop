@@ -1,16 +1,16 @@
 use crate::smtp::authentication::Authentication;
 use crate::smtp::commands::*;
-use crate::smtp::error::{Error, SmtpResult};
 use crate::smtp::extension::{ClientId, ServerInfo};
 use crate::smtp::response::parse_response;
 use crate::smtp::response::Response;
-use async_std::io::{self, Read, ReadExt, Write};
 use bytes::{Buf, BufMut, BytesMut};
-use futures::io::AsyncWriteExt as WriteExt;
-use futures::Future;
+use samotop_core::common::*;
 use std::fmt::Display;
 use std::pin::Pin;
 use std::time::Duration;
+
+use crate::smtp::error::{Error, SmtpResult};
+use std::result::Result;
 
 /// Basic SMTP mail protocol client
 /// As a rule of thumb, this code only takes care of SMTP.

@@ -2,7 +2,7 @@ use log::error;
 use samotop_core::{
     common::{ready, S2Fut},
     mail::{
-        AddRecipientFailure, AddRecipientRequest, AddRecipientResult, Builder, Certificate,
+        AddRecipientFailure, AddRecipientRequest, AddRecipientResult, Certificate, Configuration,
         MailGuard, MailSetup, SessionInfo, StartMailRequest, StartMailResult,
     },
 };
@@ -20,8 +20,8 @@ impl Accounts {
 }
 
 impl MailSetup for Accounts {
-    fn setup(self, builder: &mut Builder) {
-        builder.guard.insert(0, Box::new(self))
+    fn setup(self, config: &mut Configuration) {
+        config.guard.insert(0, Box::new(self))
     }
 }
 

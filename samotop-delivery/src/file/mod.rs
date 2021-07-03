@@ -10,13 +10,9 @@ use crate::MailDataStream;
 use crate::Transport;
 use crate::{file::error::Error, SyncFuture};
 use async_std::fs::File;
-use async_std::io::Write;
 use async_std::path::Path;
-use futures::io::AsyncWriteExt;
-use futures::ready;
+use samotop_core::common::*;
 use std::path::PathBuf;
-use std::pin::Pin;
-use std::task::{Context, Poll};
 
 /// Writes the content and the envelope information to a file.
 #[derive(Debug)]
@@ -52,7 +48,7 @@ impl Transport for FileTransport {
     fn send_stream<'s, 'a>(
         &'s self,
         envelope: Envelope,
-    ) -> SyncFuture<'a, Result<FileStream, Error>>
+    ) -> SyncFuture<'a, std::result::Result<FileStream, Error>>
     where
         's: 'a,
     {

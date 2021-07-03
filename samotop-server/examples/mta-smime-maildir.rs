@@ -20,11 +20,16 @@ use async_std::io::ReadExt;
 use async_std::task;
 use async_tls::TlsAcceptor;
 use rustls::ServerConfig;
-use samotop::mail::{Builder, Dir, Name};
-use samotop::parser::SmtpParser;
-use samotop::server::TcpServer;
-use samotop::{io::smtp::SmtpService, mail::smime::SMimeMail};
-use samotop::{io::tls::RustlsProvider, mail::smime::Accounts};
+use samotop::{
+    io::smtp::SmtpService,
+    io::tls::RustlsProvider,
+    mail::{
+        smime::{Accounts, SMimeMail},
+        Builder, Dir, Esmtp, Name,
+    },
+    server::TcpServer,
+    smtp::SmtpParser,
+};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use structopt::StructOpt;
@@ -50,10 +55,11 @@ async fn main_fut() -> Result<()> {
         ))
         .using(Dir::new(setup.get_mail_dir())?)
         .using(samotop::mail::spf::provide_viaspf())
-        .using(SmtpParser::default())
+        .using(Esmtp.with(SmtpParser))
         .using(RustlsProvider::from(TlsAcceptor::from(
             setup.get_tls_config().await?,
-        )));
+        )))
+        .into_service();
 
     let smtp_service = SmtpService::new(Arc::new(mail_service));
 

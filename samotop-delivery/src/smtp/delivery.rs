@@ -37,9 +37,9 @@ where
     C: 'static,
     <C as Connector>::Stream: std::fmt::Debug,
 {
-    fn setup(self, builder: &mut Builder) {
+    fn setup(self, config: &mut Configuration) {
         let transport = self.client.connect_with(self.connector);
-        builder
+        config
             .dispatch
             .insert(0, Box::new(DispatchMail::new(transport)))
     }

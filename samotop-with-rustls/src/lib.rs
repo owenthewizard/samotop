@@ -2,7 +2,7 @@ use async_tls::{TlsAcceptor, TlsConnector};
 use samotop_core::{
     common::*,
     io::tls::{Io, TlsProvider, TlsUpgrade},
-    mail::{Builder, MailSetup},
+    mail::{Configuration, MailSetup},
 };
 use std::fmt;
 
@@ -81,13 +81,13 @@ impl fmt::Debug for RustlsProvider<TlsConnector> {
 }
 
 impl MailSetup for RustlsProvider<TlsConnector> {
-    fn setup(self, builder: &mut Builder) {
-        builder.tls = Box::new(self);
+    fn setup(self, config: &mut Configuration) {
+        config.tls = Box::new(self);
     }
 }
 
 impl MailSetup for RustlsProvider<TlsAcceptor> {
-    fn setup(self, builder: &mut Builder) {
-        builder.tls = Box::new(self);
+    fn setup(self, config: &mut Configuration) {
+        config.tls = Box::new(self);
     }
 }

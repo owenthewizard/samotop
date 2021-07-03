@@ -1,4 +1,4 @@
-use crate::mail::Builder;
+use crate::mail::Configuration;
 
 /**
 Can set up the given mail services.
@@ -11,9 +11,9 @@ struct NoDispatch;
 
 impl MailSetup for NoDispatch
 {
-    fn setup(self, builder: &mut Builder) {
-        builder.dispatch.clear();
-        builder.dispatch.insert(0, Box::new(NullDispatch))
+    fn setup(self, config: &mut Configuration) {
+        config.dispatch.clear();
+        config.dispatch.insert(0, Box::new(NullDispatch))
     }
 }
 
@@ -22,20 +22,20 @@ let mail_svc = Builder::default().using(NoDispatch);
 ```
 */
 pub trait MailSetup: std::fmt::Debug {
-    fn setup(self, builder: &mut Builder);
+    fn setup(self, config: &mut Configuration);
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mail::{DebugMailService, MailService};
+    use crate::mail::{Builder, DebugMailService, MailService};
 
     #[derive(Debug)]
     struct TestSetup;
 
     impl MailSetup for TestSetup {
-        fn setup(self, builder: &mut Builder) {
-            builder
+        fn setup(self, config: &mut Configuration) {
+            config
                 .dispatch
                 .insert(0, Box::new(DebugMailService::default()))
         }
@@ -44,15 +44,15 @@ mod tests {
     #[test]
     fn test_setup() {
         let setup = TestSetup;
-        let mut builder = Builder::default();
-        setup.setup(&mut builder);
-        hungry(builder);
+        let mut config = Configuration::default();
+        setup.setup(&mut config);
+        hungry(config);
     }
     #[test]
     fn test_using() {
         let setup = TestSetup;
         let builder = Builder::default();
-        let composite = builder.using(setup);
+        let composite = builder.using(setup).into_service();
         hungry(composite);
     }
 
