@@ -5,11 +5,43 @@ use crate::smtp::{DriverControl, Interpret, ParseError, SmtpState};
 use std::fmt;
 use std::fmt::Display;
 
+pub trait Drive {
+    fn drive<'a, 's, 'f>(
+        &'a mut self,
+        state: &'s mut SmtpState,
+    ) -> S1Fut<'f, std::result::Result<(), DriverError>>
+    where
+        'a: 'f,
+        's: 'f;
+}
+
 pub struct SmtpDriver<IO> {
     /// the underlying IO, such as TcpStream
     /// It will be set to None once closed
     io: Option<BufReader<IO>>,
     buffer: Vec<u8>,
+}
+
+impl<IO> Drive for SmtpDriver<IO>
+where
+    IO: MayBeTls,
+{
+    fn drive<'a, 's, 'f>(
+        &'a mut self,
+        state: &'s mut SmtpState,
+    ) -> S1Fut<'f, std::result::Result<(), DriverError>>
+    where
+        'a: 'f,
+        's: 'f,
+    {
+        Box::pin(async move {
+            while self.is_open() {
+                // fetch and apply commands
+                self.drive_once(state).await?
+            }
+            Ok(())
+        })
+    }
 }
 
 impl<IO> SmtpDriver<IO>
@@ -22,14 +54,10 @@ where
             buffer: vec![],
         }
     }
-    pub fn is_open(&self) -> bool {
+    fn is_open(&self) -> bool {
         self.io.is_some()
     }
-    pub async fn drive(
-        &mut self,
-        interpretter: &(dyn Interpret + Sync),
-        state: &mut SmtpState,
-    ) -> std::result::Result<(), DriverError> {
+    async fn drive_once(&mut self, state: &mut SmtpState) -> std::result::Result<(), DriverError> {
         let mut io = if let Some(io) = self.io.take() {
             io
         } else {
@@ -38,7 +66,7 @@ where
 
         // write all pending responses
         while let Some(response) = state.writes.pop_front() {
-            trace!("Processing codec control {:?}", response);
+            trace!("Processing driver control {:?}", response);
             match response {
                 DriverControl::Response(bytes) => {
                     match io.get_mut().write_all(bytes.as_ref()).await {
@@ -68,8 +96,13 @@ where
         }
 
         self.io = loop {
+            let interpretter = state.service.get_interpretter();
             match interpretter.interpret(self.buffer.as_slice(), state).await {
-                Ok(consumed) => {
+                Ok(None) => {
+                    // Action taken, but no input consumed (i.e. session setup / shut down)
+                    break Some(io);
+                }
+                Ok(Some(consumed)) => {
                     assert!(consumed != 0, "if consumed is 0, infinite loop is likely");
                     // TODO: handle buffer more efficiently, now allocating all the time
                     self.buffer = self.buffer.split_off(consumed);
@@ -114,6 +147,13 @@ where
         };
 
         Ok(())
+    }
+}
+
+impl<IO> SmtpDriver<IO> {
+    pub fn into_inner(self) -> (Vec<u8>, Option<IO>) {
+        let Self { io, buffer } = self;
+        (buffer, io.map(|io| io.into_inner()))
     }
 }
 

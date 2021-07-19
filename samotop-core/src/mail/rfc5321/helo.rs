@@ -58,7 +58,7 @@ mod tests {
     #[test]
     fn transaction_gets_reset() {
         async_std::task::block_on(async move {
-            let mut set = SmtpState::new(Builder::default().into_service());
+            let mut set = SmtpState::new(Builder::default().build());
             set.transaction.id = "someid".to_owned();
             set.transaction.mail = Some(SmtpMail::Mail(SmtpPath::Null, vec![]));
             set.transaction.rcpts.push(Recipient::null());
@@ -80,7 +80,7 @@ mod tests {
     #[test]
     fn helo_is_set() {
         async_std::task::block_on(async move {
-            let mut set = SmtpState::new(Builder::default().into_service());
+            let mut set = SmtpState::new(Builder::default().build());
 
             Esmtp
                 .apply(
@@ -97,7 +97,7 @@ mod tests {
 
     #[test]
     fn is_sync_and_send() {
-        let mut set = SmtpState::new(Builder::default().into_service());
+        let mut set = SmtpState::new(Builder::default().build());
         let res = Esmtp.apply(
             SmtpHelo {
                 verb: "EHLO".to_string(),

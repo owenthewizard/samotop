@@ -105,13 +105,11 @@ Look at samotop-server for a working example with TLS and other features.
 extern crate async_std;
 extern crate env_logger;
 extern crate samotop;
-use std::sync::Arc;
 fn main() {
     env_logger::init();
     let interpretter = samotop::mail::Esmtp.with(samotop::smtp::SmtpParser);
-    let mail = samotop::mail::Builder::default().using(interpretter).into_service();
-    let svc = samotop::io::smtp::SmtpService::new(Arc::new(mail));
-    let srv = samotop::server::TcpServer::on("localhost:25").serve(svc);
+    let mail = samotop::mail::Builder::default().using(interpretter).build();
+    let srv = samotop::server::TcpServer::on("localhost:25").serve(mail);
     async_std::task::block_on(srv).unwrap()
 }
 ```

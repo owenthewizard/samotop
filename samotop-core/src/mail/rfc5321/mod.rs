@@ -32,7 +32,7 @@ impl Esmtp {
         P: Parser<SmtpCommand>,
         P: Parser<MailBody<Vec<u8>>>,
     {
-        Interpretter::default()
+        Interpretter::session_setup(Esmtp)
             .parse::<SmtpCommand>()
             .with(parser.clone())
             .and_apply(Esmtp)

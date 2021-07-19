@@ -1,10 +1,13 @@
-use crate::{io::tls::TlsProvider, mail::*};
+use crate::{
+    io::{tls::TlsProvider, IoService},
+    mail::*,
+};
 
 pub trait MailService:
-    TlsProvider + ParserProvider + EsmtpService + MailGuard + MailDispatch
+    IoService + TlsProvider + DriverProvider + EsmtpService + MailGuard + MailDispatch
 {
 }
 impl<T> MailService for T where
-    T: TlsProvider + ParserProvider + EsmtpService + MailGuard + MailDispatch
+    T: IoService + TlsProvider + DriverProvider + EsmtpService + MailGuard + MailDispatch
 {
 }

@@ -21,7 +21,6 @@ use async_std::task;
 use async_tls::TlsAcceptor;
 use rustls::ServerConfig;
 use samotop::{
-    io::smtp::SmtpService,
     io::tls::RustlsProvider,
     mail::{
         smime::{Accounts, SMimeMail},
@@ -31,7 +30,6 @@ use samotop::{
     smtp::SmtpParser,
 };
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 use structopt::StructOpt;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
@@ -59,12 +57,10 @@ async fn main_fut() -> Result<()> {
         .using(RustlsProvider::from(TlsAcceptor::from(
             setup.get_tls_config().await?,
         )))
-        .into_service();
-
-    let smtp_service = SmtpService::new(Arc::new(mail_service));
+        .build();
 
     info!("I am {}", setup.get_my_name());
-    TcpServer::on_all(ports).serve(smtp_service).await
+    TcpServer::on_all(ports).serve(mail_service).await
 }
 
 pub struct Setup {

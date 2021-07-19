@@ -28,7 +28,8 @@ pub trait MailSetup: std::fmt::Debug {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mail::{Builder, DebugMailService, MailService};
+    use crate::mail::{Builder, DebugMailService, MailService, Service};
+    use std::sync::Arc;
 
     #[derive(Debug)]
     struct TestSetup;
@@ -46,13 +47,13 @@ mod tests {
         let setup = TestSetup;
         let mut config = Configuration::default();
         setup.setup(&mut config);
-        hungry(config);
+        hungry(Service::new(config));
     }
     #[test]
     fn test_using() {
         let setup = TestSetup;
         let builder = Builder::default();
-        let composite = builder.using(setup).into_service();
+        let composite = builder.using(setup).build();
         hungry(composite);
     }
 

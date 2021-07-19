@@ -39,10 +39,7 @@ struct ImpatientSetup {
 
 impl MailSetup for ImpatientSetup {
     fn setup(self, config: &mut Configuration) {
-        config.interpretter = Box::new(Arc::new(Impatient::new(
-            config.interpretter.clone(),
-            self.timeout,
-        )))
+        config.interpretter = Arc::new(Impatient::new(config.interpretter.clone(), self.timeout))
     }
 }
 
@@ -70,7 +67,7 @@ impl Impatient {
             }
             Err(_e) => {
                 Esmtp.apply(Timeout, state).await;
-                Ok(0)
+                Ok(None)
             }
         }
     }

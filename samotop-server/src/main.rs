@@ -116,13 +116,11 @@ use async_std::task;
 use async_std::{fs::File, io::Read};
 use async_tls::TlsAcceptor;
 use rustls::ServerConfig;
-use samotop::io::smtp::SmtpService;
 use samotop::io::tls::RustlsProvider;
 use samotop::mail::{Builder, Dir, Esmtp, Name};
 use samotop::server::TcpServer;
 use samotop::smtp::{Impatient, SmtpParser};
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 use std::time::Duration;
 use structopt::StructOpt;
 
@@ -149,10 +147,8 @@ async fn main_fut() -> Result<()> {
         builder = builder.using(RustlsProvider::from(TlsAcceptor::from(cfg)));
     }
 
-    let smtp_service = SmtpService::new(Arc::new(builder.into_service()));
-
     info!("I am {}", setup.get_my_name());
-    TcpServer::on_all(ports).serve(smtp_service).await
+    TcpServer::on_all(ports).serve(builder.build()).await
 }
 
 pub struct Setup {

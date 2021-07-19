@@ -5,12 +5,11 @@ use async_std::{
 use regex::Regex;
 use samotop::{
     io::IoService,
-    io::{smtp::SmtpService, tls::TlsCapable, ConnectionInfo},
+    io::{tls::TlsCapable, ConnectionInfo},
     mail::{Builder, Esmtp, NullDispatch},
     smtp::SmtpParser,
 };
 use samotop_core::common::*;
-use std::sync::Arc;
 
 #[async_std::test]
 async fn svc() -> Result<()> {
@@ -31,10 +30,9 @@ async fn svc() -> Result<()> {
     let mail_service = Builder::default()
         .using(NullDispatch)
         .using(Esmtp.with(SmtpParser))
-        .into_service();
-    let smtp_service = SmtpService::new(Arc::new(mail_service));
+        .build();
 
-    smtp_service
+    mail_service
         .handle(Ok(io), ConnectionInfo::default())
         .await?;
 
@@ -101,11 +99,11 @@ impl<R> Write for TestIo<R, Sender<Vec<u8>>> {
         }
     }
 
-    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+    fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         Poll::Ready(Ok(()))
     }
 
-    fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+    fn poll_close(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         Poll::Ready(Ok(()))
     }
 }

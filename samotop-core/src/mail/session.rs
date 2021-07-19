@@ -14,6 +14,8 @@ pub struct SessionInfo {
     pub peer_name: Option<String>,
     /// records the last instant a command was received
     pub last_command_at: Instant,
+    /// Has the session been set up yet?
+    pub has_been_set_up: bool,
 }
 
 impl SessionInfo {
@@ -34,6 +36,7 @@ impl Default for SessionInfo {
             extensions: Default::default(),
             service_name: Default::default(),
             peer_name: Default::default(),
+            has_been_set_up: Default::default(),
         }
     }
 }
