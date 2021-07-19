@@ -1,0 +1,92 @@
+@startuml
+
+title Contact requests
+
+actor user
+participant IMAP
+participant MSA
+participant Accounts
+participant MTA
+
+MTA <- : rcpt to:<me@here.org>
+activate MTA
+
+MTA -> Accounts++ : check
+return OK
+MTA -> Accounts : confirm contact
+activate Accounts
+
+hnote over Accounts
+    Accounts check the 
+    pending/approved/rejected
+    contact requests and
+    add new contacts as pending.
+end hnote
+
+alt Not approved nor rejected yet
+Accounts --> MTA: pending
+MTA --> : 450 Rejected temporarily
+note right
+    Sender SMTP shall retry later
+end note
+end alt
+
+alt Rejected
+Accounts --> MTA: rejected
+MTA --> : 550 Rejected permanently
+note right
+    Sender SMTP shall give up and 
+    inform the sender about the failure
+end note
+end alt
+
+alt Approved
+Accounts --> MTA: approved
+MTA --> : OK!
+end alt
+
+deactivate Accounts
+
+
+activate user
+
+
+user -> IMAP++: login
+IMAP -> Accounts++: check
+return OK
+IMAP --> user: OK
+
+
+hnote over IMAP
+    IMAP presents a virtual folder
+    with contact requests: 
+       new/approved/rejected, 
+    one mail per request. 
+    The user can delete the request
+    or move it to rejected folder
+    to reject or move the mail to 
+    approved folder to approve.
+end hnote
+
+user -> IMAP: fetch
+IMAP -> Accounts++: get
+return contacts
+return contact\nrequest\nmails (CRM)
+
+user -> IMAP++: move CRM\nto approved\nfolder
+IMAP -> Accounts++: approve contact
+return OK!
+return Moved!
+
+user -> IMAP++: delete CRM
+IMAP -> Accounts++: reject contact
+return OK!
+hnote over IMAP
+      This CRM will now
+    appear under rejected
+end hnote
+return Deleted!
+
+
+
+@enduml

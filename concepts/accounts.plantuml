@@ -1,0 +1,56 @@
+@startuml
+
+title Normal interaction with accounts
+
+actor user
+participant IMAP
+participant MSA
+participant Accounts
+database Inbox
+participant MTA
+
+database Outbox
+participant QueueManager
+
+MTA <- : send
+activate MTA
+MTA -> Accounts++ : check
+return OK
+MTA -> Inbox++ : store
+return Stored!
+deactivate MTA
+
+activate user
+
+user -> IMAP++: login
+IMAP -> Accounts++: check
+return OK
+IMAP --> user: OK
+
+user -> IMAP: fetch
+IMAP -> Inbox++: read
+return mails
+return mails
+
+user -> user: compose a mail
+
+user -> MSA++: login
+MSA -> Accounts++: check
+return OK
+MSA --> user: OK
+
+user -> MSA: mail to:<buddy@friends.net>
+MSA -> Outbox++: queue
+return Queued!
+return OK
+
+deactivate user
+
+activate QueueManager
+QueueManager -> Outbox++: pop
+return mail
+QueueManager -> : send
+
+
+
+@enduml

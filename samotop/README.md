@@ -16,7 +16,7 @@ It's called SaMoToP, which could be a nice Czech word.
 
 ## Status
 
-Reaching stable. You can implement your own mail service and plug it in,
+You can implement your own mail service and plug it in,
 focusing on features and not the protocol itself or boilerplate.
 The API builds on async/await to offer a convenient asynchronous interface.
 We've got a decent SMTP command parser written as a PEG grammar.
@@ -44,12 +44,14 @@ The [samotop crate is published on crates.io](https://crates.io/crates/samotop).
 - [x] Integration: LMTP socket - can deliver to LDA over unix or network sockets using LMTP
 - [x] Integration: LMTP child process - can deliver to LDA using LMTP protocol over io with a child process
         - [ ] Connector is missing and must be provided
-- [x] LDA: Can process LMTP session (LHLO + delivery status per rcpt) with `LmtpParserPeg`
-- [x] Antispam: SPF (through viaspf, todo:async)
+- [x] LDA: Can process LMTP session (LHLO + delivery status per rcpt)
+- [x] Antispam: SPF through `viaspf`
 - [x] Anti-abuse: Command timeout
+- [x] Extensibility: Modular and composable service
 
 ### To do
 
+- [ ] Accounts: Self service account subscription through SMTP/IMAP
 - [ ] MTA: Queue and queue manager, relay mail to another MTA
 - [ ] Antispam: Strict SMTP (require CRLF, reject if client sends mail before banner or EHLO response)
 - [ ] Antispam: whitelist and blacklist

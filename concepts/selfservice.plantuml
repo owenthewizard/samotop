@@ -1,0 +1,64 @@
+@startuml
+
+title Self-service account registration
+
+actor user
+participant IMAP
+participant MSA
+participant Accounts
+
+activate user
+
+user -> IMAP++: login
+IMAP -> Accounts++: check
+return none
+IMAP --> user: OK
+note right
+   Any credentials will do
+   as the account doesn't exist yet.
+   Session switches to welcome mode.
+end note
+
+user -> IMAP: fetch 
+return welcome mail
+
+note right
+   Welcome mail signed by postmaster with key attached
+   includes instructions to create an account:
+     The user should send an e-mail 
+     to <postmaster> (encrypted)
+     specifying the desired e-mail address
+     with their public key attached
+     and signed by the public key
+end note
+
+
+user -> user: compose\na registration
+
+user -> MSA++: login
+MSA -> Accounts++: check
+return none
+MSA --> user: OK
+note right
+   Any credentials will do
+   as the account doesn't exist yet.
+   Session switches to welcome mode.
+end note
+
+user -> MSA: mail to:<postmaster>
+note right
+   At this point, the MSA will only accept
+   a registration e-mail as requested
+   in welcome mail and refuse anything else
+end note
+MSA -> MSA: verify\nregistration
+MSA -> Accounts++: create
+note right
+    New account is created
+    storing user's credentials,
+    public key and address(es)
+end note
+return Created!
+return OK
+
+@enduml
