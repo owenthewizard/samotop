@@ -2,7 +2,7 @@ use crate::{
     common::*,
     io::tls::{NoTls, TlsProvider},
     mail::{EsmtpService, MailDispatch, MailGuard, MailSetup, Service},
-    smtp::{Dummy, Interpret},
+    smtp::Interpret,
 };
 
 /// Builds MailService from components
@@ -17,7 +17,7 @@ pub struct Configuration {
     /// ID used for identifying this instance in logs
     pub logging_id: String,
     pub tls: Box<dyn TlsProvider + Sync + Send + 'static>,
-    pub interpretter: Arc<dyn Interpret + Send + Sync>,
+    pub interpret: Vec<Box<dyn Interpret + Send + Sync>>,
     pub dispatch: Vec<Box<dyn MailDispatch + Sync + Send + 'static>>,
     pub guard: Vec<Box<dyn MailGuard + Sync + Send + 'static>>,
     pub esmtp: Vec<Box<dyn EsmtpService + Sync + Send + 'static>>,
@@ -28,7 +28,11 @@ impl Builder {
     ///
     /// See MailSetup for examples.
     pub fn using(mut self, setup: impl MailSetup) -> Self {
-        trace!("Service builder {} using setup {:?}", self.config.logging_id, setup);
+        trace!(
+            "Service builder {} using setup {:?}",
+            self.config.logging_id,
+            setup
+        );
         setup.setup(&mut self.config);
         self
     }
@@ -43,7 +47,7 @@ impl Default for Configuration {
         Self {
             logging_id: time_based_id(),
             tls: Box::new(NoTls),
-            interpretter: Arc::new(Dummy),
+            interpret: Default::default(),
             dispatch: Default::default(),
             guard: Default::default(),
             esmtp: Default::default(),

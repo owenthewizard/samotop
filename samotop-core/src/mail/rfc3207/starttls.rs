@@ -1,11 +1,11 @@
+use super::StartTls;
 use crate::common::S1Fut;
-use crate::mail::EsmtpStartTls;
 use crate::smtp::{extension, Action, SmtpState};
 
-impl Action<EsmtpStartTls> for EsmtpStartTls {
+impl Action<StartTls> for StartTls {
     /// Applies given helo to the state
     /// It asserts the right HELO/EHLO variant
-    fn apply<'a, 's, 'f>(&'a self, _cmd: EsmtpStartTls, state: &'s mut SmtpState) -> S1Fut<'f, ()>
+    fn apply<'a, 's, 'f>(&'a self, _cmd: StartTls, state: &'s mut SmtpState) -> S1Fut<'f, ()>
     where
         'a: 'f,
         's: 'f,

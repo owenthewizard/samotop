@@ -6,7 +6,7 @@ use regex::Regex;
 use samotop::{
     io::IoService,
     io::{tls::TlsCapable, ConnectionInfo},
-    mail::{Builder, Esmtp, NullDispatch},
+    mail::{Builder, Esmtp, Name, NullDispatch},
     smtp::SmtpParser,
 };
 use samotop_core::common::*;
@@ -28,6 +28,7 @@ async fn svc() -> Result<()> {
     let testio = TestIo::new(read, s);
     let io = Box::new(TlsCapable::plaintext(Box::new(testio)));
     let mail_service = Builder::default()
+        .using(Name::new("testik"))
         .using(NullDispatch)
         .using(Esmtp.with(SmtpParser))
         .build();
@@ -38,10 +39,10 @@ async fn svc() -> Result<()> {
 
     insta::assert_debug_snapshot!(
         String::from_utf8_lossy(r.recv().await?.as_slice()),
-        @r###""220 samotop service ready\r\n""###);
+        @r###""220 testik service ready\r\n""###);
     insta::assert_debug_snapshot!(
         String::from_utf8_lossy(r.recv().await?.as_slice()),
-        @r###""250 samotop greets macca\r\n""###);
+        @r###""250 testik greets macca\r\n""###);
     insta::assert_debug_snapshot!(
         Regex::new("[0-9]{9}[0-9]*")?.replace(
         String::from_utf8_lossy(r.recv().await?.as_slice()).to_string().as_str(),"--redacted--"),
@@ -61,7 +62,7 @@ async fn svc() -> Result<()> {
         @r###""500 Syntax error, command unrecognized\r\n""###);
     insta::assert_debug_snapshot!(
         String::from_utf8_lossy(r.recv().await?.as_slice()),
-        @r###""221 samotop service closing transmission channel\r\n""###);
+        @r###""221 testik service closing transmission channel\r\n""###);
 
     assert!(r.recv().await.is_err(), "Should have no more");
 

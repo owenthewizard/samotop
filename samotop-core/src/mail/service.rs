@@ -1,15 +1,12 @@
 use crate::{
     common::*,
-    io::{
-        tls::{Io, MayBeTls, TlsCapable, TlsProvider, TlsUpgrade},
-        ConnectionInfo, IoService,
-    },
+    io::{tls::MayBeTls, ConnectionInfo, IoService},
     mail::{
         AddRecipientRequest, AddRecipientResult, Configuration, DispatchResult, DriverIo,
         DriverProvider, EsmtpService, MailDispatch, MailGuard, SessionInfo, StartMailRequest,
         StartMailResult, Transaction,
     },
-    smtp::{extension, Interpret, SmtpDriver, SmtpState},
+    smtp::{interpret_all, Interpret, SmtpDriver, SmtpState},
 };
 
 #[derive(Default, Debug, Clone)]
@@ -44,7 +41,11 @@ impl MailDispatch for Service {
         );
         let fut = async move {
             for disp in self.config.dispatch.iter() {
-                trace!("Dispatch {} send_mail calling {:?}", self.config.logging_id, disp);
+                trace!(
+                    "Dispatch {} send_mail calling {:?}",
+                    self.config.logging_id,
+                    disp
+                );
                 transaction = disp.send_mail(session, transaction).await?;
             }
             Ok(transaction)
@@ -69,7 +70,11 @@ impl MailGuard for Service {
         );
         let fut = async move {
             for guard in self.config.guard.iter() {
-                trace!("Guard {} add_recipient calling {:?}", self.config.logging_id, guard);
+                trace!(
+                    "Guard {} add_recipient calling {:?}",
+                    self.config.logging_id,
+                    guard
+                );
                 match guard.add_recipient(request).await {
                     AddRecipientResult::Inconclusive(r) => request = r,
                     otherwise => return otherwise,
@@ -97,7 +102,11 @@ impl MailGuard for Service {
         );
         let fut = async move {
             for guard in self.config.guard.iter() {
-                trace!("Guard {} start_mail calling {:?}", self.config.logging_id, guard);
+                trace!(
+                    "Guard {} start_mail calling {:?}",
+                    self.config.logging_id,
+                    guard
+                );
                 match guard.start_mail(session, request).await {
                     StartMailResult::Accepted(r) => request = r,
                     otherwise => return otherwise,
@@ -110,7 +119,7 @@ impl MailGuard for Service {
 }
 
 impl EsmtpService for Service {
-    fn prepare_session(&self, session: &mut SessionInfo) {
+    fn prepare_session(&self, io: &mut dyn MayBeTls, session: &mut SessionInfo) {
         debug!(
             "Esmtp {} with {} esmtps preparing session {:?}",
             self.config.logging_id,
@@ -123,27 +132,57 @@ impl EsmtpService for Service {
                 self.config.logging_id,
                 esmtp
             );
-            esmtp.prepare_session(session);
+            esmtp.prepare_session(io, session);
+        }
+
+        if session.service_name.is_empty() {
+            session.service_name = format!("Samotop-{}", self.config.logging_id);
+            warn!(
+                "Esmtp {} service name is empty. Using default {:?}",
+                self.config.logging_id, session.service_name
+            );
+        } else {
+            info!("Service name is {:?}", session.service_name);
         }
     }
 }
 
-impl TlsProvider for Service {
-    fn get_tls_upgrade(&self) -> Option<Box<dyn TlsUpgrade>> {
-        self.config.tls.get_tls_upgrade()
+// Removed, use .using(EsmtpStartTls::...())
+// impl TlsProvider for Service {
+//     fn get_tls_upgrade(&self) -> Option<Box<dyn TlsUpgrade>> {
+//         self.config.tls.get_tls_upgrade()
+//     }
+// }
+
+impl Interpret for Service {
+    fn interpret<'a, 'i, 's, 'f>(
+        &'a self,
+        input: &'i [u8],
+        state: &'s mut SmtpState,
+    ) -> S1Fut<'f, crate::smtp::InterpretResult>
+    where
+        'a: 'f,
+        'i: 'f,
+        's: 'f,
+    {
+        Box::pin(interpret_all(
+            self.config.interpret.as_slice(),
+            input,
+            state,
+        ))
     }
 }
 
 impl DriverProvider for Service {
-    fn get_interpretter(&self) -> Box<dyn Interpret + Sync + Send> {
-        Box::new(self.config.interpretter.clone())
-    }
-
     fn get_driver<'io>(
         &self,
         io: &'io mut dyn DriverIo,
     ) -> Box<dyn crate::smtp::Drive + Sync + Send + 'io> {
         Box::new(SmtpDriver::new(io))
+    }
+
+    fn get_interpretter(&self) -> Box<dyn Interpret + Sync + Send> {
+        Box::new(self.clone())
     }
 }
 
@@ -161,19 +200,7 @@ impl IoService for Service {
             let mut state = SmtpState::new(service);
             state.session.connection = connection;
 
-            if !io.is_encrypted() {
-                // Add tls if needed and available
-                if !io.can_encrypt() {
-                    if let Some(upgrade) = state.service.get_tls_upgrade() {
-                        let plain: Box<dyn Io> = Box::new(io);
-                        io = Box::new(TlsCapable::enabled(plain, upgrade, String::default()));
-                    }
-                }
-                // enable STARTTLS extension if it can be used
-                if io.can_encrypt() {
-                    state.session.extensions.enable(&extension::STARTTLS);
-                }
-            }
+            state.service.prepare_session(&mut io, &mut state.session);
 
             // fetch and apply commands
             state.service.get_driver(&mut io).drive(&mut state).await?;

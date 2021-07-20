@@ -1,7 +1,7 @@
 use crate::{
     common::*,
     mail::{Configuration, MailSetup},
-    smtp::{command::SessionSetup, Dummy, ParseError, Parser, SmtpState},
+    smtp::{Dummy, ParseError, Parser, SmtpState},
 };
 use std::{
     fmt::{self, Debug},
@@ -73,14 +73,14 @@ where
 
 pub type InterpretResult = std::result::Result<Option<usize>, ParseError>;
 
+#[derive(Default)]
 pub struct Interpretter {
     calls: Vec<Box<dyn Interpret + Send + Sync>>,
 }
 
 impl MailSetup for Interpretter {
-    fn setup(mut self, config: &mut Configuration) {
-        self.calls.push(Box::new(config.interpretter.clone()));
-        config.interpretter = Arc::new(self)
+    fn setup(self, config: &mut Configuration) {
+        config.interpret.insert(0, Box::new(self))
     }
 }
 impl Interpret for Interpretter {
@@ -94,17 +94,12 @@ impl Interpret for Interpretter {
         'i: 'f,
         's: 'f,
     {
-        Box::pin(self.interpret_inner(input, state))
+        Box::pin(interpret_all(self.calls.as_slice(), input, state))
     }
 }
 impl Interpretter {
-    pub fn session_setup<A>(action: A) -> Self
-    where
-        A: Action<SessionSetup> + Debug + 'static + Send + Sync,
-    {
-        let mut this = Interpretter { calls: vec![] };
-        this.calls.push(Box::new(SessionSetupAction { action }));
-        this
+    pub fn new(calls: Vec<Box<dyn Interpret + Send + Sync>>) -> Self {
+        Self { calls }
     }
     pub fn parse<CMD>(self) -> InterpretterBuilderCommand<CMD>
     where
@@ -115,7 +110,7 @@ impl Interpretter {
             phantom: PhantomData,
         }
     }
-    pub fn handle<P, A, CMD>(mut self, parser: P, action: A) -> Self
+    pub fn handle<P, A, CMD>(self, parser: P, action: A) -> Self
     where
         P: Parser<CMD> + Debug + 'static + Send + Sync,
         A: Action<CMD> + Debug + 'static + Send + Sync,
@@ -126,41 +121,11 @@ impl Interpretter {
             action,
             phantom: PhantomData,
         };
+        self.call(call)
+    }
+    pub fn call<I: Interpret + Send + Sync + 'static>(mut self, call: I) -> Self {
         self.calls.push(Box::new(call));
         self
-    }
-    async fn interpret_inner(&self, input: &[u8], state: &mut SmtpState) -> InterpretResult {
-        let mut mismatches = vec![];
-        let mut failures = vec![];
-        let mut incomplete = false;
-        for call in self.calls.as_slice() {
-            match call.interpret(input, state).await {
-                Ok(len) => return Ok(len),
-                Err(ParseError::Mismatch(e)) => {
-                    mismatches.push(e);
-                    continue;
-                }
-                Err(ParseError::Incomplete) => {
-                    incomplete = true;
-                    continue;
-                }
-                Err(ParseError::Failed(e)) => {
-                    failures.push(e);
-                    continue;
-                }
-            }
-        }
-        if !failures.is_empty() {
-            let msg = failures.join("; ");
-            Err(ParseError::Failed(msg))
-        } else if incomplete {
-            Err(ParseError::Incomplete)
-        } else if !mismatches.is_empty() {
-            let msg = mismatches.join("; ");
-            Err(ParseError::Mismatch(msg))
-        } else {
-            Err(ParseError::Mismatch("No parsers?".into()))
-        }
     }
 }
 impl Debug for Interpretter {
@@ -169,6 +134,43 @@ impl Debug for Interpretter {
     }
 }
 
+pub(crate) async fn interpret_all(
+    calls: &[Box<dyn Interpret + Send + Sync>],
+    input: &[u8],
+    state: &mut SmtpState,
+) -> InterpretResult {
+    let mut mismatches = vec![];
+    let mut failures = vec![];
+    let mut incomplete = false;
+    for call in calls {
+        match call.interpret(input, state).await {
+            Ok(len) => return Ok(len),
+            Err(ParseError::Mismatch(e)) => {
+                mismatches.push(e);
+                continue;
+            }
+            Err(ParseError::Incomplete) => {
+                incomplete = true;
+                continue;
+            }
+            Err(ParseError::Failed(e)) => {
+                failures.push(e);
+                continue;
+            }
+        }
+    }
+    if !failures.is_empty() {
+        let msg = failures.join("; ");
+        Err(ParseError::Failed(msg))
+    } else if incomplete {
+        Err(ParseError::Incomplete)
+    } else if !mismatches.is_empty() {
+        let msg = mismatches.join("; ");
+        Err(ParseError::Mismatch(msg))
+    } else {
+        Err(ParseError::Mismatch("No parsers?".into()))
+    }
+}
 pub struct InterpretterBuilderCommand<CMD> {
     inner: Interpretter,
     phantom: PhantomData<CMD>,
@@ -249,36 +251,6 @@ where
     }
 }
 
-#[derive(Debug, Clone)]
-struct SessionSetupAction<A> {
-    action: A,
-}
-impl<A> Interpret for SessionSetupAction<A>
-where
-    A: Action<SessionSetup> + Debug + 'static + Send + Sync,
-{
-    fn interpret<'a, 'i, 's, 'f>(
-        &'a self,
-        _input: &'i [u8],
-        state: &'s mut SmtpState,
-    ) -> S1Fut<'f, InterpretResult>
-    where
-        'a: 'f,
-        'i: 'f,
-        's: 'f,
-    {
-        Box::pin(async move {
-            if !state.session.has_been_set_up {
-                self.action.apply(SessionSetup, state).await;
-                state.session.has_been_set_up = true;
-                Ok(None)
-            } else {
-                Err(ParseError::Mismatch("Session is already set up".into()))
-            }
-        })
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -287,21 +259,21 @@ mod tests {
     #[test]
     fn interpretter_session_setup_test() {
         insta::assert_debug_snapshot!(
-            Interpretter::session_setup(Dummy), 
-            @"Interpretter(1)");
+            Interpretter::default(), 
+            @"Interpretter(0)");
     }
     #[test]
     fn interpretter_handle_test() {
         insta::assert_debug_snapshot!(
-            Interpretter::session_setup(Dummy).handle::<_, _, SmtpUnknownCommand>(Dummy, Dummy), 
-            @"Interpretter(2)");
+            Interpretter::default().handle::<_, _, SmtpUnknownCommand>(Dummy, Dummy),
+            @"Interpretter(1)");
     }
     #[test]
     fn builder_parse_with_apply_test() {
-        insta::assert_debug_snapshot!(Interpretter::session_setup(Dummy)
+        insta::assert_debug_snapshot!(Interpretter::default()
             .parse::<SmtpUnknownCommand>()
             .with(Dummy)
-            .and_apply(Dummy), 
-            @"Interpretter(2)");
+            .and_apply(Dummy),
+            @"Interpretter(1)");
     }
 }

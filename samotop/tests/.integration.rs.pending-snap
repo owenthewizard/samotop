@@ -1,0 +1,51 @@
+{"run_id":"1626785967-721471677","line":39,"new":{"module_name":"integration","snapshot_name":"svc","metadata":{"source":"samotop/tests/integration.rs","expression":"String::from_utf8_lossy(r.recv().await?.as_slice())"},"snapshot":"\"250 Samotop-295609348612475 greets macca\\r\\n\""},"old":{"module_name":"integration","metadata":{},"snapshot":"\"220 samotop service ready\\r\\n\""}}
+{"run_id":"1626787154-635413332","line":39,"new":{"module_name":"integration","snapshot_name":"svc","metadata":{"source":"samotop/tests/integration.rs","expression":"String::from_utf8_lossy(r.recv().await?.as_slice())"},"snapshot":"\"250 Samotop-296796370034812 greets macca\\r\\n\""},"old":{"module_name":"integration","metadata":{},"snapshot":"\"220 samotop service ready\\r\\n\""}}
+{"run_id":"1626787240-338929697","line":39,"new":{"module_name":"integration","snapshot_name":"svc","metadata":{"source":"samotop/tests/integration.rs","expression":"String::from_utf8_lossy(r.recv().await?.as_slice())"},"snapshot":"\"220 Samotop-29688288702200 service ready\\r\\n\""},"old":{"module_name":"integration","metadata":{},"snapshot":"\"220 samotop service ready\\r\\n\""}}
+{"run_id":"1626787328-413684665","line":35,"new":null,"old":null}
+{"run_id":"1626787328-413684665","line":38,"new":null,"old":null}
+{"run_id":"1626787328-413684665","line":41,"new":null,"old":null}
+{"run_id":"1626787328-413684665","line":45,"new":null,"old":null}
+{"run_id":"1626787328-413684665","line":48,"new":null,"old":null}
+{"run_id":"1626787328-413684665","line":51,"new":null,"old":null}
+{"run_id":"1626787328-413684665","line":55,"new":null,"old":null}
+{"run_id":"1626787328-413684665","line":58,"new":{"module_name":"integration","snapshot_name":"svc-8","metadata":{"source":"samotop/tests/integration.rs","expression":"String::from_utf8_lossy(r.recv().await?.as_slice())"},"snapshot":"\"221 testik service closing transmission channel\\r\\n\""},"old":{"module_name":"integration","metadata":{},"snapshot":"\"221 samotop service closing transmission channel\\r\\n\""}}
+{"run_id":"1626787347-463232106","line":35,"new":null,"old":null}
+{"run_id":"1626787347-463232106","line":38,"new":null,"old":null}
+{"run_id":"1626787347-463232106","line":41,"new":null,"old":null}
+{"run_id":"1626787347-463232106","line":45,"new":null,"old":null}
+{"run_id":"1626787347-463232106","line":48,"new":null,"old":null}
+{"run_id":"1626787347-463232106","line":51,"new":null,"old":null}
+{"run_id":"1626787347-463232106","line":55,"new":null,"old":null}
+{"run_id":"1626787347-463232106","line":58,"new":null,"old":null}
+{"run_id":"1626787491-68196721","line":35,"new":null,"old":null}
+{"run_id":"1626787491-68196721","line":38,"new":null,"old":null}
+{"run_id":"1626787491-68196721","line":41,"new":null,"old":null}
+{"run_id":"1626787491-68196721","line":45,"new":null,"old":null}
+{"run_id":"1626787491-68196721","line":48,"new":null,"old":null}
+{"run_id":"1626787491-68196721","line":51,"new":null,"old":null}
+{"run_id":"1626787491-68196721","line":55,"new":null,"old":null}
+{"run_id":"1626787491-68196721","line":58,"new":null,"old":null}
+{"run_id":"1626787908-621380577","line":35,"new":null,"old":null}
+{"run_id":"1626787908-621380577","line":38,"new":null,"old":null}
+{"run_id":"1626787908-621380577","line":41,"new":null,"old":null}
+{"run_id":"1626787908-621380577","line":45,"new":null,"old":null}
+{"run_id":"1626787908-621380577","line":48,"new":null,"old":null}
+{"run_id":"1626787908-621380577","line":51,"new":null,"old":null}
+{"run_id":"1626787908-621380577","line":55,"new":null,"old":null}
+{"run_id":"1626787908-621380577","line":58,"new":null,"old":null}
+{"run_id":"1626788803-833969922","line":40,"new":null,"old":null}
+{"run_id":"1626788803-833969922","line":43,"new":null,"old":null}
+{"run_id":"1626788803-833969922","line":46,"new":null,"old":null}
+{"run_id":"1626788803-833969922","line":50,"new":null,"old":null}
+{"run_id":"1626788803-833969922","line":53,"new":null,"old":null}
+{"run_id":"1626788803-833969922","line":56,"new":null,"old":null}
+{"run_id":"1626788803-833969922","line":60,"new":null,"old":null}
+{"run_id":"1626788803-833969922","line":63,"new":null,"old":null}
+{"run_id":"1626789165-62132486","line":40,"new":null,"old":null}
+{"run_id":"1626789165-62132486","line":43,"new":null,"old":null}
+{"run_id":"1626789165-62132486","line":46,"new":null,"old":null}
+{"run_id":"1626789165-62132486","line":50,"new":null,"old":null}
+{"run_id":"1626789165-62132486","line":53,"new":null,"old":null}
+{"run_id":"1626789165-62132486","line":56,"new":null,"old":null}
+{"run_id":"1626789165-62132486","line":60,"new":null,"old":null}
+{"run_id":"1626789165-62132486","line":63,"new":null,"old":null}

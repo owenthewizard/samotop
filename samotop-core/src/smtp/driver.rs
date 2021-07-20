@@ -96,8 +96,12 @@ where
         }
 
         self.io = loop {
-            let interpretter = state.service.get_interpretter();
-            match interpretter.interpret(self.buffer.as_slice(), state).await {
+            match state
+                .service
+                .get_interpretter()
+                .interpret(self.buffer.as_slice(), state)
+                .await
+            {
                 Ok(None) => {
                     // Action taken, but no input consumed (i.e. session setup / shut down)
                     break Some(io);

@@ -1,10 +1,30 @@
 use crate::SmtpParserPeg;
-use samotop_core::{common::Error, smtp::command::*, smtp::*};
+use samotop_core::{common::Error, mail::StartTls, smtp::command::*, smtp::*};
 use std::net::{Ipv4Addr, Ipv6Addr};
 use std::str::FromStr;
 
 pub mod grammar {
     pub(crate) use super::smtp_grammar::*;
+}
+
+impl Parser<StartTls> for SmtpParserPeg {
+    fn parse(&self, input: &[u8], state: &SmtpState) -> ParseResult<StartTls> {
+        if input.is_empty() {
+            return Err(ParseError::Incomplete);
+        }
+        if let Some(mode) = state.transaction.mode {
+            return Err(ParseError::Mismatch(format!(
+                "Not parsing in {:?} mode",
+                mode
+            )));
+        }
+        let res = grammar::starttls(input);
+        trace!("Parsed {:?} from {:?}", res, String::from_utf8_lossy(input));
+        match res {
+            Err(e) => Err(ParseError::Failed(format!("Peg parser failed: {}", e))),
+            Ok((i, cmd)) => Ok((i, cmd)),
+        }
+    }
 }
 
 impl Parser<SmtpCommand> for SmtpParserPeg {
@@ -58,12 +78,16 @@ peg::parser! {
             = input:$([_]*<{literal.len()}>)
             {? if input.eq_ignore_ascii_case(literal.as_bytes()) { Ok(()) } else { Err(literal) } }
 
+        pub rule starttls() -> (usize, StartTls)
+            = i("starttls") NL() p:position!() rest:$([_]*)
+            { (p, StartTls) }
+
         pub rule command() -> ParseResult< SmtpCommand>
             = cmd:(valid_command() / invalid_command() / incomplete_command())
             {cmd}
 
         pub rule valid_command() -> ParseResult<SmtpCommand>
-            = cmd: (cmd_starttls() /
+            = cmd: (
                 cmd_helo() /
                 cmd_mail() /
                 cmd_send() /
@@ -87,10 +111,6 @@ peg::parser! {
         rule invalid_command() -> ParseResult<SmtpCommand>
             = s:$(quiet!{ "\n" / (![b'\n'][_]) + "\n" } / expected!("invalid input"))
             {ParseResult::Err(ParseError::Mismatch("PEG - unrecognized command".into()))}
-
-        pub rule cmd_starttls() -> SmtpCommand
-            = i("starttls") NL()
-            { SmtpCommand::StartTls }
 
         pub rule cmd_quit() -> SmtpCommand
             = i("quit") NL()
@@ -313,8 +333,8 @@ mod tests {
 
     #[test]
     fn cmd_parser_starttls() {
-        let result = command(b"STARTTLS\r\n").unwrap().unwrap();
-        assert_eq!(result.1, SmtpCommand::StartTls);
+        let result = starttls(b"STARTTLS\r\n").unwrap();
+        assert_eq!(result, (10, StartTls));
     }
 
     #[test]

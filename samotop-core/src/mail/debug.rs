@@ -3,6 +3,7 @@
 use std::fmt;
 
 use crate::common::*;
+use crate::io::tls::MayBeTls;
 use crate::mail::*;
 //use uuid::Uuid;
 
@@ -30,7 +31,7 @@ impl MailSetup for DebugMailService {
     }
 }
 impl EsmtpService for DebugMailService {
-    fn prepare_session(&self, session: &mut SessionInfo) {
+    fn prepare_session(&self, _io: &mut dyn MayBeTls, session: &mut SessionInfo) {
         info!("{}: I am {}", self.id, session.service_name);
     }
 }

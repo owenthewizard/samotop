@@ -48,7 +48,7 @@ mod tests {
         setup.setup(&mut config);
         hungry(Service::new(config));
     }
-    
+
     #[test]
     fn test_using() {
         let setup = TestSetup;

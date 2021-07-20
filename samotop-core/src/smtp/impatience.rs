@@ -1,23 +1,20 @@
 use crate::{
     common::S1Fut,
-    mail::{Configuration, Esmtp, MailSetup},
-    smtp::{command::Timeout, Action, SmtpState},
+    mail::{Configuration, MailSetup},
     smtp::{Interpret, InterpretResult},
+    smtp::{Interpretter, SmtpState},
 };
 use async_std::prelude::FutureExt;
-use std::{
-    sync::Arc,
-    time::{Duration, Instant},
-};
+use std::time::{Duration, Instant};
 
 /// Enforces the specified command timeout
 #[derive(Debug)]
-pub struct Impatient {
+pub struct Impatience {
     timeout: Duration,
     inner: Box<dyn Interpret + Sync + Send>,
 }
 
-impl Interpret for Impatient {
+impl Interpret for Impatience {
     fn interpret<'a, 'i, 's, 'f>(
         &'a self,
         input: &'i [u8],
@@ -33,20 +30,24 @@ impl Interpret for Impatient {
 }
 
 #[derive(Debug, Clone)]
-struct ImpatientSetup {
+struct ImpatienceSetup {
     timeout: Duration,
 }
 
-impl MailSetup for ImpatientSetup {
+impl MailSetup for ImpatienceSetup {
     fn setup(self, config: &mut Configuration) {
-        config.interpretter = Arc::new(Impatient::new(config.interpretter.clone(), self.timeout))
+        let calls = std::mem::take(&mut config.interpret);
+        config.interpret.insert(
+            0,
+            Box::new(Impatience::new(Interpretter::new(calls), self.timeout)),
+        );
     }
 }
 
-impl Impatient {
-    /// Gives a mail setup suitable for `.using(Impatient::after(Duration::from_seconds(10)))` calls
-    pub fn after(timeout: Duration) -> impl MailSetup {
-        ImpatientSetup { timeout }
+impl Impatience {
+    /// Gives a mail setup suitable for `.using(Impatience::timeout(Duration::from_seconds(10)))` calls
+    pub fn timeout(timeout: Duration) -> impl MailSetup {
+        ImpatienceSetup { timeout }
     }
     pub fn new(timeboxed: impl Interpret + Sync + Send + 'static, timeout: Duration) -> Self {
         Self {
@@ -66,7 +67,7 @@ impl Impatient {
                 res
             }
             Err(_e) => {
-                Esmtp.apply(Timeout, state).await;
+                state.say_shutdown_timeout();
                 Ok(None)
             }
         }
