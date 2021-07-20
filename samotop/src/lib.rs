@@ -39,17 +39,17 @@ The [samotop crate is published on crates.io](https://crates.io/crates/samotop).
 - [x] MDA: Smart mailbox - multiple mailbox addresses by convention
 - [x] Integration: LMTP socket - can deliver to LDA over unix or network sockets using LMTP
 - [x] Integration: LMTP child process - can deliver to LDA using LMTP protocol over io with a child process
-        - [ ] Connector is missing and must be provided
 - [x] LDA: Can process LMTP session (LHLO + delivery status per rcpt)
-- [x] Antispam: SPF through `viaspf`
-- [x] Anti-abuse: Command timeout
-- [x] Extensibility: Modular and composable service
+- [x] Antispam: Reject mails failing SPF checks - through `viaspf` crate, now async
+- [x] Antispam: Strict SMTP - require CRLF
+- [x] Antispam: Strict SMTP - reject session if client sends mail before banner - `Prudence`
+- [x] Anti-abuse: Command timeout - `Impatience`
+- [x] Extensibility: Modular and composable service - `Builder` + `Configuration` + `MailSetup` => `Service`
 
 ## To do
 
 - [ ] Accounts: Self service account subscription through SMTP/IMAP
 - [ ] MTA: Queue and queue manager, relay mail to another MTA
-- [ ] Antispam: Strict SMTP (require CRLF, reject if client sends mail before banner or EHLO response)
 - [ ] Antispam: whitelist and blacklist
 - [ ] Antispam: greylisting
 - [ ] Antispam: white/black/grey list with UI - user decides new contact handling
@@ -77,11 +77,9 @@ Note that the API is still unstable. Please use the latest release.
 There are a few interesting provisions one could take away from Samotop:
 * The TCP server (`TcpServer`) - it takes IP:port's to listen `on()` and you can then `serve()` your own implementation of a `IoService`.
 * The Unix socket server (`UnixServer`) - it takes socket file path to listen `on()` and you can then `serve()` the same as with the `TcpServer`.
-* The SMTP service (`SmtpService`) - it takes an async IO and provides an SMTP service defined by `MailService`.
-* The low level `SmtpCodec` - it translates between IO and a `Stram` of `SmtpSessionCommand`s and accepts `CodecControl`s.
-* The SMTP session parser (`SmtpParser`) - it takes `&[u8]` and returns parsed commands or session.
-* The SMTP session and domain model (in `samotop-core`) - these describe the domain and behavior.
-* The mail delivery abstraction in `samotop-delivery` includes an SMTP/LMTP client over TCP/Unix socket, simple maildir, eventually also child process integration.
+* The SMTP session parser (`SmtpParser`) - it takes `&[u8]` and returns parsed commands or data.
+* The SMTP session and domain model (in `samotop-core`) - these describe the domain and behavior per RFC.
+* The mail delivery abstraction in `samotop-delivery` includes an SMTP/LMTP client over TCP/Unix socket, chid process, simple maildir, sendmail.
 * Extensible design - you can plug in or compose your own solution.
 
 ## SMTP Server (with STARTTLS)
@@ -170,7 +168,7 @@ In Rust world I have so far found mostly SMTP clients.
     * same: enables writing SMTP servers in Rust.
     * same: includes SMTP parsing, responding and an SMTP state machine.
     * different: Samotop uses PEG, Mailin uses Nom to define the SMTP parser.
-    * different: Samotop is async while Mailin runs on bare std blocking IO. Async introduces more dependencies, but allows us to shift to the new IO paradigm. In Samotop, the SMTP session is handled as a stream of commands and responses. Mailin uses a threadpool to schedule work, Samotop can run on a single thread thanks to async.
+    * different: Samotop is async while Mailin runs on bare std blocking IO. Async introduces more dependencies, but allows us to shift to the new IO paradigm. In Samotop, the SMTP session handling is a tree of futures. Mailin uses a threadpool to schedule work, Samotop can run on a single thread thanks to async.
     * not too different: samotop includes a default TCP server and enables the user to implement it differently, mailin expects the user to provide a socket but a TCP server is available in mailin-embedded. Thanks to this, Mailin alone has much smaller dependency footprint. Samotop may follow suit to split the crates.
     * ...
 * [smtpbis](https://crates.io/crates/smtpbis) and [rustyknife](https://crates.io/crates/rustyknife) by **Jonathan Bastien-Filiatrault** are SMTP libraries on async and tokio.
@@ -181,7 +179,7 @@ In Rust world I have so far found mostly SMTP clients.
 * [rust-smtp](https://github.com/synlestidae/rust-smtp) fork of the above with progress by **synlestidae** in 2016
 
 ## Other
-* [async-smtp](https://github.com/async-email/async-smtp) is an SMTP client. I've forked it as samotop-delivery.
+* [async-smtp](https://github.com/async-email/async-smtp) is an SMTP client from the awesome [delta.chat](https://delta.chat) project. I've forked it as samotop-delivery.
 * [lettre](https://github.com/lettre/lettre) is an SMTP client, it seems to be alive and well!
 * [segimap](https://github.com/uiri/SEGIMAP) by **uiri**, that's actually an IMAP server.
 * [ferric-mail](https://github.com/wraithan/ferric-mail) by **wraithan**, looks abandoned since 2014.

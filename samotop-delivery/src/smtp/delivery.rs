@@ -16,6 +16,11 @@ impl<C: Connector> LmtpDispatch<C> {
         };
         Ok(variant)
     }
+    /// How to reuse the client:
+    ///
+    /// * 0 => unlimited resue
+    /// * 1 => no reuse
+    /// * n => limited to n
     pub fn reuse(mut self, lifetimes: u16) -> Self {
         self.client = match lifetimes {
             0 => self

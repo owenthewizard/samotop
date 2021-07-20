@@ -79,7 +79,7 @@ peg::parser! {
             {? if input.eq_ignore_ascii_case(literal.as_bytes()) { Ok(()) } else { Err(literal) } }
 
         pub rule starttls() -> (usize, StartTls)
-            = i("starttls") NL() p:position!() rest:$([_]*)
+            = i("starttls") CRLF() p:position!() rest:$([_]*)
             { (p, StartTls) }
 
         pub rule command() -> ParseResult< SmtpCommand>
@@ -113,56 +113,56 @@ peg::parser! {
             {ParseResult::Err(ParseError::Mismatch("PEG - unrecognized command".into()))}
 
         pub rule cmd_quit() -> SmtpCommand
-            = i("quit") NL()
+            = i("quit") CRLF()
             { SmtpCommand::Quit }
 
         pub rule cmd_rset() -> SmtpCommand
-            = i("rset") NL()
+            = i("rset") CRLF()
             { SmtpCommand::Rset }
 
         pub rule cmd_data() -> SmtpCommand
-            = i("data") NL()
+            = i("data") CRLF()
             { SmtpCommand::Data }
 
         pub rule cmd_turn() -> SmtpCommand
-            = i("turn") NL()
+            = i("turn") CRLF()
             { SmtpCommand::Turn }
 
         pub rule cmd_mail() -> SmtpCommand
-            = i("mail from:") p:path_reverse() s:strparam()* NL()
+            = i("mail from:") p:path_reverse() s:strparam()* CRLF()
             { SmtpCommand::Mail(SmtpMail::Mail(p, s)) }
         pub rule cmd_send() ->SmtpCommand
-            = i("send from:") p:path_reverse() s:strparam()* NL()
+            = i("send from:") p:path_reverse() s:strparam()* CRLF()
             { SmtpCommand::Mail(SmtpMail::Send(p, s)) }
         pub rule cmd_soml() -> SmtpCommand
-            = i("soml from:") p:path_reverse() s:strparam()* NL()
+            = i("soml from:") p:path_reverse() s:strparam()* CRLF()
             { SmtpCommand::Mail(SmtpMail::Soml(p, s)) }
         pub rule cmd_saml() -> SmtpCommand
-            = i("saml from:") p:path_reverse() s:strparam()* NL()
+            = i("saml from:") p:path_reverse() s:strparam()* CRLF()
             { SmtpCommand::Mail(SmtpMail::Saml(p, s)) }
 
         pub rule cmd_rcpt() -> SmtpCommand
-            = i("rcpt to:") p:path_forward() s:strparam()* NL()
+            = i("rcpt to:") p:path_forward() s:strparam()* CRLF()
             { SmtpCommand::Rcpt(SmtpRcpt(p, s)) }
 
         pub rule cmd_helo() -> SmtpCommand
-            = verb:$(i("helo") / i("ehlo") / i("lhlo")) _ host:host() NL()
+            = verb:$(i("helo") / i("ehlo") / i("lhlo")) _ host:host() CRLF()
             { SmtpCommand::Helo(SmtpHelo{verb:String::from_utf8_lossy(verb).to_uppercase(), host}) }
 
         pub rule cmd_vrfy() -> SmtpCommand
-            = i("vrfy") s:strparam() NL()
+            = i("vrfy") s:strparam() CRLF()
             { SmtpCommand::Vrfy(s) }
 
         pub rule cmd_expn() -> SmtpCommand
-            = i("expn") s:strparam() NL()
+            = i("expn") s:strparam() CRLF()
             { SmtpCommand::Expn(s) }
 
         pub rule cmd_noop() -> SmtpCommand
-            = i("noop") s:strparam()* NL()
+            = i("noop") s:strparam()* CRLF()
             { SmtpCommand::Noop(s) }
 
         pub rule cmd_help() -> SmtpCommand
-            = i("help") s:strparam()* NL()
+            = i("help") s:strparam()* CRLF()
             { SmtpCommand::Help(s) }
 
         pub rule path_forward() -> SmtpPath
@@ -280,7 +280,7 @@ peg::parser! {
             = b:$(".")
             {debug_assert!(b.len()==1); b[0]}
 
-        rule NL() = quiet!{"\r\n" / "\n"} / expected!("{NL}")
+        rule CRLF() = quiet!{"\r\n"} / expected!("{CRLF}")
         rule _() = quiet!{" "} / expected!("{SP}")
         rule __() = quiet!{_ / "\t"} / expected!("{WS}")
     }

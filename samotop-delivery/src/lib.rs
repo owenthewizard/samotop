@@ -1,36 +1,62 @@
-//! samotop-delivery is a set of transports to deliver mail to,
-//! notably to SMTP/LMTP, but also maildir... It is used in Samotop
-//! as a delivery solution for incoming mail.
-//!
-//! ## Example
-//!
-//! ```rust
-//! pub type Error = Box<dyn std::error::Error + Send + Sync>;
-//! pub type Result<T> = std::result::Result<T, Error>;
-//!
-//! use samotop_delivery::prelude::{
-//!     Envelope, SmtpClient, Transport,
-//! };
-//!
-//! async fn smtp_transport_simple() -> Result<()> {
-//!     let envelope = Envelope::new(
-//!             Some("user@localhost".parse()?),
-//!             vec!["root@localhost".parse()?],
-//!             "id".to_string(),
-//!         )?;
-//!     let message = "From: user@localhost\r\n\
-//!                     Content-Type: text/plain\r\n\
-//!                     \r\n\
-//!                     Hello example"
-//!                     .as_bytes();
-//!     let client = SmtpClient::new("127.0.0.1:2525")?;
-//!     
-//!     // Create a client, connect and send
-//!     client.connect_and_send(envelope, message).await?;    
-//!
-//!     Ok(())
-//! }
-//! ```
+/*!
+
+# Mail dispatch abstraction
+
+samotop-delivery is a set of transports to deliver mail to,
+notably to SMTP/LMTP, but also maildir... It is used in Samotop
+as a dispatch solution for incoming mail, but you can use it to send mail, too.
+
+## Example
+```rust
+pub type Error = Box<dyn std::error::Error + Send + Sync>;
+pub type Result<T> = std::result::Result<T, Error>;
+use samotop_delivery::prelude::{
+    Envelope, SmtpClient, Transport,
+};
+async fn smtp_transport_simple() -> Result<()> {
+    let envelope = Envelope::new(
+            Some("user@localhost".parse()?),
+            vec!["root@localhost".parse()?],
+            "id".to_string(),
+        )?;
+    let message = "From: user@localhost\r\n\
+                    Content-Type: text/plain\r\n\
+                    \r\n\
+                    Hello example"
+                    .as_bytes();
+    let client = SmtpClient::new("127.0.0.1:2525")?;
+
+    // Create a client, connect and send
+    client.connect_and_send(envelope, message).await?;
+    Ok(())
+}
+```
+
+# Features
+ - [x] Do it SMTP style:
+    - [x] Speak SMTP
+    - [x] Speak LMTP
+    - [x] Connect over TCP
+    - [x] Connect over Unix sockets
+    - [x] Connect to a Child process IO
+    - [x] TLS support on all connections
+    - [x] Reuse established connections
+ - [x] Do it locally:
+    - [x] Write mail to a MailDir
+    - [x] Write mail to lozizol journal
+    - [ ] Write mail to an MBox file - contributions welcome
+    - [x] Write mail to a single dir - fit for debug only
+ - [x] Popular integrations:
+    - [x] Send mail with sendmail
+
+LMTP on Unix socket enables wide range of local delivery integrations, dovecot or postfix for instance. Some mail delivery programs speak LMTP, too.
+
+# Credits
+
+This is a fork of [async-smtp](https://github.com/async-email/async-smtp/releases/tag/v0.3.4)
+from the awesome [delta.chat](https://delta.chat) project.
+
+*/
 
 #![deny(
     missing_copy_implementations,

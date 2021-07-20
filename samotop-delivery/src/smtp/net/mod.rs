@@ -6,7 +6,9 @@ mod unix;
 #[cfg(unix)]
 pub use self::unix::*;
 
+mod child;
 mod inet;
+pub use self::child::*;
 pub use self::inet::*;
 
 use self::tls::DefaultTls;

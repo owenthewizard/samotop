@@ -2,10 +2,6 @@
 
 {{readme}}
 
-## Credits
-
-This is a fork of [async-smtp](https://github.com/async-email/async-smtp/releases/tag/v0.3.4) 
-
 ## License - {{license}}
 
 <sup>
