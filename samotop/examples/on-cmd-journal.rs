@@ -7,10 +7,10 @@ It stores the mail in a dir tmp/samotop/spool/
 ```
 sed -e 's/$/\r/' <<EOF | time cargo run --example on-cmd-journal
 lhlo boogie
-mail from:<from@spf.org>
-rcpt to:<komu@makesh.info>
-rcpt to:<to@mikesh.info>
-rcpt to:<za@mukesh.info>
+mail from:<from@wow.example.com>
+rcpt to:<komu@makesh.example.com>
+rcpt to:<to@mikesh.example.com>
+rcpt to:<za@mukesh.example.com>
 data
 From: Moohoo <moo@hoo.com>
 To: Yeeehaw <ye@haw.com>

@@ -5,8 +5,8 @@ Example of delivering nowhere except to the console output
 
 ```
 curl -v --url 'smtp://localhost:2525' \
---mail-from from@spf.org \
---mail-rcpt to@mikesh.info \
+--mail-from from@wow.example.com \
+--mail-rcpt to@mikesh.example.com \
 --upload-file - <<EOF
 From: Moohoo <moo@hoo.com>
 To: Yeeehaw <ye@haw.com>

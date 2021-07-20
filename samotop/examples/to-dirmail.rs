@@ -6,8 +6,8 @@ Maps recipients to local users per domain.
 
 ```
 sed -e 's/$/\r/' <<EOF | curl -v --url 'smtp://localhost:2525' \
---mail-from from@spf.org \
---mail-rcpt to@mikesh.info \
+--mail-from from@wow.example.com \
+--mail-rcpt to@mikesh.example.com \
 --upload-file -
 From: Moohoo <moo@hoo.com>
 To: Yeeehaw <ye@haw.com>
