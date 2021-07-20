@@ -103,7 +103,7 @@ impl Read for ConcatRW {
         cx: &mut Context<'_>,
         buf: &mut [u8],
     ) -> Poll<io::Result<usize>> {
-        if buf.len() != 0 {
+        if !buf.is_empty() {
             if let Some(b) = self.head.take() {
                 buf[0] = b;
                 return Poll::Ready(Ok(1));
