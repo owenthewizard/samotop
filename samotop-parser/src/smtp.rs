@@ -338,20 +338,20 @@ mod tests {
     }
 
     #[test]
-    fn script_parses_whitespace_line() {
+    fn command_parses_whitespace_line() {
         let result = command(b"   \r\n\t\t\r\n");
         assert!(result.is_err());
     }
 
     #[test]
-    fn session_parses_helo() {
+    fn command_parses_helo() {
         let input = b"helo domain.com\r\n";
         let cmd = command(input).unwrap().unwrap().1;
         assert_eq!(cmd.verb(), "HELO");
     }
 
     #[test]
-    fn session_parses_data() -> Result<()> {
+    fn command_parses_data() -> Result<()> {
         let input = "DATA\r\n ěšě\r\nš\nčš".as_bytes();
         let cmd = command(input)??.1;
         assert_eq!(cmd.verb(), "DATA");
@@ -359,25 +359,28 @@ mod tests {
     }
 
     #[test]
-    fn session_parses_wrong_newline() {
-        let cmd = command(b"QUIT\nQUIT\r\nquit\r\n").unwrap().unwrap();
-        assert_eq!(cmd, (5, SmtpCommand::Quit));
+    fn command_refuses_wrong_newline() {
+        let res = command(b"QUIT\nQUIT\r\nquit\r\n");
+        assert!(
+            res.is_err(),
+            "Single LF should be rejected as a command terminator in SMTP"
+        );
     }
 
     #[test]
-    fn session_parses_incomplete_command() {
+    fn command_parses_incomplete_command() {
         let cmd = command(b"QUIT\r\nQUI").unwrap().unwrap();
         assert_eq!(cmd, (6, SmtpCommand::Quit));
     }
 
     #[test]
-    fn session_parses_valid_utf8() {
+    fn command_parses_valid_utf8() {
         let cmd = command("Help \"ěščř\"\r\n".as_bytes()).unwrap().unwrap();
         assert_eq!(cmd, (17, SmtpCommand::Help(vec!["ěščř".to_owned()])));
     }
 
     #[test]
-    fn session_parses_invalid_utf8() {
+    fn command_parses_invalid_utf8() {
         let result = command(b"Help \"\x80\x80\"\r\n");
         match result {
             Ok(Err(ParseError::Mismatch(_))) => { /*OK*/ }
@@ -386,7 +389,7 @@ mod tests {
     }
 
     #[test]
-    fn session_parses_helo_mail_rcpt_quit() {
+    fn command_parses_helo_mail_rcpt_quit() {
         let cmd = command(
             concat!(
                 "helo domain.com\r\n",
