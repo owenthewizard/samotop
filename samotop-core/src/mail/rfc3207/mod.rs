@@ -1,5 +1,6 @@
-use crate::io::tls::TlsProvider;
-use crate::mail::{EsmtpService, MailSetup};
+use crate::common::{ready, S1Fut};
+use crate::io::tls::{MayBeTls, TlsProvider};
+use crate::mail::{Configuration, EsmtpService, MailSetup, SessionInfo};
 use crate::smtp::{extension, Interpretter, Parser};
 use std::sync::Arc;
 
@@ -38,18 +39,23 @@ impl EsmtpStartTls {
 }
 
 impl MailSetup for EsmtpStartTls {
-    fn setup(self, config: &mut crate::mail::Configuration) {
+    fn setup(self, config: &mut Configuration) {
         config.interpret.insert(0, Box::new(self.interpret.clone()));
         config.esmtp.insert(0, Box::new(self));
     }
 }
 
 impl EsmtpService for EsmtpStartTls {
-    fn prepare_session(
-        &self,
-        io: &mut dyn crate::io::tls::MayBeTls,
-        session: &mut crate::mail::SessionInfo,
-    ) {
+    fn prepare_session<'a, 'i, 's, 'f>(
+        &'a self,
+        io: &'i mut dyn MayBeTls,
+        session: &'s mut SessionInfo,
+    ) -> S1Fut<'f, ()>
+    where
+        'a: 'f,
+        'i: 'f,
+        's: 'f,
+    {
         if !io.is_encrypted() {
             // Add tls if needed and available
             if !io.can_encrypt() {
@@ -62,5 +68,6 @@ impl EsmtpService for EsmtpStartTls {
                 session.extensions.enable(&extension::STARTTLS);
             }
         }
+        Box::pin(ready(()))
     }
 }

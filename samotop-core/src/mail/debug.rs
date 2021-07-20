@@ -31,8 +31,18 @@ impl MailSetup for DebugMailService {
     }
 }
 impl EsmtpService for DebugMailService {
-    fn prepare_session(&self, _io: &mut dyn MayBeTls, session: &mut SessionInfo) {
+    fn prepare_session<'a, 'i, 's, 'f>(
+        &'a self,
+        _io: &'i mut dyn MayBeTls,
+        session: &'s mut SessionInfo,
+    ) -> S1Fut<'f, ()>
+    where
+        'a: 'f,
+        'i: 'f,
+        's: 'f,
+    {
         info!("{}: I am {}", self.id, session.service_name);
+        Box::pin(ready(()))
     }
 }
 
