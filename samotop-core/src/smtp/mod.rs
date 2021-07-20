@@ -7,6 +7,7 @@ mod impatience;
 mod interpretter;
 mod parser;
 mod path;
+mod prudence;
 mod reply;
 mod state;
 
@@ -17,6 +18,7 @@ pub use self::impatience::*;
 pub use self::interpretter::*;
 pub use self::parser::*;
 pub use self::path::*;
+pub use self::prudence::*;
 pub use self::reply::*;
 pub use self::state::*;
 
