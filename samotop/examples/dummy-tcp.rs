@@ -18,7 +18,7 @@ extern crate async_std;
 extern crate env_logger;
 extern crate samotop;
 
-use samotop::io::dummy::DummyService;
+use samotop::io::DummyService;
 use samotop::server::TcpServer;
 
 fn main() {

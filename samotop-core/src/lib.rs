@@ -28,6 +28,9 @@ pub mod common {
     pub use std::sync::Arc;
     pub use std::task::{Context, Poll};
 
+    #[derive(Debug, Copy, Clone)]
+    pub struct Dummy;
+
     /// In the absence of random number generator produces a time based identifier
     /// It is not reliable nor secure, RNG/PRNG should be preffered.
     pub fn time_based_id() -> String {

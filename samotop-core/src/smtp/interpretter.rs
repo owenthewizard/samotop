@@ -1,7 +1,7 @@
 use crate::{
     common::*,
     mail::{Configuration, MailSetup},
-    smtp::{Dummy, ParseError, Parser, SmtpState},
+    smtp::{ParseError, Parser, SmtpState},
 };
 use std::{
     fmt::{self, Debug},
@@ -254,6 +254,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::common::Dummy;
     use crate::smtp::command::SmtpUnknownCommand;
 
     #[test]

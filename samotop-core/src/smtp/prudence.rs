@@ -1,5 +1,7 @@
 use crate::common::*;
+use crate::io::tls::MayBeTls;
 use crate::mail::{EsmtpService, MailSetup};
+use crate::smtp::SmtpState;
 use async_std::prelude::FutureExt;
 use std::time::Duration;
 
@@ -21,8 +23,8 @@ impl MailSetup for Prudence {
 impl EsmtpService for Prudence {
     fn prepare_session<'a, 'i, 's, 'f>(
         &'a self,
-        io: &'i mut dyn crate::io::tls::MayBeTls,
-        session: &'s mut crate::mail::SessionInfo,
+        io: &'i mut Box<dyn MayBeTls>,
+        state: &'s mut SmtpState,
     ) -> crate::common::S1Fut<'f, ()>
     where
         'a: 'f,
@@ -30,7 +32,7 @@ impl EsmtpService for Prudence {
         's: 'f,
     {
         Box::pin(async move {
-            if !session.banner_sent
+            if !state.session.banner_sent
                 && (self.check_rfc_wait_for_banner || self.enforce_rfc_wait_for_banner)
             {
                 let mut buf = [0u8];
@@ -44,18 +46,91 @@ impl EsmtpService for Prudence {
                         // this just looks like the client gave up and left
                     }
                     Some(Ok(_)) => {
+                        let myio = std::mem::replace(io, Box::new(Dummy));
+                        *io = Box::new(ConcatRW {
+                            head: Some(buf[0]),
+                            io: myio,
+                        });
                         if self.enforce_rfc_wait_for_banner {
-                            todo!("stop now")
+                            state.session.banner_sent = true;
+                            state.say_shutdown_processing_err(
+                                "Client sent commands before banner".into(),
+                            );
                         } else {
                             todo!("add report header")
                         }
                     }
-                    Some(Err(_)) => todo!("IO error"),
+                    Some(Err(e)) => {
+                        state.session.banner_sent = true;
+                        state.say_shutdown_processing_err(format!("IO read failed {}", e));
+                    }
                     None => {
                         // timeout is correct behavior, well done!
                     }
                 }
             }
         })
+    }
+}
+
+struct ConcatRW {
+    head: Option<u8>,
+    io: Box<dyn MayBeTls>,
+}
+
+impl MayBeTls for ConcatRW {
+    fn enable_encryption(&mut self, upgrade: Box<dyn crate::io::tls::TlsUpgrade>, name: String) {
+        if self.head.is_some() {
+            panic!("Cannot enable encryption while there are unread bytes in buffer")
+        }
+        self.io.enable_encryption(upgrade, name)
+    }
+
+    fn encrypt(mut self: Pin<&mut Self>) {
+        if self.head.is_some() {
+            panic!("Cannot encrypt while there are unread bytes in buffer")
+        }
+        Pin::new(&mut self.io).encrypt()
+    }
+
+    fn can_encrypt(&self) -> bool {
+        self.head.is_none() && self.io.can_encrypt()
+    }
+
+    fn is_encrypted(&self) -> bool {
+        self.head.is_none() && self.io.is_encrypted()
+    }
+}
+
+impl Read for ConcatRW {
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut [u8],
+    ) -> Poll<io::Result<usize>> {
+        if buf.len() != 0 {
+            if let Some(b) = self.head.take() {
+                buf[0] = b;
+                return Poll::Ready(Ok(1));
+            }
+        }
+        Pin::new(&mut self.io).poll_read(cx, buf)
+    }
+}
+impl Write for ConcatRW {
+    fn poll_write(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<io::Result<usize>> {
+        Pin::new(&mut self.io).poll_write(cx, buf)
+    }
+
+    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        Pin::new(&mut self.io).poll_flush(cx)
+    }
+
+    fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        Pin::new(&mut self.io).poll_close(cx)
     }
 }

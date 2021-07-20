@@ -11,7 +11,7 @@ mod tests {
 
     #[test]
     fn use_dummy_service() {
-        let _ = TcpServer::default().serve(crate::io::dummy::DummyService);
+        let _ = TcpServer::default().serve(crate::common::Dummy);
     }
 
     #[test]

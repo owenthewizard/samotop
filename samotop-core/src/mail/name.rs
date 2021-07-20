@@ -1,6 +1,7 @@
-use super::{EsmtpService, MailSetup, SessionInfo};
+use super::{EsmtpService, MailSetup};
 use crate::common::{ready, S1Fut};
 use crate::io::tls::MayBeTls;
+use crate::smtp::SmtpState;
 
 /// MailSetup that uses the given service name for a session.
 #[derive(Debug)]
@@ -18,15 +19,15 @@ impl EsmtpService for Name {
     /// Use a given name as a service name in the session
     fn prepare_session<'a, 'i, 's, 'f>(
         &'a self,
-        _io: &'i mut dyn MayBeTls,
-        session: &'s mut SessionInfo,
+        _io: &'i mut Box<dyn MayBeTls>,
+        state: &'s mut SmtpState,
     ) -> S1Fut<'f, ()>
     where
         'a: 'f,
         'i: 'f,
         's: 'f,
     {
-        session.service_name = self.name.clone();
+        state.session.service_name = self.name.clone();
         Box::pin(ready(()))
     }
 }

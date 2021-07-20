@@ -1,7 +1,6 @@
 use crate::common::*;
-
 use crate::io::tls::MayBeTls;
-use crate::mail::SessionInfo;
+use crate::smtp::SmtpState;
 
 /**
 The service which implements this trait delivers ESMTP extensions.
@@ -20,8 +19,8 @@ impl EsmtpService for EnableEightBit
 {
     fn prepare_session<'a, 'i, 's, 'f>(
         &'a self,
-        _io: &'i mut dyn MayBeTls,
-        session: &'s mut SessionInfo,
+        _io: &'i mut Box<dyn MayBeTls>,
+        state: &'s mut SmtpState,
     ) -> S1Fut<'f, ()>
     where
         'a: 'f,
@@ -29,7 +28,7 @@ impl EsmtpService for EnableEightBit
         's: 'f
     {
         Box::pin(async move {
-            session
+            state.session
                 .extensions
                 .enable(&extension::EIGHTBITMIME);
         })
@@ -40,8 +39,8 @@ impl EsmtpService for EnableEightBit
 pub trait EsmtpService: fmt::Debug {
     fn prepare_session<'a, 'i, 's, 'f>(
         &'a self,
-        io: &'i mut dyn MayBeTls,
-        session: &'s mut SessionInfo,
+        io: &'i mut Box<dyn MayBeTls>,
+        state: &'s mut SmtpState,
     ) -> S1Fut<'f, ()>
     where
         'a: 'f,
@@ -55,14 +54,14 @@ where
 {
     fn prepare_session<'a, 'i, 's, 'f>(
         &'a self,
-        io: &'i mut dyn MayBeTls,
-        session: &'s mut SessionInfo,
+        io: &'i mut Box<dyn MayBeTls>,
+        state: &'s mut SmtpState,
     ) -> S1Fut<'f, ()>
     where
         'a: 'f,
         'i: 'f,
         's: 'f,
     {
-        T::prepare_session(self, io, session)
+        T::prepare_session(self, io, state)
     }
 }

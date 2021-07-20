@@ -125,7 +125,7 @@ extern crate async_std;
 extern crate env_logger;
 extern crate samotop;
 use samotop::server::TcpServer;
-use samotop::io::dummy::DummyService;
+use samotop::io::DummyService;
 fn main() {
     env_logger::init();
     let mut srv = TcpServer::on("localhost:0").serve(DummyService);
@@ -141,7 +141,7 @@ extern crate async_std;
 extern crate env_logger;
 extern crate samotop;
 use samotop::server::UnixServer;
-use samotop::io::dummy::DummyService;
+use samotop::io::DummyService;
 fn main() {
     env_logger::init();
     let mut srv = UnixServer::on("local.socket").serve(DummyService);

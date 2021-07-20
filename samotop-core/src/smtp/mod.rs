@@ -22,9 +22,6 @@ pub use self::prudence::*;
 pub use self::reply::*;
 pub use self::state::*;
 
-#[derive(Debug, Copy, Clone)]
-pub struct Dummy;
-
 /// Represents the instructions for the client side of the stream.
 pub enum DriverControl {
     /// Write an SMTP response

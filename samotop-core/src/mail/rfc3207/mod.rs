@@ -1,7 +1,7 @@
 use crate::common::{ready, S1Fut};
 use crate::io::tls::{MayBeTls, TlsProvider};
-use crate::mail::{Configuration, EsmtpService, MailSetup, SessionInfo};
-use crate::smtp::{extension, Interpretter, Parser};
+use crate::mail::{Configuration, EsmtpService, MailSetup};
+use crate::smtp::{extension, Interpretter, Parser, SmtpState};
 use std::sync::Arc;
 
 mod starttls;
@@ -48,8 +48,8 @@ impl MailSetup for EsmtpStartTls {
 impl EsmtpService for EsmtpStartTls {
     fn prepare_session<'a, 'i, 's, 'f>(
         &'a self,
-        io: &'i mut dyn MayBeTls,
-        session: &'s mut SessionInfo,
+        io: &'i mut Box<dyn MayBeTls>,
+        state: &'s mut SmtpState,
     ) -> S1Fut<'f, ()>
     where
         'a: 'f,
@@ -65,7 +65,7 @@ impl EsmtpService for EsmtpStartTls {
             }
             // enable STARTTLS extension if it can be used
             if io.can_encrypt() {
-                session.extensions.enable(&extension::STARTTLS);
+                state.session.extensions.enable(&extension::STARTTLS);
             }
         }
         Box::pin(ready(()))

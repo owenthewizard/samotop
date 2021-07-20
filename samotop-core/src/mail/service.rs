@@ -121,8 +121,8 @@ impl MailGuard for Service {
 impl EsmtpService for Service {
     fn prepare_session<'a, 'i, 's, 'f>(
         &'a self,
-        io: &'i mut dyn MayBeTls,
-        session: &'s mut SessionInfo,
+        io: &'i mut Box<dyn MayBeTls>,
+        state: &'s mut SmtpState,
     ) -> S1Fut<'f, ()>
     where
         'a: 'f,
@@ -134,7 +134,7 @@ impl EsmtpService for Service {
                 "Esmtp {} with {} esmtps preparing session {:?}",
                 self.config.logging_id,
                 self.config.esmtp.len(),
-                session
+                state.session
             );
             for esmtp in self.config.esmtp.iter() {
                 trace!(
@@ -142,17 +142,17 @@ impl EsmtpService for Service {
                     self.config.logging_id,
                     esmtp
                 );
-                esmtp.prepare_session(io, session).await;
+                esmtp.prepare_session(io, state).await;
             }
 
-            if session.service_name.is_empty() {
-                session.service_name = format!("Samotop-{}", self.config.logging_id);
+            if state.session.service_name.is_empty() {
+                state.session.service_name = format!("Samotop-{}", self.config.logging_id);
                 warn!(
                     "Esmtp {} service name is empty. Using default {:?}",
-                    self.config.logging_id, session.service_name
+                    self.config.logging_id, state.session.service_name
                 );
             } else {
-                info!("Service name is {:?}", session.service_name);
+                info!("Service name is {:?}", state.session.service_name);
             }
         })
     }
@@ -208,13 +208,10 @@ impl IoService for Service {
         Box::pin(async move {
             info!("New peer connection {}", connection);
             let mut io = io?;
-            let mut state = SmtpState::new(service);
+            let mut state = SmtpState::new(service.clone());
             state.session.connection = connection;
 
-            state
-                .service
-                .prepare_session(&mut io, &mut state.session)
-                .await;
+            service.prepare_session(&mut io, &mut state).await;
 
             // fetch and apply commands
             state.service.get_driver(&mut io).drive(&mut state).await?;
