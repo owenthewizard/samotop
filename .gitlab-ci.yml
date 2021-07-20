@@ -13,6 +13,7 @@ debug-build:
   stage: build
   only:
     - branches
+  interruptible: true
   cache:
     key: &cache-key
       files:
@@ -42,6 +43,7 @@ release-build:
     - /^release\/*/
     - /^hotfix\/*/
     - master
+  interruptible: true
   cache:
     key: *cache-key
     paths: *cache-paths
@@ -61,6 +63,7 @@ stable-test:
   stage: build
   only:
     - branches
+  interruptible: true
   cache:
     key: *cache-key
     paths: *cache-paths
@@ -90,6 +93,7 @@ audit-test:
 nightly-test:
   stage: build
   allow_failure: true
+  interruptible: true
   variables:
     RUST_BACKTRACE: 1
   only:
@@ -115,6 +119,7 @@ nightly-test:
   stage: build
   only:
     - branches
+  interruptible: true
   cache:
     key: *cache-key
     paths: *cache-paths
@@ -209,6 +214,7 @@ server-version:
     - echo "SAMOTOP_VERSION=$SAMOTOP_VERSION" > vars.env
     - echo "SAMOTOP_IMAGE=$CI_REGISTRY_IMAGE/samotop:$SAMOTOP_VERSION" >> vars.env
     - cat vars.env
+  interruptible: true
   cache:
     key: *cache-key
     paths: *cache-paths
@@ -220,6 +226,7 @@ server-version:
 server-docker-image:
   extends: .kaniko-build-template
   stage: release
+  interruptible: true
   variables:
     COMPONENT: samotop
     CONTEXT: .
