@@ -24,7 +24,7 @@ use samotop::{
     io::tls::RustlsProvider,
     mail::{
         smime::{Accounts, SMimeMail},
-        Builder, Dir, Esmtp, Name,
+        Builder, Dir, Esmtp, EsmtpStartTls, Name,
     },
     server::TcpServer,
     smtp::SmtpParser,
@@ -54,9 +54,10 @@ async fn main_fut() -> Result<()> {
         .using(Dir::new(setup.get_mail_dir())?)
         .using(samotop::mail::spf::provide_viaspf())
         .using(Esmtp.with(SmtpParser))
-        .using(RustlsProvider::from(TlsAcceptor::from(
-            setup.get_tls_config().await?,
-        )))
+        .using(EsmtpStartTls::with(
+            SmtpParser,
+            RustlsProvider::from(TlsAcceptor::from(setup.get_tls_config().await?)),
+        ))
         .build();
 
     info!("I am {}", setup.get_my_name());

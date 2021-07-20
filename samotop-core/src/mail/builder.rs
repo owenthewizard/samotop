@@ -1,6 +1,5 @@
 use crate::{
     common::*,
-    io::tls::{NoTls, TlsProvider},
     mail::{EsmtpService, MailDispatch, MailGuard, MailSetup, Service},
     smtp::Interpret,
 };
@@ -16,7 +15,6 @@ pub struct Builder {
 pub struct Configuration {
     /// ID used for identifying this instance in logs
     pub logging_id: String,
-    pub tls: Box<dyn TlsProvider + Sync + Send + 'static>,
     pub interpret: Vec<Box<dyn Interpret + Send + Sync>>,
     pub dispatch: Vec<Box<dyn MailDispatch + Sync + Send + 'static>>,
     pub guard: Vec<Box<dyn MailGuard + Sync + Send + 'static>>,
@@ -46,7 +44,6 @@ impl Default for Configuration {
     fn default() -> Self {
         Self {
             logging_id: time_based_id(),
-            tls: Box::new(NoTls),
             interpret: Default::default(),
             dispatch: Default::default(),
             guard: Default::default(),
