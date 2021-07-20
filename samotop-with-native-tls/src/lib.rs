@@ -2,11 +2,7 @@ use async_native_tls::TlsAcceptor;
 use async_native_tls::TlsConnector;
 use samotop_core::io::tls::TlsProvider;
 use samotop_core::io::tls::TlsUpgrade;
-use samotop_core::{
-    common::*,
-    io::tls::Io,
-    mail::{Configuration, MailSetup},
-};
+use samotop_core::{common::*, io::tls::Io};
 use std::fmt;
 
 pub struct NativeTlsProvider<T> {
@@ -110,17 +106,5 @@ impl TlsUpgrade for NativeTlsProvider<TlsConnector> {
 impl fmt::Debug for NativeTlsProvider<TlsConnector> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("NativeTlsProvider<TlsAcceptor>").finish()
-    }
-}
-
-impl MailSetup for NativeTlsProvider<TlsConnector> {
-    fn setup(self, config: &mut Configuration) {
-        config.tls = Box::new(self);
-    }
-}
-
-impl MailSetup for NativeTlsProvider<TlsAcceptor> {
-    fn setup(self, config: &mut Configuration) {
-        config.tls = Box::new(self);
     }
 }

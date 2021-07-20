@@ -31,9 +31,6 @@ impl Action<SmtpRcpt> for Esmtp {
                     state.say_ok();
                     state.transaction = transaction;
                 }
-                AddRecipientResult::TerminateSession(description) => {
-                    state.say_shutdown_service_err(description);
-                }
                 AddRecipientResult::Failed(transaction, failure, description) => {
                     state.say_rcpt_failed(failure, description);
                     state.transaction = transaction;
@@ -62,7 +59,7 @@ mod tests {
     #[test]
     fn recipient_is_added() {
         async_std::task::block_on(async move {
-            let mut set = SmtpState::new(Builder::default().into_service());
+            let mut set = SmtpState::new(Builder::default().build());
             set.transaction.id = "someid".to_owned();
             set.transaction.mail = Some(SmtpMail::Mail(SmtpPath::Null, vec![]));
             set.transaction.rcpts.push(Recipient::null());

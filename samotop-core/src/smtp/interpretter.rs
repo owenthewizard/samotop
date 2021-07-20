@@ -1,7 +1,7 @@
 use crate::{
     common::*,
     mail::{Configuration, MailSetup},
-    smtp::{Dummy, ParseError, Parser, SmtpState},
+    smtp::{ParseError, Parser, SmtpState},
 };
 use std::{
     fmt::{self, Debug},
@@ -71,16 +71,16 @@ where
     }
 }
 
-pub type InterpretResult = std::result::Result<usize, ParseError>;
+pub type InterpretResult = std::result::Result<Option<usize>, ParseError>;
 
+#[derive(Default)]
 pub struct Interpretter {
     calls: Vec<Box<dyn Interpret + Send + Sync>>,
 }
 
 impl MailSetup for Interpretter {
-    fn setup(mut self, config: &mut Configuration) {
-        self.calls.push(config.interpretter.clone());
-        config.interpretter = Box::new(Arc::new(self))
+    fn setup(self, config: &mut Configuration) {
+        config.interpret.insert(0, Box::new(self))
     }
 }
 impl Interpret for Interpretter {
@@ -94,10 +94,13 @@ impl Interpret for Interpretter {
         'i: 'f,
         's: 'f,
     {
-        Box::pin(self.interpret_inner(input, state))
+        Box::pin(interpret_all(self.calls.as_slice(), input, state))
     }
 }
 impl Interpretter {
+    pub fn new(calls: Vec<Box<dyn Interpret + Send + Sync>>) -> Self {
+        Self { calls }
+    }
     pub fn parse<CMD>(self) -> InterpretterBuilderCommand<CMD>
     where
         CMD: 'static + Send + Sync,
@@ -107,7 +110,7 @@ impl Interpretter {
             phantom: PhantomData,
         }
     }
-    pub fn handle<P, A, CMD>(mut self, parser: P, action: A) -> Self
+    pub fn handle<P, A, CMD>(self, parser: P, action: A) -> Self
     where
         P: Parser<CMD> + Debug + 'static + Send + Sync,
         A: Action<CMD> + Debug + 'static + Send + Sync,
@@ -118,41 +121,11 @@ impl Interpretter {
             action,
             phantom: PhantomData,
         };
+        self.call(call)
+    }
+    pub fn call<I: Interpret + Send + Sync + 'static>(mut self, call: I) -> Self {
         self.calls.push(Box::new(call));
         self
-    }
-    async fn interpret_inner(&self, input: &[u8], state: &mut SmtpState) -> InterpretResult {
-        let mut mismatches = vec![];
-        let mut failures = vec![];
-        let mut incomplete = false;
-        for call in self.calls.as_slice() {
-            match call.interpret(input, state).await {
-                Ok(len) => return Ok(len),
-                Err(ParseError::Mismatch(e)) => {
-                    mismatches.push(e);
-                    continue;
-                }
-                Err(ParseError::Incomplete) => {
-                    incomplete = true;
-                    continue;
-                }
-                Err(ParseError::Failed(e)) => {
-                    failures.push(e);
-                    continue;
-                }
-            }
-        }
-        if !failures.is_empty() {
-            let msg = failures.join("; ");
-            Err(ParseError::Failed(msg))
-        } else if incomplete {
-            Err(ParseError::Incomplete)
-        } else if !mismatches.is_empty() {
-            let msg = mismatches.join("; ");
-            Err(ParseError::Mismatch(msg))
-        } else {
-            Err(ParseError::Mismatch("No parsers?".into()))
-        }
     }
 }
 impl Debug for Interpretter {
@@ -160,9 +133,42 @@ impl Debug for Interpretter {
         f.write_fmt(format_args!("Interpretter({})", self.calls.len()))
     }
 }
-impl Default for Interpretter {
-    fn default() -> Self {
-        Interpretter { calls: vec![] }
+
+pub(crate) async fn interpret_all(
+    calls: &[Box<dyn Interpret + Send + Sync>],
+    input: &[u8],
+    state: &mut SmtpState,
+) -> InterpretResult {
+    let mut mismatches = vec![];
+    let mut failures = vec![];
+    let mut incomplete = false;
+    for call in calls {
+        match call.interpret(input, state).await {
+            Ok(len) => return Ok(len),
+            Err(ParseError::Mismatch(e)) => {
+                mismatches.push(e);
+                continue;
+            }
+            Err(ParseError::Incomplete) => {
+                incomplete = true;
+                continue;
+            }
+            Err(ParseError::Failed(e)) => {
+                failures.push(e);
+                continue;
+            }
+        }
+    }
+    if !failures.is_empty() {
+        let msg = failures.join("; ");
+        Err(ParseError::Failed(msg))
+    } else if incomplete {
+        Err(ParseError::Incomplete)
+    } else if !mismatches.is_empty() {
+        let msg = mismatches.join("; ");
+        Err(ParseError::Mismatch(msg))
+    } else {
+        Err(ParseError::Mismatch("No parsers?".into()))
     }
 }
 pub struct InterpretterBuilderCommand<CMD> {
@@ -222,7 +228,7 @@ where
     async fn perform_inner(&self, input: &[u8], state: &mut SmtpState) -> InterpretResult {
         let (length, cmd) = self.parser.parse(input, state)?;
         self.action.apply(cmd, state).await;
-        Ok(length)
+        Ok(Some(length))
     }
 }
 impl<CMD, P, A> Interpret for ParserAction<P, A, CMD>
@@ -248,51 +254,27 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::common::Dummy;
     use crate::smtp::command::SmtpUnknownCommand;
 
     #[test]
+    fn interpretter_session_setup_test() {
+        insta::assert_debug_snapshot!(
+            Interpretter::default(), 
+            @"Interpretter(0)");
+    }
+    #[test]
     fn interpretter_handle_test() {
-        let parser = Dummy;
-        let action = Dummy;
-        assert_eq!(
-            format!(
-                "{:#?}",
-                Interpretter::default().handle::<_, _, SmtpUnknownCommand>(parser, action)
-            ),
-            format!(
-                "{:#?}",
-                Interpretter {
-                    calls: vec![Box::new(ParserAction {
-                        parser,
-                        action,
-                        phantom: PhantomData::<SmtpUnknownCommand>
-                    })]
-                }
-            ),
-        );
+        insta::assert_debug_snapshot!(
+            Interpretter::default().handle::<_, _, SmtpUnknownCommand>(Dummy, Dummy),
+            @"Interpretter(1)");
     }
     #[test]
     fn builder_parse_with_apply_test() {
-        let parser = Dummy;
-        let action = Dummy;
-        assert_eq!(
-            format!(
-                "{:#?}",
-                Interpretter::default()
-                    .parse::<SmtpUnknownCommand>()
-                    .with(parser)
-                    .and_apply(action)
-            ),
-            format!(
-                "{:#?}",
-                Interpretter {
-                    calls: vec![Box::new(ParserAction {
-                        parser,
-                        action,
-                        phantom: PhantomData::<SmtpUnknownCommand>
-                    })]
-                }
-            ),
-        );
+        insta::assert_debug_snapshot!(Interpretter::default()
+            .parse::<SmtpUnknownCommand>()
+            .with(Dummy)
+            .and_apply(Dummy),
+            @"Interpretter(1)");
     }
 }

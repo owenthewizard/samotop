@@ -34,10 +34,6 @@ where
                 return;
             };
             let mut write_all = sink.write_all(data.as_ref());
-            /*WriteAll {
-                from: data.as_ref(),
-                to: Box::pin(sink),
-            };*/
 
             match (&mut write_all).await {
                 Ok(()) => {
@@ -91,35 +87,3 @@ where
         }
     }
 }
-/*
-struct WriteAll<'a, W> {
-    pub from: &'a [u8],
-    pub to: Pin<Box<W>>,
-}
-
-impl<W> Future for WriteAll<'_, W>
-where
-    W: Write,
-{
-    type Output = std::io::Result<()>;
-
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let this = &mut *self;
-        while !this.from.is_empty() {
-            let n = match Pin::new(&mut this.to).poll_write(cx, this.from)? {
-                Poll::Pending => return Poll::Pending,
-                Poll::Ready(len) => len,
-            };
-            {
-                let (_, rest) = std::mem::replace(&mut this.from, &[]).split_at(n);
-                this.from = rest;
-            }
-            if n == 0 {
-                return Poll::Ready(Err(std::io::ErrorKind::WriteZero.into()));
-            }
-        }
-
-        Poll::Ready(Ok(()))
-    }
-}
-*/

@@ -7,17 +7,15 @@ mod noop;
 mod quit;
 mod rcpt;
 mod rset;
-mod session;
 mod unknown;
 
 pub(crate) use self::body::apply_mail_body;
 pub(crate) use self::helo::apply_helo;
-use super::rfc3207::EsmtpStartTls;
-use crate::common::S1Fut;
+use crate::common::{ready, S1Fut};
 use crate::smtp::command::*;
 use crate::smtp::*;
 
-/// An implementation of ESMTP - RFC 5321 - SMTP Service Extension for Secure SMTP over Transport Layer Security
+/// An implementation of ESMTP - RFC 5321 - Simple Mail Transfer Protocol
 
 #[derive(Eq, PartialEq, Debug, Clone)]
 pub struct Esmtp;
@@ -33,12 +31,37 @@ impl Esmtp {
         P: Parser<MailBody<Vec<u8>>>,
     {
         Interpretter::default()
+            .call(Banner)
             .parse::<SmtpCommand>()
             .with(parser.clone())
             .and_apply(Esmtp)
             .parse::<MailBody<Vec<u8>>>()
             .with(parser)
             .and_apply(Esmtp)
+    }
+}
+
+#[derive(Debug)]
+pub struct Banner;
+
+impl Interpret for Banner {
+    fn interpret<'a, 'i, 's, 'f>(
+        &'a self,
+        _input: &'i [u8],
+        state: &'s mut SmtpState,
+    ) -> S1Fut<'f, InterpretResult>
+    where
+        'a: 'f,
+        'i: 'f,
+        's: 'f,
+    {
+        Box::pin(ready(if !state.session.banner_sent {
+            state.say_service_ready();
+            state.session.banner_sent = true;
+            Ok(None)
+        } else {
+            Err(ParseError::Mismatch("Banner has already been sent".into()))
+        }))
     }
 }
 
@@ -58,7 +81,6 @@ impl Action<SmtpCommand> for Esmtp {
                 C::Quit => self.apply(SmtpQuit, state).await,
                 C::Rset => self.apply(SmtpRset, state).await,
                 C::Noop(_) => self.apply(SmtpNoop, state).await,
-                C::StartTls => EsmtpStartTls.apply(EsmtpStartTls, state).await,
                 C::Expn(_) | C::Vrfy(_) | C::Help(_) | C::Turn | C::Other(_, _) => {
                     self.apply(SmtpUnknownCommand::default(), state).await
                 }

@@ -3,6 +3,9 @@ use crate::dispatch::DispatchMail;
 use samotop_core::{common::*, mail::*};
 use std::path::PathBuf;
 
+/// MailSetup that adds a mail dir dispatch.
+///
+/// E-mails are stored in the given folder according to MailDir standard.
 #[derive(Debug)]
 pub struct Dir {
     pub path: PathBuf,

@@ -2,6 +2,7 @@ mod body;
 mod helo;
 
 use crate::common::S1Fut;
+use crate::mail::Banner;
 use crate::mail::Esmtp;
 use crate::smtp::command::MailBody;
 use crate::smtp::command::SmtpCommand;
@@ -22,6 +23,7 @@ impl Lmtp {
         P: Parser<MailBody<Vec<u8>>>,
     {
         Interpretter::default()
+            .call(Banner)
             .parse::<SmtpCommand>()
             .with(parser.clone())
             .and_apply(Lmtp)

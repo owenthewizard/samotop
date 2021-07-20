@@ -63,72 +63,73 @@ pub enum SmtpReply {
     // 3xx => ...Challenge
     // 4xx => ...Error
     // 5xx => ...Failure
-
-    /* no response should be given */
+    /// no response should be given
     None,
 
-    /*500*/
+    /// 500
     CommandSyntaxFailure,
-    /*501*/
+    /// 501
     ParameterSyntaxFailure,
-    /*502*/
+    /// 502
     CommandNotImplementedFailure,
-    /*503*/
+    /// 503
     CommandSequenceFailure,
     /*504*/
     UnexpectedParameterFailure,
 
-    /*211*/
+    /// 211
     StatusInfo(String),
-    /*214*/
+    /// 214
     HelpInfo(String),
 
-    // 220 <domain> Service ready
+    /// 220 @domain service ready
     ServiceReadyInfo(String),
-    // 221 <domain> Service closing transmission channel
+    /// 221 @domain service closing transmission channel
     ClosingConnectionInfo(String),
-    // 421 <domain> Service not available, closing transmission channel
+    /// 421 @domain service not available, closing transmission channel
     ServiceNotAvailableError(String),
-    // 521 RFC 7504
+    /// 521 RFC 7504
     MailNotAcceptedByHostFailure,
 
-    // 250 first line is either Ok or specific message, use Vec<String> for subsequent items
+    /// 250 Ok
     OkInfo,
+    /// 250 @message
     OkMessageInfo(String),
+    /// 250 response to HELO/EHLO/LHLO
     OkHeloInfo {
         local: String,
         remote: String,
         extensions: Vec<String>,
     },
-    // 251 will forward to <forward-path> (See Section 3.4)
+    /// 251 will forward to @forward-path (See Section 3.4)
     UserNotLocalInfo(String),
-    // 252 but will accept message and attempt delivery (See Section 3.5.3)
+    /// 252 but will accept message and attempt delivery (See Section 3.5.3)
     CannotVerifyUserInfo,
-    // 354 end with <CRLF>.<CRLF>
+    /// 354 start mail, end with CRLF.CRLF
     StartMailInputChallenge,
-    // 450 Requested mail action not taken (e.g., mailbox busy
-    //     or temporarily blocked for policy reasons)
+    /// 450 Requested mail action not taken (e.g., mailbox busy
+    ///     or temporarily blocked for policy reasons)
     MailboxNotAvailableError,
-    // 451 Requested action aborted
+    /// 451 Requested action aborted
     ProcesingError,
-    // 452 Requested action not taken
+    /// 452 Requested action not taken
     StorageError,
-    // 455 right now the parameters given cannot be accomodated
+    /// 455 right now the parameters given cannot be accomodated
     ParametersNotAccommodatedError,
-    // 550 Requested action not taken: mailbox unavailable (e.g.,
-    //     mailbox not found, no access, or command rejected for policy reasons)
+    /// 550 Requested action not taken: mailbox unavailable (e.g.,
+    ///     mailbox not found, no access, or command rejected for policy reasons)
     MailboxNotAvailableFailure,
-    // 551 please try <forward-path> (See Section 3.4)
+    /// 551 please try @forward-path (See Section 3.4)
     UserNotLocalFailure(String),
-    // 552 Requested mail action aborted: exceeded storage allocation
+    /// 552 Requested mail action aborted: exceeded storage allocation
     StorageFailure,
-    // 553 Requested action not taken: mailbox name not allowed (e.g., mailbox syntax incorrect)
+    /// 553 Requested action not taken: mailbox name not allowed (e.g., mailbox syntax incorrect)
     MailboxNameInvalidFailure,
-    // 554 (Or, in the case of a connection-opening response, "No SMTP service here")
+    /// 554 (Or, in the case of a connection-opening response, "No SMTP service here")
     TransactionFailure,
-    // 555 MAIL FROM/RCPT TO parameters not recognized or not implemented
+    /// 555 MAIL FROM/RCPT TO parameters not recognized or not implemented
     UnknownMailParametersFailure,
-    // 556 RFC 7504
+    /// 556 RFC 7504
     MailNotAcceptedByDomainFailure,
 }
 
@@ -148,24 +149,24 @@ impl SmtpReply {
             StatusInfo(_) => 211,
             HelpInfo(_) => 214,
 
-            // <domain> Service ready
+            // @domain service ready
             ServiceReadyInfo(_) => 220,
-            // <domain> Service closing transmission channel
+            // @domain service closing transmission channel
             ClosingConnectionInfo(_) => 221,
-            // <domain> Service not available, closing transmission channel
+            // @domain service not available, closing transmission channel
             ServiceNotAvailableError(_) => 421,
             // RFC 7504
             MailNotAcceptedByHostFailure => 521,
 
-            // first line is either Ok or specific message, use Vec<String> for subsequent items
+            // first line is either Ok or specific message
             OkInfo => 250,
             OkMessageInfo(_) => 250,
             OkHeloInfo { .. } => 250,
-            // will forward to <forward-path> (See Section 3.4)
+            // will forward to @forward-path (See Section 3.4)
             UserNotLocalInfo(_) => 251,
             //, but will accept message and attempt delivery (See Section 3.5.3)
             CannotVerifyUserInfo => 252,
-            // end with <CRLF>.<CRLF>
+            // end with CRLF.CRLF
             StartMailInputChallenge => 354,
             // Requested mail action not taken (e.g., mailbox busy
             // or temporarily blocked for policy reasons)
@@ -179,7 +180,7 @@ impl SmtpReply {
             // Requested action not taken: mailbox unavailable (e.g.,
             // mailbox not found, no access, or command rejected for policy reasons)
             MailboxNotAvailableFailure => 550,
-            // please try <forward-path> (See Section 3.4)
+            // please try @forward-path (See Section 3.4)
             UserNotLocalFailure(_) => 551,
             // Requested mail action aborted: exceeded storage allocation
             StorageFailure => 552,
@@ -206,12 +207,12 @@ impl SmtpReply {
             StatusInfo(ref text) => text.to_string(),
             HelpInfo(ref text) => text.to_string(),
 
-            ServiceReadyInfo(ref domain) => format!("Service ready: {}", domain),
+            ServiceReadyInfo(ref domain) => format!("{} service ready", domain),
             ClosingConnectionInfo(ref domain) => {
-                format!("{} Service closing transmission channel", domain)
+                format!("{} service closing transmission channel", domain)
             }
             ServiceNotAvailableError(ref domain) => format!(
-                "{} Service not available, closing transmission channel",
+                "{} service not available, closing transmission channel",
                 domain
             ),
             MailNotAcceptedByHostFailure => "Host does not accept mail".to_owned(),
@@ -302,6 +303,8 @@ impl fmt::Display for SmtpReply {
         let code = self.code();
         let text = self.text();
         let items = self.items();
+
+        debug_assert!(!text.contains('\n'), "text line must not contain new lines");
 
         if items.is_empty() {
             write_reply_end(&mut buf, code, &text)?;

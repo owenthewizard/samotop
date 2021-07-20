@@ -1,4 +1,7 @@
-use crate::smtp::{command::SmtpUnknownCommand, Dummy, SmtpState};
+use crate::{
+    common::Dummy,
+    smtp::{command::SmtpUnknownCommand, SmtpState},
+};
 use std::fmt::{self, Debug};
 
 #[derive(Debug)]

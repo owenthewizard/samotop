@@ -1,11 +1,11 @@
+use super::StartTls;
 use crate::common::S1Fut;
-use crate::mail::EsmtpStartTls;
 use crate::smtp::{extension, Action, SmtpState};
 
-impl Action<EsmtpStartTls> for EsmtpStartTls {
+impl Action<StartTls> for StartTls {
     /// Applies given helo to the state
     /// It asserts the right HELO/EHLO variant
-    fn apply<'a, 's, 'f>(&'a self, _cmd: EsmtpStartTls, state: &'s mut SmtpState) -> S1Fut<'f, ()>
+    fn apply<'a, 's, 'f>(&'a self, _cmd: StartTls, state: &'s mut SmtpState) -> S1Fut<'f, ()>
     where
         'a: 'f,
         's: 'f,
@@ -17,8 +17,7 @@ impl Action<EsmtpStartTls> for EsmtpStartTls {
                 // you cannot STARTTLS twice so we only advertise it before first use
                 if state.session.extensions.disable(&extension::STARTTLS) {
                     state.reset();
-                    let name = state.session.service_name.clone();
-                    state.say_start_tls(name)
+                    state.say_start_tls()
                 } else {
                     state.say_not_implemented()
                 }

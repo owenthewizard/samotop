@@ -1,5 +1,6 @@
 use super::{Io, MayBeTls, TlsUpgrade};
 use crate::common::*;
+use core::panic;
 use std::fmt;
 
 pub struct TlsCapable {
@@ -54,6 +55,15 @@ impl MayBeTls for TlsCapable {
             State::Enabled(_, _, _) => false,
             State::Handshake(_) => true,
             State::Failed => false,
+        }
+    }
+
+    fn enable_encryption(&mut self, upgrade: Box<dyn super::TlsUpgrade>, name: String) {
+        self.state = match std::mem::replace(&mut self.state, State::Failed) {
+            State::Enabled(io, _, _) => State::Enabled(io, upgrade, name),
+            State::Done(io, _) => State::Enabled(io, upgrade, name),
+            State::Handshake(_) => panic!("currently upgrading"),
+            State::Failed => panic!("IO failed"),
         }
     }
 }

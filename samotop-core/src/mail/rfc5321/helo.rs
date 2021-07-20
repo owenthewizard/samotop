@@ -33,17 +33,11 @@ impl Action<SmtpHelo> for Esmtp {
 /// Applies given helo to the state
 /// It assumes it is the right HELO/EHLO/LHLO variant
 pub fn apply_helo(helo: SmtpHelo, is_extended: bool, state: &mut SmtpState) {
-    let local = state.session.service_name.to_owned();
-    let remote = helo.host.to_string();
-
     state.reset_helo(helo.host.to_string());
 
     match is_extended {
-        false => state.say_helo(local, remote),
-        true => {
-            let extensions = state.session.extensions.iter().map(String::from).collect();
-            state.say_ehlo(local, extensions, remote)
-        }
+        false => state.say_helo(),
+        true => state.say_ehlo(),
     };
 }
 
@@ -58,7 +52,7 @@ mod tests {
     #[test]
     fn transaction_gets_reset() {
         async_std::task::block_on(async move {
-            let mut set = SmtpState::new(Builder::default().into_service());
+            let mut set = SmtpState::new(Builder::default().build());
             set.transaction.id = "someid".to_owned();
             set.transaction.mail = Some(SmtpMail::Mail(SmtpPath::Null, vec![]));
             set.transaction.rcpts.push(Recipient::null());
@@ -80,7 +74,7 @@ mod tests {
     #[test]
     fn helo_is_set() {
         async_std::task::block_on(async move {
-            let mut set = SmtpState::new(Builder::default().into_service());
+            let mut set = SmtpState::new(Builder::default().build());
 
             Esmtp
                 .apply(
@@ -97,7 +91,7 @@ mod tests {
 
     #[test]
     fn is_sync_and_send() {
-        let mut set = SmtpState::new(Builder::default().into_service());
+        let mut set = SmtpState::new(Builder::default().build());
         let res = Esmtp.apply(
             SmtpHelo {
                 verb: "EHLO".to_string(),

@@ -24,12 +24,10 @@ find tmp/samotop/spool/
 
 use async_std::task;
 use samotop::{
-    io::smtp::SmtpService,
     mail::{Builder, Dir, Esmtp},
     server::TcpServer,
     smtp::SmtpParser,
 };
-use std::sync::Arc;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
@@ -39,14 +37,10 @@ fn main() -> Result<()> {
 }
 
 async fn main_fut() -> Result<()> {
-    let dir_service = Dir::new("tmp/samotop/spool/".into())?;
-    let mail_service = Arc::new(
-        Builder::default()
-            .using(dir_service)
-            .using(Esmtp.with(SmtpParser))
-            .into_service(),
-    );
-    let smtp_service = SmtpService::new(mail_service);
+    let mail_service = Builder::default()
+        .using(Dir::new("tmp/samotop/spool/".into())?)
+        .using(Esmtp.with(SmtpParser))
+        .build();
 
-    TcpServer::on("localhost:2525").serve(smtp_service).await
+    TcpServer::on("localhost:2525").serve(mail_service).await
 }

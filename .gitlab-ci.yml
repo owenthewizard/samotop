@@ -13,6 +13,7 @@ debug-build:
   stage: build
   only:
     - branches
+  interruptible: true
   cache:
     key: &cache-key
       files:
@@ -42,6 +43,7 @@ release-build:
     - /^release\/*/
     - /^hotfix\/*/
     - master
+  interruptible: true
   cache:
     key: *cache-key
     paths: *cache-paths
@@ -61,6 +63,7 @@ stable-test:
   stage: build
   only:
     - branches
+  interruptible: true
   cache:
     key: *cache-key
     paths: *cache-paths
@@ -90,6 +93,7 @@ audit-test:
 nightly-test:
   stage: build
   allow_failure: true
+  interruptible: true
   variables:
     RUST_BACKTRACE: 1
   only:
@@ -115,6 +119,7 @@ nightly-test:
   stage: build
   only:
     - branches
+  interruptible: true
   cache:
     key: *cache-key
     paths: *cache-paths
@@ -122,10 +127,10 @@ nightly-test:
   before_script:
     - rustc --version --verbose
     - cargo --version --verbose
+    - cargo build --example ${EXAMPLE:?} --color always
   variables:
     INPUT: samotop/examples/mailsession.txt
   script:
-    - cargo build --example ${EXAMPLE:?} --color always
     - RUST_LOG=trace cargo run --example ${EXAMPLE:?} &
     - sleep 5
     - nc localhost 2525 <"$INPUT" >client.log
@@ -153,6 +158,18 @@ example-dir:
     EXAMPLE: to-dirmail
     OUTPUT: samotop/examples/mailbody.txt
 
+example-prudence:
+  extends: .example-template
+  variables:
+    EXAMPLE: prudent
+  script:
+    - RUST_LOG=trace cargo run --example ${EXAMPLE:?} &
+    - sleep 5
+    - echo ehlo booo | nc -C localhost 2525 | tee bad-client.log
+    - nc -w 10 -C 127.0.0.1 2525 | tee good-client.log
+    - diff bad-client.log samotop/examples/prudence-bad.txt
+    - diff good-client.log samotop/examples/prudence-good.txt
+
 example-cmd:
   extends: .example-template
   variables:
@@ -160,7 +177,6 @@ example-cmd:
     INPUT: samotop/examples/mailsessionlmtp.txt
     OUTPUT: samotop/examples/mailbody.txt
   script:
-    - cargo build --example ${EXAMPLE:?}
     - cargo run --example ${EXAMPLE:?} <"$INPUT" >client.log
     - cat "$INPUT"
     - cat client.log
@@ -198,6 +214,7 @@ server-version:
     - echo "SAMOTOP_VERSION=$SAMOTOP_VERSION" > vars.env
     - echo "SAMOTOP_IMAGE=$CI_REGISTRY_IMAGE/samotop:$SAMOTOP_VERSION" >> vars.env
     - cat vars.env
+  interruptible: true
   cache:
     key: *cache-key
     paths: *cache-paths
@@ -209,6 +226,7 @@ server-version:
 server-docker-image:
   extends: .kaniko-build-template
   stage: release
+  interruptible: true
   variables:
     COMPONENT: samotop
     CONTEXT: .

@@ -21,17 +21,15 @@ use async_std::task;
 use async_tls::TlsAcceptor;
 use rustls::ServerConfig;
 use samotop::{
-    io::smtp::SmtpService,
     io::tls::RustlsProvider,
     mail::{
         smime::{Accounts, SMimeMail},
-        Builder, Dir, Esmtp, Name,
+        Builder, Dir, Esmtp, EsmtpStartTls, Name,
     },
     server::TcpServer,
     smtp::SmtpParser,
 };
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 use structopt::StructOpt;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
@@ -56,15 +54,14 @@ async fn main_fut() -> Result<()> {
         .using(Dir::new(setup.get_mail_dir())?)
         .using(samotop::mail::spf::provide_viaspf())
         .using(Esmtp.with(SmtpParser))
-        .using(RustlsProvider::from(TlsAcceptor::from(
-            setup.get_tls_config().await?,
-        )))
-        .into_service();
-
-    let smtp_service = SmtpService::new(Arc::new(mail_service));
+        .using(EsmtpStartTls::with(
+            SmtpParser,
+            RustlsProvider::from(TlsAcceptor::from(setup.get_tls_config().await?)),
+        ))
+        .build();
 
     info!("I am {}", setup.get_my_name());
-    TcpServer::on_all(ports).serve(smtp_service).await
+    TcpServer::on_all(ports).serve(mail_service).await
 }
 
 pub struct Setup {

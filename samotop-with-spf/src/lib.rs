@@ -10,6 +10,7 @@ use samotop_core::smtp::*;
 pub use viaspf::Config;
 use viaspf::{evaluate_spf, SpfResult};
 
+/// MailSetup that adds SPF check. If the SPF check results in Fail, mail is rejected.
 pub fn provide_viaspf() -> Provider<Config> {
     Provider(Config::default())
 }
@@ -40,7 +41,7 @@ impl MailDispatch for SpfService {
     fn send_mail<'a, 's, 'f>(
         &'a self,
         session: &'s SessionInfo,
-        transaction: Transaction,
+        mut transaction: Transaction,
     ) -> S1Fut<'f, DispatchResult>
     where
         'a: 'f,
@@ -57,7 +58,6 @@ impl MailDispatch for SpfService {
         };
         let fut = async move {
             // TODO: improve privacy - a) encrypt DNS, b) do DNS servers need to know who is receiving mail from whom?
-            // TODO: convert to async
             let resolver = match new_resolver().await {
                 Err(e) => {
                     error!("Could not crerate resolver! {:?}", e);
@@ -80,7 +80,9 @@ impl MailDispatch for SpfService {
                 }
                 result => {
                     debug!("mail OK with SPF result: {}", result);
-                    // TODO: Add SPF result to mail headers
+                    transaction
+                        .extra_headers
+                        .push_str(format!("X-Samotop-SPF: {}\r\n", result).as_str());
                     Ok(transaction)
                 }
             }
