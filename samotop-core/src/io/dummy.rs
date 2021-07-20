@@ -3,10 +3,7 @@ use crate::io::tls::MayBeTls;
 use crate::io::ConnectionInfo;
 use crate::io::IoService;
 
-/// Logs an incomming connection on info level and that's it.
-#[doc = "Dummy TCP service for testing samotop server"]
-#[derive(Clone, Debug)]
-pub struct DummyService;
+pub use crate::common::Dummy as DummyService;
 
 impl IoService for DummyService {
     fn handle(

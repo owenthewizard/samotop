@@ -98,11 +98,6 @@ pub struct AddRecipientRequest {
 #[allow(clippy::large_enum_variant)]
 pub enum AddRecipientResult {
     Inconclusive(AddRecipientRequest),
-    /// The whole mail transaction failed, subsequent RCPT and DATA will fail
-    /// 421  <domain> Service not available, closing transmission channel
-    ///  (This may be a reply to any command if the service knows it must
-    ///    shut down)
-    TerminateSession(String),
     /// Failed with description that should include the ID, see `AddRecipientFailure`
     Failed(Transaction, AddRecipientFailure, String),
     /// 251  User not local; will forward to <forward-path>
@@ -113,6 +108,11 @@ pub enum AddRecipientResult {
 
 #[derive(Debug, Clone)]
 pub enum AddRecipientFailure {
+    /// The whole mail transaction failed, subsequent RCPT and DATA will fail
+    /// 421  <domain> Service not available, closing transmission channel
+    ///  (This may be a reply to any command if the service knows it must
+    ///    shut down)
+    TerminateSession,
     /// 550 Requested action not taken: mailbox unavailable (e.g., mailbox
     /// not found, no access, or command rejected for policy reasons)
     RejectedPermanently,

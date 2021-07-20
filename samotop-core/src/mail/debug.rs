@@ -3,7 +3,9 @@
 use std::fmt;
 
 use crate::common::*;
+use crate::io::tls::MayBeTls;
 use crate::mail::*;
+use crate::smtp::SmtpState;
 //use uuid::Uuid;
 
 #[derive(Clone, Debug)]
@@ -30,8 +32,18 @@ impl MailSetup for DebugMailService {
     }
 }
 impl EsmtpService for DebugMailService {
-    fn prepare_session(&self, session: &mut SessionInfo) {
-        info!("{}: I am {}", self.id, session.service_name);
+    fn prepare_session<'a, 'i, 's, 'f>(
+        &'a self,
+        _io: &'i mut Box<dyn MayBeTls>,
+        state: &'s mut SmtpState,
+    ) -> S1Fut<'f, ()>
+    where
+        'a: 'f,
+        'i: 'f,
+        's: 'f,
+    {
+        info!("{}: I am {}", self.id, state.session.service_name);
+        Box::pin(ready(()))
     }
 }
 

@@ -1,7 +1,7 @@
 use super::Esmtp;
 use crate::{
-    common::S1Fut,
-    mail::{StartMailFailure, StartMailResult, Transaction},
+    common::{time_based_id, S1Fut},
+    mail::{StartMailResult, Transaction},
     smtp::{command::SmtpMail, Action, SmtpState},
 };
 
@@ -25,19 +25,12 @@ impl Action<SmtpMail> for Esmtp {
 
             use StartMailResult as R;
             match state.service.start_mail(&state.session, transaction).await {
-                R::Failed(StartMailFailure::TerminateSession, description) => {
-                    state.say_shutdown_service_err(description);
-                }
                 R::Failed(failure, description) => {
                     state.say_mail_failed(failure, description);
                 }
                 R::Accepted(mut transaction) => {
                     if transaction.id.is_empty() {
-                        fn nunnumber(input: char) -> bool {
-                            !input.is_ascii_digit()
-                        }
-                        // for the lack of better unique string without extra dependencies
-                        let id = format!("{:?}", std::time::Instant::now()).replace(nunnumber, "");
+                        let id = time_based_id();
                         warn!(
                             "Mail transaction ID is empty. Will use time based ID {}",
                             id
@@ -63,7 +56,7 @@ mod tests {
     #[test]
     fn transaction_gets_reset() {
         async_std::task::block_on(async move {
-            let mut set = SmtpState::new(Builder::default().into_service());
+            let mut set = SmtpState::new(Builder::default().build());
             set.session.peer_name = Some("xx.io".to_owned());
             set.transaction.id = "someid".to_owned();
             set.transaction.mail = Some(SmtpMail::Mail(SmtpPath::Null, vec![]));
@@ -86,7 +79,7 @@ mod tests {
     #[test]
     fn mail_is_set() {
         async_std::task::block_on(async move {
-            let mut set = SmtpState::new(Builder::default().into_service());
+            let mut set = SmtpState::new(Builder::default().build());
             set.session.peer_name = Some("xx.io".to_owned());
 
             Esmtp
@@ -107,7 +100,7 @@ mod tests {
     fn command_sequence_is_enforced() {
         async_std::task::block_on(async move {
             // MAIL command requires HELO/EHLO
-            let mut set = SmtpState::new(Builder::default().into_service());
+            let mut set = SmtpState::new(Builder::default().build());
 
             Esmtp
                 .apply(SmtpMail::Mail(SmtpPath::Postmaster, vec![]), &mut set)

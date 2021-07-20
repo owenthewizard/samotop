@@ -18,11 +18,10 @@ EOF
 
  */
 
+use samotop::mail::NullDispatch;
 use samotop::mail::{Builder, Esmtp};
 use samotop::server::TcpServer;
 use samotop::smtp::SmtpParser;
-use samotop::{io::smtp::SmtpService, mail::NullDispatch};
-use std::sync::Arc;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
@@ -32,8 +31,7 @@ async fn main() -> Result<()> {
     let mail_service = Builder::default()
         .using(NullDispatch)
         .using(Esmtp.with(SmtpParser))
-        .into_service();
-    let smtp_service = SmtpService::new(Arc::new(mail_service));
+        .build();
 
-    TcpServer::on("localhost:2525").serve(smtp_service).await
+    TcpServer::on("localhost:2525").serve(mail_service).await
 }

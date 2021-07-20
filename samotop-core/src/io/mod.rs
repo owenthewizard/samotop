@@ -1,8 +1,8 @@
 mod connection;
-pub mod dummy;
+mod dummy;
 mod service;
-pub mod smtp;
 pub mod tls;
 
 pub use self::connection::*;
+pub use self::dummy::*;
 pub use self::service::*;

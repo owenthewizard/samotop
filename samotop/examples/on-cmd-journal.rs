@@ -28,12 +28,11 @@ use async_std::io::Read;
 use async_std::io::Write;
 use async_std::task;
 use samotop::{
-    io::{smtp::SmtpService, tls::TlsCapable, ConnectionInfo, IoService},
+    io::{tls::TlsCapable, ConnectionInfo, IoService},
     mail::{Builder, Journal, Lmtp},
     smtp::SmtpParser,
 };
 use std::pin::Pin;
-use std::sync::Arc;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
@@ -43,13 +42,10 @@ fn main() -> Result<()> {
 }
 
 async fn main_fut() -> Result<()> {
-    let mail_service = Arc::new(
-        Builder::default()
-            .using(Journal::new("tmp/journal/"))
-            .using(Lmtp.with(SmtpParser))
-            .into_service(),
-    );
-    let smtp_service = SmtpService::new(mail_service);
+    let mail_service = Builder::default()
+        .using(Journal::new("tmp/journal/"))
+        .using(Lmtp.with(SmtpParser))
+        .build();
 
     let stream = MyIo {
         read: Box::pin(async_std::io::stdin()),
@@ -58,7 +54,7 @@ async fn main_fut() -> Result<()> {
     let stream = TlsCapable::plaintext(Box::new(stream));
     let conn = ConnectionInfo::default();
 
-    smtp_service.handle(Ok(Box::new(stream)), conn).await
+    mail_service.handle(Ok(Box::new(stream)), conn).await
 }
 
 struct MyIo<R, W> {

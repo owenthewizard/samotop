@@ -1,9 +1,6 @@
 use super::{TlsProvider, TlsUpgrade};
+use crate::common::*;
 use crate::io::tls::Io;
-use crate::{
-    common::*,
-    mail::{Configuration, MailSetup},
-};
 
 #[derive(Default, Debug, Clone, Copy)]
 pub struct NoTls;
@@ -51,11 +48,5 @@ impl Write for Impossible {
     }
     fn poll_close(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
         unreachable!()
-    }
-}
-
-impl MailSetup for NoTls {
-    fn setup(self, config: &mut Configuration) {
-        config.tls = Box::new(self);
     }
 }

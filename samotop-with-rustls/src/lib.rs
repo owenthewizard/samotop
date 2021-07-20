@@ -2,10 +2,12 @@ use async_tls::{TlsAcceptor, TlsConnector};
 use samotop_core::{
     common::*,
     io::tls::{Io, TlsProvider, TlsUpgrade},
-    mail::{Configuration, MailSetup},
 };
 use std::fmt;
 
+/// TLS provider for RustTLS.
+///
+/// Use the ::from impls with either a TlsAcceptor or TlsConnector
 #[derive(Clone)]
 pub struct RustlsProvider<T> {
     inner: T,
@@ -77,17 +79,5 @@ impl fmt::Debug for RustlsProvider<TlsAcceptor> {
 impl fmt::Debug for RustlsProvider<TlsConnector> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("RustlsProvider<TlsConnector>").finish()
-    }
-}
-
-impl MailSetup for RustlsProvider<TlsConnector> {
-    fn setup(self, config: &mut Configuration) {
-        config.tls = Box::new(self);
-    }
-}
-
-impl MailSetup for RustlsProvider<TlsAcceptor> {
-    fn setup(self, config: &mut Configuration) {
-        config.tls = Box::new(self);
     }
 }

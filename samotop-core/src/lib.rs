@@ -28,6 +28,19 @@ pub mod common {
     pub use std::sync::Arc;
     pub use std::task::{Context, Poll};
 
+    #[derive(Debug, Copy, Clone)]
+    pub struct Dummy;
+
+    /// In the absence of random number generator produces a time based identifier
+    /// It is not reliable nor secure, RNG/PRNG should be preffered.
+    pub fn time_based_id() -> String {
+        fn nonnumber(input: char) -> bool {
+            !input.is_ascii_digit()
+        }
+        // for the lack of better unique string without extra dependencies
+        format!("{:?}", std::time::Instant::now()).replace(nonnumber, "")
+    }
+
     /// Enable async close
     /// TODO: remove after https://github.com/async-rs/async-std/issues/977
     pub trait WriteClose {
@@ -63,6 +76,8 @@ pub mod common {
         type Output = io::Result<()>;
 
         fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+            // CHECKME: sometimes, last response is not written (I guess, based on NetCat experience)
+            //ready!(Pin::new(&mut *self.writer).poll_flush(cx))?;
             Pin::new(&mut *self.writer).poll_close(cx)
         }
     }

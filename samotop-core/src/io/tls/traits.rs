@@ -4,6 +4,7 @@ use std::ops::DerefMut;
 /// A stream implementing this trait may be able to upgrade to TLS
 /// But maybe not...
 pub trait MayBeTls: Unpin + Read + Write + Sync + Send {
+    fn enable_encryption(&mut self, upgrade: Box<dyn super::TlsUpgrade>, name: String);
     /// Initiates the TLS negotiations.
     /// The stream must then block all reads/writes until the
     /// underlying TLS handshake is done.
@@ -30,6 +31,10 @@ where
     }
     fn is_encrypted(&self) -> bool {
         TLSIO::is_encrypted(T::deref(self))
+    }
+
+    fn enable_encryption(&mut self, upgrade: Box<dyn super::TlsUpgrade>, name: String) {
+        TLSIO::enable_encryption(T::deref_mut(self), upgrade, name)
     }
 }
 

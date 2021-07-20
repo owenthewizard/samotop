@@ -7,7 +7,6 @@ mod noop;
 mod quit;
 mod rcpt;
 mod rset;
-mod session;
 mod unknown;
 
 pub use self::body::*;
@@ -19,12 +18,10 @@ pub use self::noop::*;
 pub use self::quit::*;
 pub use self::rcpt::*;
 pub use self::rset::*;
-pub use self::session::*;
 pub use self::unknown::*;
 
 #[derive(Eq, PartialEq, Debug, Clone)]
 pub enum SmtpCommand {
-    StartTls,
     Helo(SmtpHelo),
     Mail(SmtpMail),
     Rcpt(SmtpRcpt),
@@ -52,7 +49,6 @@ impl SmtpCommand {
             C::Quit => "QUIT",
             C::Rset => "RSET",
             C::Noop(_) => "NOOP",
-            C::StartTls => "STARTTLS",
             C::Expn(_) => "EXPN",
             C::Vrfy(_) => "VRFY",
             C::Help(_) => "HELP",
