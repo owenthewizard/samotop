@@ -161,7 +161,7 @@ example-dir:
 example-prudence:
   extends: .example-template
   variables:
-    EXAMPLE: prudence
+    EXAMPLE: prudent
   script:
     - RUST_LOG=trace cargo run --example ${EXAMPLE:?} &
     - sleep 5
