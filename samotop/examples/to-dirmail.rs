@@ -26,7 +26,7 @@ use async_std::task;
 use samotop::{
     mail::{Builder, Dir, Esmtp},
     server::TcpServer,
-    smtp::{Prudence, SmtpParser},
+    smtp::SmtpParser,
 };
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
@@ -40,10 +40,6 @@ async fn main_fut() -> Result<()> {
     let mail_service = Builder::default()
         .using(Dir::new("tmp/samotop/spool/".into())?)
         .using(Esmtp.with(SmtpParser))
-        .using(Prudence {
-            enforce_rfc_wait_for_banner: true,
-            check_rfc_wait_for_banner: true,
-        })
         .build();
 
     TcpServer::on("localhost:2525").serve(mail_service).await

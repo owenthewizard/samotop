@@ -69,19 +69,26 @@ where
             trace!("Processing driver control {:?}", response);
             match response {
                 DriverControl::Response(bytes) => {
-                    match io.get_mut().write_all(bytes.as_ref()).await {
-                        Ok(()) => {
-                            // all good, carry on
-                        }
+                    let writer = io.get_mut();
+                    let write = writer
+                        .write_all(bytes.as_ref())
+                        .await
+                        .map_err(|e| DriverError::WriteFailed(Box::new(e)));
+                    let flush = writer
+                        .flush()
+                        .await
+                        .map_err(|e| DriverError::WriteFailed(Box::new(e)));
+                    match write.and(flush) {
+                        Ok(()) => {}
                         Err(e) => {
                             state.writes.push_front(DriverControl::Response(bytes));
-                            return Err(DriverError::WriteFailed(Box::new(e)));
+                            return Err(e);
                         }
                     }
                 }
                 DriverControl::Shutdown => match io.get_mut().close().await {
                     Ok(()) => {
-                        trace!("Close complete");
+                        trace!("Shutdown completed");
                         //io stays None
                         return Ok(());
                     }
@@ -135,7 +142,6 @@ where
                         String::from_utf8_lossy(self.buffer.as_slice()),
                         e
                     );
-                    state.say_invalid_syntax();
 
                     // remove one line from the buffer
                     let split = self
@@ -145,6 +151,14 @@ where
                         .map(|p| p + 1)
                         .unwrap_or(self.buffer.len());
                     self.buffer = self.buffer.split_off(split);
+
+                    if split == 0 {
+                        warn!("Parsing failed on empty input, this will fail again, stopping the session");
+                        state.say_shutdown_service_err()
+                    } else {
+                        state.say_invalid_syntax();
+                    }
+
                     break Some(io);
                 }
             };

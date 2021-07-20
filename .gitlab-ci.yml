@@ -122,10 +122,10 @@ nightly-test:
   before_script:
     - rustc --version --verbose
     - cargo --version --verbose
+    - cargo build --example ${EXAMPLE:?} --color always
   variables:
     INPUT: samotop/examples/mailsession.txt
   script:
-    - cargo build --example ${EXAMPLE:?} --color always
     - RUST_LOG=trace cargo run --example ${EXAMPLE:?} &
     - sleep 5
     - nc localhost 2525 <"$INPUT" >client.log
@@ -153,6 +153,18 @@ example-dir:
     EXAMPLE: to-dirmail
     OUTPUT: samotop/examples/mailbody.txt
 
+example-prudence:
+  extends: .example-template
+  variables:
+    EXAMPLE: prudence
+  script:
+    - RUST_LOG=trace cargo run --example ${EXAMPLE:?} &
+    - sleep 5
+    - echo ehlo booo | nc -C localhost 2525 | tee bad-client.log
+    - nc -w 10 -C 127.0.0.1 2525 | tee good-client.log
+    - diff bad-client.log samotop/examples/prudence-bad.txt
+    - diff good-client.log samotop/examples/prudence-good.txt
+
 example-cmd:
   extends: .example-template
   variables:
@@ -160,7 +172,6 @@ example-cmd:
     INPUT: samotop/examples/mailsessionlmtp.txt
     OUTPUT: samotop/examples/mailbody.txt
   script:
-    - cargo build --example ${EXAMPLE:?}
     - cargo run --example ${EXAMPLE:?} <"$INPUT" >client.log
     - cat "$INPUT"
     - cat client.log

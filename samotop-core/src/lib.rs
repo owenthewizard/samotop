@@ -76,6 +76,8 @@ pub mod common {
         type Output = io::Result<()>;
 
         fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+            // CHECKME: sometimes, last response is not written (I guess, based on NetCat experience)
+            //ready!(Pin::new(&mut *self.writer).poll_flush(cx))?;
             Pin::new(&mut *self.writer).poll_close(cx)
         }
     }

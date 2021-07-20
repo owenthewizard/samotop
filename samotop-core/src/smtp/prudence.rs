@@ -8,10 +8,8 @@ use std::time::Duration;
 /// Prevent or monitor bad SMTP behavior
 #[derive(Debug)]
 pub struct Prudence {
-    /// Refuse mail from clients sending commands before banner or just report it in mail headers?
-    pub enforce_rfc_wait_for_banner: bool,
-    /// Monitor bad behavior of clients not waiting for a banner
-    pub check_rfc_wait_for_banner: bool,
+    /// Monitor bad behavior of clients not waiting for a banner given time
+    pub wait_for_banner_delay: Option<Duration>,
 }
 
 impl MailSetup for Prudence {
@@ -32,40 +30,37 @@ impl EsmtpService for Prudence {
         's: 'f,
     {
         Box::pin(async move {
-            if !state.session.banner_sent
-                && (self.check_rfc_wait_for_banner || self.enforce_rfc_wait_for_banner)
-            {
-                let mut buf = [0u8];
-                match io
+            if !state.session.banner_sent {
+                if let Some(delay) = self.wait_for_banner_delay {
+                    let mut buf = [0u8];
+                    match io
                         .read(&mut buf[..])
-                        .timeout(Duration::from_millis(3210))
+                        .timeout(delay)
                         .await
                         .ok(/*convert timeout result to option*/)
-                {
-                    Some(Ok(0)) => {
-                        // this just looks like the client gave up and left
-                    }
-                    Some(Ok(_)) => {
-                        let myio = std::mem::replace(io, Box::new(Dummy));
-                        *io = Box::new(ConcatRW {
-                            head: Some(buf[0]),
-                            io: myio,
-                        });
-                        if self.enforce_rfc_wait_for_banner {
+                    {
+                        Some(Ok(0)) => {
+                            // this just looks like the client gave up and left
+                        }
+                        Some(Ok(_)) => {
+                            let myio = std::mem::replace(io, Box::new(Dummy));
+                            *io = Box::new(ConcatRW {
+                                head: Some(buf[0]),
+                                io: myio,
+                            });
+
                             state.session.banner_sent = true;
                             state.say_shutdown_processing_err(
                                 "Client sent commands before banner".into(),
                             );
-                        } else {
-                            todo!("add report header")
                         }
-                    }
-                    Some(Err(e)) => {
-                        state.session.banner_sent = true;
-                        state.say_shutdown_processing_err(format!("IO read failed {}", e));
-                    }
-                    None => {
-                        // timeout is correct behavior, well done!
+                        Some(Err(e)) => {
+                            state.session.banner_sent = true;
+                            state.say_shutdown_processing_err(format!("IO read failed {}", e));
+                        }
+                        None => {
+                            // timeout is correct behavior, well done!
+                        }
                     }
                 }
             }

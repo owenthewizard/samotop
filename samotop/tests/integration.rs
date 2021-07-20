@@ -1,3 +1,4 @@
+use async_std::prelude::FutureExt;
 use async_std::{
     channel::{Sender, TrySendError},
     io::{Cursor, Read},
@@ -7,9 +8,10 @@ use samotop::{
     io::IoService,
     io::{tls::TlsCapable, ConnectionInfo},
     mail::{Builder, Esmtp, Name, NullDispatch},
-    smtp::SmtpParser,
+    smtp::{Prudence, SmtpParser},
 };
 use samotop_core::common::*;
+use std::time::Duration;
 
 #[async_std::test]
 async fn svc() -> Result<()> {
@@ -67,6 +69,90 @@ async fn svc() -> Result<()> {
     assert!(r.recv().await.is_err(), "Should have no more");
 
     Ok(())
+}
+
+#[async_std::test]
+async fn prudent_blocks_bad_client() -> Result<()> {
+    let (s, r) = async_std::channel::unbounded();
+    let read = Cursor::new(concat!("ehlo macca\r\n",));
+    let testio = TestIo::new(read, s);
+    let io = Box::new(TlsCapable::plaintext(Box::new(testio)));
+    let mail_service = Builder::default()
+        .using(Name::new("prudic"))
+        .using(Prudence {
+            wait_for_banner_delay: Some(Duration::from_millis(50)),
+        })
+        .build();
+
+    mail_service
+        .handle(Ok(io), ConnectionInfo::default())
+        .await?;
+
+    insta::assert_debug_snapshot!(
+        String::from_utf8_lossy(r.recv().await?.as_slice()),
+        @r###""451 Requested action aborted: error in processing.\r\n""###);
+
+    assert!(r.recv().await.is_err(), "Should have no more");
+
+    Ok(())
+}
+
+#[async_std::test]
+async fn prudent_allows_good_client() -> Result<()> {
+    let (s, r) = async_std::channel::unbounded();
+    let read = DelayRead::new(100, Cursor::new(concat!("ehlo macca\r\n",)));
+    let testio = TestIo::new(read, s);
+    let io = Box::new(TlsCapable::plaintext(Box::new(testio)));
+    let mail_service = Builder::default()
+        .using(Name::new("prudic"))
+        .using(Esmtp.with(SmtpParser))
+        .using(Prudence {
+            wait_for_banner_delay: Some(Duration::from_millis(50)),
+        })
+        .build();
+
+    mail_service
+        .handle(Ok(io), ConnectionInfo::default())
+        .await?;
+
+    insta::assert_debug_snapshot!(
+        String::from_utf8_lossy(r.recv().await?.as_slice()),
+        @r###""220 prudic service ready\r\n""###);
+    insta::assert_debug_snapshot!(
+        String::from_utf8_lossy(r.recv().await?.as_slice()),
+        @r###""250 prudic greets macca\r\n""###);
+
+    assert!(r.recv().await.is_err(), "Should have no more");
+
+    Ok(())
+}
+
+struct DelayRead<R> {
+    delay: Option<Pin<Box<dyn Future<Output = ()> + Sync + Send>>>,
+    inner: R,
+}
+
+impl<R> DelayRead<R> {
+    pub fn new(millis: u64, read: R) -> Self {
+        Self {
+            delay: Some(Box::pin(ready(()).delay(Duration::from_millis(millis)))),
+            inner: read,
+        }
+    }
+}
+
+impl<R: Read + Unpin> Read for DelayRead<R> {
+    fn poll_read(
+        mut self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+        buf: &mut [u8],
+    ) -> std::task::Poll<std::result::Result<usize, std::io::Error>> {
+        if let Some(ref mut delay) = self.delay {
+            ready!(Pin::new(delay).poll(cx));
+            self.delay = None;
+        }
+        Pin::new(&mut self.inner).poll_read(cx, buf)
+    }
 }
 
 #[derive(Default, Debug)]
