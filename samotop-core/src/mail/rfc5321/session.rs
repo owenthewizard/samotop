@@ -26,9 +26,8 @@ impl Action<SessionSetup> for Esmtp {
                 info!("Service name is {:?}", state.session.service_name);
             }
 
-            let name = state.session.service_name.to_owned();
             state.reset();
-            state.say_service_ready(name);
+            state.say_service_ready();
         })
     }
 }
@@ -52,7 +51,7 @@ impl Action<Timeout> for Esmtp {
         's: 'f,
     {
         Box::pin(async move {
-            state.say_shutdown_service_err("Timeout expired.".to_owned());
+            state.say_shutdown_timeout();
         })
     }
 }

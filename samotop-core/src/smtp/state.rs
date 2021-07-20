@@ -49,61 +49,81 @@ impl SmtpState {
 }
 
 impl SmtpState {
-    //TODO: split say into action and response
-    //fn start_tls(&mut self) -> Pin<Box<dyn Future<Output = Result<()>>>>;
-
     pub fn say(&mut self, what: DriverControl) -> SayResult {
         self.writes.push_back(what);
     }
     pub fn say_reply(&mut self, c: SmtpReply) -> SayResult {
         self.say(DriverControl::Response(c.to_string().into()))
     }
+    /// Reply "250 Ok"
     pub fn say_ok(&mut self) -> SayResult {
         self.say_reply(SmtpReply::OkInfo)
     }
+    /// Reply "250 @info"
     pub fn say_ok_info(&mut self, info: String) -> SayResult {
         self.say_reply(SmtpReply::OkMessageInfo(info))
     }
+    /// Reply "502 Not implemented"
     pub fn say_not_implemented(&mut self) -> SayResult {
         self.say_reply(SmtpReply::CommandNotImplementedFailure)
     }
+    /// Reply "500 Syntax error"
     pub fn say_invalid_syntax(&mut self) -> SayResult {
         self.say_reply(SmtpReply::CommandSyntaxFailure)
     }
+    /// Reply "503 Command sequence error"
     pub fn say_command_sequence_fail(&mut self) -> SayResult {
         self.say_reply(SmtpReply::CommandSequenceFailure)
     }
-    pub fn say_service_ready(&mut self, name: String) -> SayResult {
-        self.say_reply(SmtpReply::ServiceReadyInfo(name))
+    /// Reply "220 @name service ready"
+    pub fn say_service_ready(&mut self) -> SayResult {
+        // TODO - indicate ESMTP if available
+        self.say_reply(SmtpReply::ServiceReadyInfo(
+            self.session.service_name.clone(),
+        ))
     }
-    pub fn say_helo(&mut self, local: String, remote: String) -> SayResult {
+    /// Reply something like "250 @local greets @remote"
+    pub fn say_helo(&mut self) -> SayResult {
         self.say_reply(SmtpReply::OkHeloInfo {
-            local,
-            remote,
+            local: self.session.service_name.clone(),
+            remote: self
+                .session
+                .peer_name
+                .as_ref()
+                .unwrap_or(&self.session.connection.peer_addr)
+                .clone(),
             extensions: vec![],
         })
     }
-    pub fn say_ehlo(
-        &mut self,
-        local: String,
-        extensions: Vec<String>,
-        remote: String,
-    ) -> SayResult {
+    /// Reply something like "250 @local greets @remote, we have extensions: <extensions>"
+    pub fn say_ehlo(&mut self) -> SayResult {
         self.say_reply(SmtpReply::OkHeloInfo {
-            local,
-            remote,
-            extensions,
+            local: self.session.service_name.clone(),
+            remote: self
+                .session
+                .peer_name
+                .as_ref()
+                .unwrap_or(&self.session.connection.peer_addr)
+                .clone(),
+
+            extensions: self.session.extensions.iter().map(String::from).collect(),
         })
     }
-    /// Shut the session down with a response
+    /// Reply and shut the session down
     pub fn say_shutdown(&mut self, reply: SmtpReply) -> SayResult {
         self.say_reply(reply);
         self.shutdown()
     }
-    /// Service error
-    pub fn say_shutdown_service_err(&mut self, description: String) -> SayResult {
-        error!("Service error: {}", description);
-        self.say_shutdown(SmtpReply::ServiceNotAvailableError(description))
+    /// Reply "421 @name service not available, closing transmission channel" and shut the session down
+    pub fn say_shutdown_timeout(&mut self) -> SayResult {
+        warn!("Timeout expired.");
+        self.say_shutdown_service_err()
+    }
+    /// Reply "421 @name service not available, closing transmission channel" and shut the session down
+    pub fn say_shutdown_service_err(&mut self) -> SayResult {
+        self.say_shutdown(SmtpReply::ServiceNotAvailableError(
+            self.session.service_name.clone(),
+        ))
     }
     /// Processing error
     pub fn say_shutdown_processing_err(&mut self, description: String) -> SayResult {
@@ -111,13 +131,16 @@ impl SmtpState {
         self.say_shutdown(SmtpReply::ProcesingError)
     }
     /// Normal response to quit command
-    pub fn say_shutdown_ok(&mut self, description: String) -> SayResult {
-        self.say_shutdown(SmtpReply::ClosingConnectionInfo(description))
+    pub fn say_shutdown_ok(&mut self) -> SayResult {
+        self.say_shutdown(SmtpReply::ClosingConnectionInfo(
+            self.session.service_name.clone(),
+        ))
     }
     pub fn say_mail_failed(&mut self, failure: StartMailFailure, description: String) -> SayResult {
         use StartMailFailure as F;
+        error!("Sending mail failed: {:?}, {}", failure, description);
         match failure {
-            F::TerminateSession => self.say_shutdown_service_err(description),
+            F::TerminateSession => self.say_shutdown_service_err(),
             F::Rejected => self.say_reply(SmtpReply::MailboxNotAvailableFailure),
             F::InvalidSender => self.say_reply(SmtpReply::MailboxNameInvalidFailure),
             F::InvalidParameter => self.say_reply(SmtpReply::UnknownMailParametersFailure),
@@ -130,10 +153,12 @@ impl SmtpState {
     pub fn say_rcpt_failed(
         &mut self,
         failure: AddRecipientFailure,
-        _description: String,
+        description: String,
     ) -> SayResult {
         use AddRecipientFailure as F;
+        error!("Adding RCPT failed: {:?}, {}", failure, description);
         match failure {
+            F::TerminateSession => self.say_shutdown_service_err(),
             F::Moved(path) => self.say_reply(SmtpReply::UserNotLocalFailure(format!("{}", path))),
             F::RejectedPermanently => self.say_reply(SmtpReply::MailboxNotAvailableFailure),
             F::RejectedTemporarily => self.say_reply(SmtpReply::MailboxNotAvailableError),
@@ -155,9 +180,8 @@ impl SmtpState {
         self.say_reply(SmtpReply::StartMailInputChallenge);
         self.transaction.mode = Some(Transaction::DATA_MODE);
     }
-    pub fn say_start_tls(&mut self, name: String) -> SayResult {
-        // TODO: better message response
-        self.say_reply(SmtpReply::ServiceReadyInfo(name));
+    pub fn say_start_tls(&mut self) -> SayResult {
+        self.say_service_ready();
         self.say(DriverControl::StartTls);
     }
     pub fn say_mail_queue_failed_temporarily(&mut self) -> SayResult {

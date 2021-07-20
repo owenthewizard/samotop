@@ -17,8 +17,7 @@ impl Action<EsmtpStartTls> for EsmtpStartTls {
                 // you cannot STARTTLS twice so we only advertise it before first use
                 if state.session.extensions.disable(&extension::STARTTLS) {
                     state.reset();
-                    let name = state.session.service_name.clone();
-                    state.say_start_tls(name)
+                    state.say_start_tls()
                 } else {
                     state.say_not_implemented()
                 }

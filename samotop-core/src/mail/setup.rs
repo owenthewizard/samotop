@@ -29,7 +29,6 @@ pub trait MailSetup: std::fmt::Debug {
 mod tests {
     use super::*;
     use crate::mail::{Builder, DebugMailService, MailService, Service};
-    use std::sync::Arc;
 
     #[derive(Debug)]
     struct TestSetup;
@@ -49,6 +48,7 @@ mod tests {
         setup.setup(&mut config);
         hungry(Service::new(config));
     }
+    
     #[test]
     fn test_using() {
         let setup = TestSetup;

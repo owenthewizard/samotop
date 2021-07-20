@@ -33,17 +33,11 @@ impl Action<SmtpHelo> for Esmtp {
 /// Applies given helo to the state
 /// It assumes it is the right HELO/EHLO/LHLO variant
 pub fn apply_helo(helo: SmtpHelo, is_extended: bool, state: &mut SmtpState) {
-    let local = state.session.service_name.to_owned();
-    let remote = helo.host.to_string();
-
     state.reset_helo(helo.host.to_string());
 
     match is_extended {
-        false => state.say_helo(local, remote),
-        true => {
-            let extensions = state.session.extensions.iter().map(String::from).collect();
-            state.say_ehlo(local, extensions, remote)
-        }
+        false => state.say_helo(),
+        true => state.say_ehlo(),
     };
 }
 

@@ -38,7 +38,7 @@ async fn svc() -> Result<()> {
 
     insta::assert_debug_snapshot!(
         String::from_utf8_lossy(r.recv().await?.as_slice()),
-        @r###""220 Service ready: samotop\r\n""###);
+        @r###""220 samotop service ready\r\n""###);
     insta::assert_debug_snapshot!(
         String::from_utf8_lossy(r.recv().await?.as_slice()),
         @r###""250 samotop greets macca\r\n""###);
@@ -61,7 +61,7 @@ async fn svc() -> Result<()> {
         @r###""500 Syntax error, command unrecognized\r\n""###);
     insta::assert_debug_snapshot!(
         String::from_utf8_lossy(r.recv().await?.as_slice()),
-        @r###""221 samotop Service closing transmission channel\r\n""###);
+        @r###""221 samotop service closing transmission channel\r\n""###);
 
     assert!(r.recv().await.is_err(), "Should have no more");
 

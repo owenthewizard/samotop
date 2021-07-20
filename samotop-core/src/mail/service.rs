@@ -37,14 +37,14 @@ impl MailDispatch for Service {
     {
         debug!(
             "Dispatch {} with {} dispatchers sending mail {:?} on session {:?}",
-            self.config.id,
+            self.config.logging_id,
             self.config.dispatch.len(),
             transaction,
             session
         );
         let fut = async move {
             for disp in self.config.dispatch.iter() {
-                trace!("Dispatch {} send_mail calling {:?}", self.config.id, disp);
+                trace!("Dispatch {} send_mail calling {:?}", self.config.logging_id, disp);
                 transaction = disp.send_mail(session, transaction).await?;
             }
             Ok(transaction)
@@ -63,13 +63,13 @@ impl MailGuard for Service {
     {
         debug!(
             "Guard {} with {} guards adding recipient {:?}",
-            self.config.id,
+            self.config.logging_id,
             self.config.guard.len(),
             request
         );
         let fut = async move {
             for guard in self.config.guard.iter() {
-                trace!("Guard {} add_recipient calling {:?}", self.config.id, guard);
+                trace!("Guard {} add_recipient calling {:?}", self.config.logging_id, guard);
                 match guard.add_recipient(request).await {
                     AddRecipientResult::Inconclusive(r) => request = r,
                     otherwise => return otherwise,
@@ -91,13 +91,13 @@ impl MailGuard for Service {
     {
         debug!(
             "Guard {} with {} guards starting mail {:?}",
-            self.config.id,
+            self.config.logging_id,
             self.config.guard.len(),
             request
         );
         let fut = async move {
             for guard in self.config.guard.iter() {
-                trace!("Guard {} start_mail calling {:?}", self.config.id, guard);
+                trace!("Guard {} start_mail calling {:?}", self.config.logging_id, guard);
                 match guard.start_mail(session, request).await {
                     StartMailResult::Accepted(r) => request = r,
                     otherwise => return otherwise,
@@ -113,14 +113,14 @@ impl EsmtpService for Service {
     fn prepare_session(&self, session: &mut SessionInfo) {
         debug!(
             "Esmtp {} with {} esmtps preparing session {:?}",
-            self.config.id,
+            self.config.logging_id,
             self.config.esmtp.len(),
             session
         );
         for esmtp in self.config.esmtp.iter() {
             trace!(
                 "Esmtp {} prepare_session calling {:?}",
-                self.config.id,
+                self.config.logging_id,
                 esmtp
             );
             esmtp.prepare_session(session);

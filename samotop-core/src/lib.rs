@@ -28,6 +28,16 @@ pub mod common {
     pub use std::sync::Arc;
     pub use std::task::{Context, Poll};
 
+    /// In the absence of random number generator produces a time based identifier
+    /// It is not reliable nor secure, RNG/PRNG should be preffered.
+    pub fn time_based_id() -> String {
+        fn nonnumber(input: char) -> bool {
+            !input.is_ascii_digit()
+        }
+        // for the lack of better unique string without extra dependencies
+        format!("{:?}", std::time::Instant::now()).replace(nonnumber, "")
+    }
+
     /// Enable async close
     /// TODO: remove after https://github.com/async-rs/async-std/issues/977
     pub trait WriteClose {

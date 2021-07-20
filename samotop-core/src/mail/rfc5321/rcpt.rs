@@ -31,9 +31,6 @@ impl Action<SmtpRcpt> for Esmtp {
                     state.say_ok();
                     state.transaction = transaction;
                 }
-                AddRecipientResult::TerminateSession(description) => {
-                    state.say_shutdown_service_err(description);
-                }
                 AddRecipientResult::Failed(transaction, failure, description) => {
                     state.say_rcpt_failed(failure, description);
                     state.transaction = transaction;

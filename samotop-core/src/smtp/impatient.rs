@@ -10,7 +10,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-/// Applies the specified command timeout
+/// Enforces the specified command timeout
 #[derive(Debug)]
 pub struct Impatient {
     timeout: Duration,

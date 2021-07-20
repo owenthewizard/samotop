@@ -17,7 +17,7 @@ use crate::common::S1Fut;
 use crate::smtp::command::*;
 use crate::smtp::*;
 
-/// An implementation of ESMTP - RFC 5321 - SMTP Service Extension for Secure SMTP over Transport Layer Security
+/// An implementation of ESMTP - RFC 5321 - Simple Mail Transfer Protocol
 
 #[derive(Eq, PartialEq, Debug, Clone)]
 pub struct Esmtp;

@@ -11,9 +11,8 @@ impl Action<SmtpQuit> for Esmtp {
         's: 'f,
     {
         Box::pin(async move {
-            let name = state.session.service_name.clone();
             state.reset();
-            state.say_shutdown_ok(name);
+            state.say_shutdown_ok();
         })
     }
 }
