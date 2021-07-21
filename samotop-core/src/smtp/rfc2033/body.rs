@@ -1,8 +1,7 @@
 use super::Lmtp;
 use crate::{
     common::*,
-    mail::apply_mail_body,
-    smtp::{command::MailBody, Action, SmtpState},
+    smtp::{apply_mail_body, command::MailBody, Action, SmtpState},
 };
 
 impl<B: AsRef<[u8]> + Sync + Send + fmt::Debug + 'static> Action<MailBody<B>> for Lmtp {

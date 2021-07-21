@@ -105,7 +105,7 @@ extern crate env_logger;
 extern crate samotop;
 fn main() {
     env_logger::init();
-    let interpretter = samotop::mail::Esmtp.with(samotop::smtp::SmtpParser);
+    let interpretter = samotop::smtp::Esmtp.with(samotop::smtp::SmtpParser);
     let mail = samotop::mail::Builder::default().using(interpretter).build();
     let srv = samotop::server::TcpServer::on("localhost:25").serve(mail);
     async_std::task::block_on(srv).unwrap()

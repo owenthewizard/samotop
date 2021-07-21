@@ -1,5 +1,5 @@
 use crate::SmtpParserPeg;
-use samotop_core::{common::Error, mail::StartTls, smtp::command::*, smtp::*};
+use samotop_core::{common::Error, smtp::command::*, smtp::StartTls, smtp::*};
 use std::net::{Ipv4Addr, Ipv6Addr};
 use std::str::FromStr;
 

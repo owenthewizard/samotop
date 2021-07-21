@@ -1,7 +1,7 @@
 use crate::{
     common::*,
-    mail::{EsmtpService, MailDispatch, MailGuard, MailSetup, Service},
-    smtp::Interpret,
+    mail::{MailDispatch, MailGuard, MailSetup, Service},
+    smtp::{EsmtpService, Interpret},
 };
 
 /// Builds MailService from components

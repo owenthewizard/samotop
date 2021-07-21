@@ -3,8 +3,9 @@ use samotop_core::{
     common::{ready, S2Fut},
     mail::{
         AddRecipientFailure, AddRecipientRequest, AddRecipientResult, Certificate, Configuration,
-        MailGuard, MailSetup, SessionInfo, StartMailRequest, StartMailResult,
+        MailGuard, MailSetup, StartMailRequest, StartMailResult,
     },
+    smtp::SessionInfo,
 };
 use std::path::PathBuf;
 

@@ -22,9 +22,9 @@ use async_std::task;
 use regex::Regex;
 use samotop::{
     io::client::{tls::NoTls, TcpConnector},
-    mail::{Builder, Esmtp, LmtpDispatch, Mapper},
+    mail::{Builder, LmtpDispatch, Mapper},
     server::TcpServer,
-    smtp::SmtpParser,
+    smtp::{Esmtp, SmtpParser},
 };
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;

@@ -1,8 +1,7 @@
 use super::Esmtp;
 use crate::{
     common::*,
-    mail::Transaction,
-    smtp::{command::MailBody, Action, SmtpState},
+    smtp::{command::MailBody, Action, SmtpState, Transaction},
 };
 
 impl<B: AsRef<[u8]> + Sync + Send + fmt::Debug + 'static> Action<MailBody<B>> for Esmtp {

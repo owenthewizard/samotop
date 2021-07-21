@@ -47,14 +47,14 @@ impl Action<SmtpData> for Esmtp {
 mod tests {
     use super::*;
     use crate::{
-        mail::{Builder, Recipient},
+        mail::Recipient,
         smtp::{command::SmtpMail, DriverControl, SmtpPath},
     };
 
     #[test]
     fn sink_gets_set() {
         async_std::task::block_on(async move {
-            let mut set = SmtpState::new(Builder::default().build());
+            let mut set = SmtpState::default();
             set.session.peer_name = Some("xx.io".to_owned());
             set.transaction.id = "someid".to_owned();
             set.transaction.mail = Some(SmtpMail::Mail(SmtpPath::Null, vec![]));
@@ -76,7 +76,7 @@ mod tests {
     #[test]
     fn command_sequence_is_assured_missing_helo() {
         async_std::task::block_on(async move {
-            let mut set = SmtpState::new(Builder::default().build());
+            let mut set = SmtpState::default();
 
             Esmtp.apply(SmtpData, &mut set).await;
             match set.writes.pop_front() {
@@ -90,7 +90,7 @@ mod tests {
     #[test]
     fn command_sequence_is_assured_missing_mail() {
         async_std::task::block_on(async move {
-            let mut set = SmtpState::new(Builder::default().build());
+            let mut set = SmtpState::default();
             set.session.peer_name = Some("xx.iu".to_owned());
 
             Esmtp.apply(SmtpData, &mut set).await;
@@ -104,7 +104,7 @@ mod tests {
     #[test]
     fn command_sequence_is_assured_missing_rcpt() {
         async_std::task::block_on(async move {
-            let mut set = SmtpState::new(Builder::default().build());
+            let mut set = SmtpState::default();
             set.session.peer_name = Some("xx.iu".to_owned());
             set.transaction.mail = Some(SmtpMail::Mail(SmtpPath::Null, vec![]));
 

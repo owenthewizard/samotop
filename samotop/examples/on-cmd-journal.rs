@@ -29,8 +29,8 @@ use async_std::io::Write;
 use async_std::task;
 use samotop::{
     io::{tls::TlsCapable, ConnectionInfo, IoService},
-    mail::{Builder, Journal, Lmtp},
-    smtp::SmtpParser,
+    mail::{Builder, Journal},
+    smtp::{Lmtp, SmtpParser},
 };
 use std::pin::Pin;
 

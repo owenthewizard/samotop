@@ -1,7 +1,7 @@
 use crate::common::{ready, S1Fut};
 use crate::io::tls::{MayBeTls, TlsProvider};
-use crate::mail::{Configuration, EsmtpService, MailSetup};
-use crate::smtp::{extension, Interpretter, Parser, SmtpState};
+use crate::mail::{Configuration, MailSetup};
+use crate::smtp::{extension, EsmtpService, Interpretter, Parser, SmtpState};
 use std::sync::Arc;
 
 mod starttls;

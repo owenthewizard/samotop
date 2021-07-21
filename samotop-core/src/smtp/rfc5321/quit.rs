@@ -1,16 +1,18 @@
-use crate::common::S1Fut;
-use crate::mail::Esmtp;
-use crate::smtp::{command::SmtpRset, Action, SmtpState};
+use super::Esmtp;
+use crate::{
+    common::S1Fut,
+    smtp::{command::SmtpQuit, Action, SmtpState},
+};
 
-impl Action<SmtpRset> for Esmtp {
-    fn apply<'a, 's, 'f>(&'a self, _cmd: SmtpRset, state: &'s mut SmtpState) -> S1Fut<'f, ()>
+impl Action<SmtpQuit> for Esmtp {
+    fn apply<'a, 's, 'f>(&'a self, _cmd: SmtpQuit, state: &'s mut SmtpState) -> S1Fut<'f, ()>
     where
         'a: 'f,
         's: 'f,
     {
         Box::pin(async move {
             state.reset();
-            state.say_ok();
+            state.say_shutdown_ok();
         })
     }
 }
@@ -19,20 +21,20 @@ impl Action<SmtpRset> for Esmtp {
 mod tests {
     use super::*;
     use crate::{
-        mail::{Builder, Recipient},
+        mail::Recipient,
         smtp::{command::SmtpMail, SmtpPath},
     };
 
     #[test]
     fn transaction_gets_reset() {
         async_std::task::block_on(async move {
-            let mut set = SmtpState::new(Builder::default().build());
+            let mut set = SmtpState::default();
             set.transaction.id = "someid".to_owned();
             set.transaction.mail = Some(SmtpMail::Mail(SmtpPath::Null, vec![]));
             set.transaction.rcpts.push(Recipient::null());
             set.transaction.extra_headers.insert_str(0, "feeeha");
 
-            Esmtp.apply(SmtpRset, &mut set).await;
+            Esmtp.apply(SmtpQuit, &mut set).await;
             assert!(set.transaction.is_empty())
         })
     }

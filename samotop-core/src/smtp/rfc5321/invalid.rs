@@ -22,14 +22,14 @@ impl Action<SmtpInvalidCommand> for Esmtp {
 mod tests {
     use super::*;
     use crate::{
-        mail::{Builder, Recipient},
+        mail::Recipient,
         smtp::{command::SmtpMail, DriverControl, SmtpPath},
     };
 
     #[test]
     fn response_is_not_implemented() {
         async_std::task::block_on(async move {
-            let mut set = SmtpState::new(Builder::default().build());
+            let mut set = SmtpState::default();
             set.transaction.id = "someid".to_owned();
             set.transaction.mail = Some(SmtpMail::Mail(SmtpPath::Null, vec![]));
             set.transaction.rcpts.push(Recipient::null());

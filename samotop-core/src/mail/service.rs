@@ -2,11 +2,12 @@ use crate::{
     common::*,
     io::{tls::MayBeTls, ConnectionInfo, IoService},
     mail::{
-        AddRecipientRequest, AddRecipientResult, Configuration, DispatchResult, DriverIo,
-        DriverProvider, EsmtpService, MailDispatch, MailGuard, SessionInfo, StartMailRequest,
-        StartMailResult, Transaction,
+        AddRecipientRequest, AddRecipientResult, Configuration, DispatchResult, DriverProvider,
+        MailDispatch, MailGuard, StartMailRequest, StartMailResult,
     },
-    smtp::{interpret_all, Interpret, SmtpDriver, SmtpState},
+    smtp::{
+        interpret_all, EsmtpService, Interpret, SessionInfo, SmtpDriver, SmtpState, Transaction,
+    },
 };
 
 #[derive(Default, Debug, Clone)]
@@ -187,7 +188,7 @@ impl Interpret for Service {
 impl DriverProvider for Service {
     fn get_driver<'io>(
         &self,
-        io: &'io mut dyn DriverIo,
+        io: &'io mut dyn MayBeTls,
     ) -> Box<dyn crate::smtp::Drive + Sync + Send + 'io> {
         Box::new(SmtpDriver::new(io))
     }

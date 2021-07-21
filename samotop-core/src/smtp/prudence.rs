@@ -1,7 +1,7 @@
 use crate::common::*;
 use crate::io::tls::MayBeTls;
-use crate::mail::{EsmtpService, MailSetup};
-use crate::smtp::SmtpState;
+use crate::mail::{Configuration, MailSetup};
+use crate::smtp::{EsmtpService, SmtpState};
 use async_std::prelude::FutureExt;
 use std::time::Duration;
 
@@ -13,7 +13,7 @@ pub struct Prudence {
 }
 
 impl MailSetup for Prudence {
-    fn setup(self, config: &mut crate::mail::Configuration) {
+    fn setup(self, config: &mut Configuration) {
         config.esmtp.insert(0, Box::new(self));
     }
 }

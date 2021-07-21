@@ -5,8 +5,8 @@ mod lookup;
 
 use self::lookup::*;
 use samotop_core::common::*;
-use samotop_core::mail::*;
-use samotop_core::smtp::*;
+use samotop_core::mail::{Configuration, DispatchError, DispatchResult, MailDispatch, MailSetup};
+use samotop_core::smtp::{SessionInfo, SmtpPath, Transaction};
 pub use viaspf::Config;
 use viaspf::{evaluate_spf, SpfResult};
 

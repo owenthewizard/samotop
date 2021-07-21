@@ -1,5 +1,8 @@
 use super::{DispatchResult, MailDispatch, MailSetup};
-use crate::common::*;
+use crate::{
+    common::*,
+    smtp::{SessionInfo, Transaction},
+};
 
 #[derive(Debug)]
 pub struct NullDispatch;
@@ -7,8 +10,8 @@ pub struct NullDispatch;
 impl MailDispatch for NullDispatch {
     fn send_mail<'a, 's, 'f>(
         &'a self,
-        _session: &'s super::SessionInfo,
-        mut transaction: super::Transaction,
+        _session: &'s SessionInfo,
+        mut transaction: Transaction,
     ) -> crate::common::S1Fut<'f, DispatchResult>
     where
         'a: 'f,

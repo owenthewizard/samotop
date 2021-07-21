@@ -1,8 +1,7 @@
-use super::Esmtp;
 use crate::{
     common::{time_based_id, S1Fut},
-    mail::{StartMailResult, Transaction},
-    smtp::{command::SmtpMail, Action, SmtpState},
+    mail::StartMailResult,
+    smtp::{command::SmtpMail, Action, Esmtp, SmtpState, Transaction},
 };
 
 impl Action<SmtpMail> for Esmtp {
@@ -49,14 +48,14 @@ impl Action<SmtpMail> for Esmtp {
 mod tests {
     use super::*;
     use crate::{
-        mail::{Builder, Esmtp, Recipient},
-        smtp::{command::SmtpMail, DriverControl, SmtpPath},
+        mail::Recipient,
+        smtp::{command::SmtpMail, DriverControl, Esmtp, SmtpPath},
     };
 
     #[test]
     fn transaction_gets_reset() {
         async_std::task::block_on(async move {
-            let mut set = SmtpState::new(Builder::default().build());
+            let mut set = SmtpState::default();
             set.session.peer_name = Some("xx.io".to_owned());
             set.transaction.id = "someid".to_owned();
             set.transaction.mail = Some(SmtpMail::Mail(SmtpPath::Null, vec![]));
@@ -79,7 +78,7 @@ mod tests {
     #[test]
     fn mail_is_set() {
         async_std::task::block_on(async move {
-            let mut set = SmtpState::new(Builder::default().build());
+            let mut set = SmtpState::default();
             set.session.peer_name = Some("xx.io".to_owned());
 
             Esmtp
@@ -100,7 +99,7 @@ mod tests {
     fn command_sequence_is_enforced() {
         async_std::task::block_on(async move {
             // MAIL command requires HELO/EHLO
-            let mut set = SmtpState::new(Builder::default().build());
+            let mut set = SmtpState::default();
 
             Esmtp
                 .apply(SmtpMail::Mail(SmtpPath::Postmaster, vec![]), &mut set)

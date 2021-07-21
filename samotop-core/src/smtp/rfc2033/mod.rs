@@ -1,12 +1,13 @@
 mod body;
 mod helo;
 
-use crate::common::S1Fut;
-use crate::mail::Banner;
-use crate::mail::Esmtp;
-use crate::smtp::command::MailBody;
-use crate::smtp::command::SmtpCommand;
-use crate::smtp::*;
+use crate::{
+    common::S1Fut,
+    smtp::{
+        command::{MailBody, SmtpCommand},
+        *,
+    },
+};
 
 /// An implementation of LMTP - RFC 2033 - Local Mail Transfer Protocol
 #[derive(Eq, PartialEq, Debug, Clone)]

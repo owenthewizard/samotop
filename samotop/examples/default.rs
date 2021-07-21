@@ -18,10 +18,10 @@ EOF
 
  */
 
+use samotop::mail::Builder;
 use samotop::mail::NullDispatch;
-use samotop::mail::{Builder, Esmtp};
 use samotop::server::TcpServer;
-use samotop::smtp::SmtpParser;
+use samotop::smtp::{Esmtp, SmtpParser};
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 

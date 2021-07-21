@@ -1,4 +1,8 @@
-use crate::{io::IoService, mail::*, smtp::Interpret};
+use crate::{
+    io::IoService,
+    mail::*,
+    smtp::{EsmtpService, Interpret},
+};
 
 pub trait MailService:
     IoService + Interpret + DriverProvider + EsmtpService + MailGuard + MailDispatch

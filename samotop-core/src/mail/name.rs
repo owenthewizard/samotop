@@ -1,7 +1,7 @@
-use super::{EsmtpService, MailSetup};
+use super::MailSetup;
 use crate::common::{ready, S1Fut};
 use crate::io::tls::MayBeTls;
-use crate::smtp::SmtpState;
+use crate::smtp::{EsmtpService, SmtpState};
 
 /// MailSetup that uses the given service name for a session.
 #[derive(Debug)]

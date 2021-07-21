@@ -1,7 +1,8 @@
+use crate::{
+    common::*,
+    smtp::{SessionInfo, Transaction},
+};
 use std::ops::Deref;
-
-use crate::common::*;
-use crate::mail::{SessionInfo, Transaction};
 
 /**
 A mail dispatch allows us to dispatch an e-mail.

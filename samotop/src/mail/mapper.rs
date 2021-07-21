@@ -1,8 +1,11 @@
 //! Reference implementation of a mail guard
 //! converting recipient addresses according to a regex map.
 
-use crate::mail::*;
-use crate::{common::*, smtp::SmtpParser};
+use crate::{
+    common::*,
+    mail::*,
+    smtp::{SessionInfo, SmtpParser},
+};
 use regex::Regex;
 
 /// A mail guard that converts recipient addresses according to a regex map.
@@ -80,6 +83,7 @@ impl MailGuard for Mapper {
 mod tests {
     use crate::smtp::SmtpHost;
     use crate::smtp::SmtpPath;
+    use crate::smtp::Transaction;
     use regex::Regex;
 
     use super::*;

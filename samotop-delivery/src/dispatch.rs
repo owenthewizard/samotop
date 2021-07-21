@@ -1,5 +1,9 @@
 use crate::prelude::{EmailAddress, Envelope, Transport};
-use samotop_core::{common::*, mail::*};
+use samotop_core::{
+    common::*,
+    mail::*,
+    smtp::{SessionInfo, Transaction},
+};
 use std::fmt;
 
 #[derive(Debug)]

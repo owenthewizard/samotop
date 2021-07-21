@@ -24,10 +24,10 @@ use samotop::{
     io::tls::RustlsProvider,
     mail::{
         smime::{Accounts, SMimeMail},
-        Builder, Dir, Esmtp, EsmtpStartTls, Name,
+        Builder, Dir, Name,
     },
     server::TcpServer,
-    smtp::SmtpParser,
+    smtp::{Esmtp, EsmtpStartTls, SmtpParser},
 };
 use std::path::{Path, PathBuf};
 use structopt::StructOpt;

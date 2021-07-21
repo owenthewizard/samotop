@@ -1,5 +1,6 @@
 pub mod command;
 mod driver;
+mod esmtp;
 pub mod extension;
 mod extensions;
 mod host;
@@ -9,9 +10,16 @@ mod parser;
 mod path;
 mod prudence;
 mod reply;
+mod rfc2033;
+mod rfc3207;
+mod rfc5321;
+mod rfc821;
+mod session;
 mod state;
+mod transaction;
 
 pub use self::driver::*;
+pub use self::esmtp::*;
 pub use self::extensions::*;
 pub use self::host::*;
 pub use self::impatience::*;
@@ -20,7 +28,14 @@ pub use self::parser::*;
 pub use self::path::*;
 pub use self::prudence::*;
 pub use self::reply::*;
+pub use self::rfc2033::*;
+pub use self::rfc3207::*;
+pub use self::rfc5321::*;
+pub use self::rfc5321::*;
+pub use self::rfc821::*;
+pub use self::session::*;
 pub use self::state::*;
+pub use self::transaction::*;
 
 /// Represents the instructions for the client side of the stream.
 pub enum DriverControl {

@@ -7,8 +7,8 @@ use regex::Regex;
 use samotop::{
     io::IoService,
     io::{tls::TlsCapable, ConnectionInfo},
-    mail::{Builder, Esmtp, Name, NullDispatch},
-    smtp::{Prudence, SmtpParser},
+    mail::{Builder, Name, NullDispatch},
+    smtp::{Esmtp, Prudence, SmtpParser},
 };
 use samotop_core::common::*;
 use std::time::Duration;

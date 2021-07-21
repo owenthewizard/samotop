@@ -1,8 +1,5 @@
 use crate::SmtpParserPeg;
-use samotop_core::{
-    mail::Transaction,
-    smtp::{command::MailBody, *},
-};
+use samotop_core::smtp::{command::MailBody, *};
 
 impl Parser<MailBody<Vec<u8>>> for SmtpParserPeg {
     fn parse(&self, input: &[u8], state: &SmtpState) -> ParseResult<MailBody<Vec<u8>>> {

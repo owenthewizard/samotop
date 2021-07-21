@@ -1,9 +1,9 @@
-use std::ops::Deref;
-
-use crate::mail::{SessionInfo, Transaction};
-use crate::{common::*, smtp::SmtpPath};
-
 use super::Recipient;
+use crate::{
+    common::*,
+    smtp::{SessionInfo, SmtpPath, Transaction},
+};
+use std::ops::Deref;
 
 /**
 A mail guard can be queried whether a recepient is accepted on which address.

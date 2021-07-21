@@ -1,6 +1,10 @@
 use crate::SMime;
 use log::error;
-use samotop_core::{common::*, mail::*};
+use samotop_core::{
+    common::*,
+    mail::*,
+    smtp::{SessionInfo, Transaction},
+};
 use std::collections::VecDeque;
 use std::path::PathBuf;
 

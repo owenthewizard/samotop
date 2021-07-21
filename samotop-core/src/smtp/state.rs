@@ -1,11 +1,11 @@
 use crate::{
-    mail::{AddRecipientFailure, Builder, MailService, SessionInfo, StartMailFailure, Transaction},
-    smtp::{DriverControl, SmtpPath, SmtpReply},
+    mail::{AddRecipientFailure, Builder, MailService, StartMailFailure},
+    smtp::{DriverControl, SessionInfo, SmtpPath, SmtpReply, Transaction},
 };
 use std::collections::VecDeque;
 
 pub struct SmtpState {
-    pub service: Box<dyn SyncMailService>,
+    pub service: Box<dyn MailService + Sync + Send>,
     pub session: SessionInfo,
     pub transaction: Transaction,
     pub writes: VecDeque<DriverControl>,
@@ -195,20 +195,17 @@ impl SmtpState {
 
 type SayResult = ();
 
-pub trait SyncMailService: MailService + Sync + Send {}
-impl<T> SyncMailService for T where T: MailService + Sync + Send {}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::{
-        mail::{Builder, Recipient},
+        mail::Recipient,
         smtp::{command::SmtpMail, SmtpPath},
     };
 
     #[test]
     fn transaction_gets_reset() {
-        let mut sut = SmtpState::new(Builder::default().build());
+        let mut sut = SmtpState::default();
         sut.transaction.id = "someid".to_owned();
         sut.transaction.mail = Some(SmtpMail::Mail(SmtpPath::Null, vec![]));
         sut.transaction.rcpts.push(Recipient::null());

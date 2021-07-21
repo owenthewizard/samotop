@@ -1,11 +1,12 @@
 //! Reference implementation of a mail service
 //! simply delivering mail to server console log.
+use crate::{
+    common::*,
+    io::tls::MayBeTls,
+    mail::*,
+    smtp::{EsmtpService, MailDataSink, SessionInfo, SmtpState, Transaction},
+};
 use std::fmt;
-
-use crate::common::*;
-use crate::io::tls::MayBeTls;
-use crate::mail::*;
-use crate::smtp::SmtpState;
 //use uuid::Uuid;
 
 #[derive(Clone, Debug)]

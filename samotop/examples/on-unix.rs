@@ -24,8 +24,8 @@ find tmp/samotop/spool/
 
 use async_std::task;
 use samotop::{
-    mail::{Builder, Dir, Esmtp},
-    smtp::SmtpParser,
+    mail::{Builder, Dir},
+    smtp::{Esmtp, SmtpParser},
 };
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;

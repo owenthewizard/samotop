@@ -10,7 +10,6 @@ The service which implements this trait delivers ESMTP extensions.
 ```
 use samotop_core::common::S1Fut;
 use samotop_core::smtp::*;
-use samotop_core::mail::*;
 use samotop_core::io::tls::MayBeTls;
 
 /// This mail service canhabdle 8-bit MIME

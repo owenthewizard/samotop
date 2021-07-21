@@ -1,9 +1,9 @@
 use crate::{
     common::S1Fut,
-    mail::{apply_helo, Esmtp, Lmtp},
     smtp::{
+        apply_helo,
         command::{SmtpHelo, SmtpUnknownCommand},
-        Action, SmtpState,
+        Action, Esmtp, Lmtp, SmtpState,
     },
 };
 
@@ -28,14 +28,14 @@ impl Action<SmtpHelo> for Lmtp {
 mod tests {
     use super::*;
     use crate::{
-        mail::{Builder, Recipient},
+        mail::Recipient,
         smtp::{command::SmtpMail, SmtpHost, SmtpPath},
     };
 
     #[test]
     fn transaction_gets_reset() {
         async_std::task::block_on(async move {
-            let mut set = SmtpState::new(Builder::default().build());
+            let mut set = SmtpState::default();
             set.transaction.id = "someid".to_owned();
             set.transaction.mail = Some(SmtpMail::Mail(SmtpPath::Null, vec![]));
             set.transaction.rcpts.push(Recipient::null());
@@ -56,7 +56,7 @@ mod tests {
     #[test]
     fn helo_is_set() {
         async_std::task::block_on(async move {
-            let mut set = SmtpState::new(Builder::default().build());
+            let mut set = SmtpState::default();
 
             Lmtp.apply(
                 SmtpHelo {
@@ -73,7 +73,7 @@ mod tests {
     #[test]
     fn is_sync_and_send() {
         async_std::task::block_on(async move {
-            let mut set = SmtpState::new(Builder::default().build());
+            let mut set = SmtpState::default();
             let res = Lmtp.apply(
                 SmtpHelo {
                     verb: "LHLO".to_string(),

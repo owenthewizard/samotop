@@ -1,9 +1,8 @@
 use crate::{
     common::S1Fut,
-    mail::Esmtp,
     smtp::{
         command::{SmtpHelo, SmtpUnknownCommand},
-        Action, SmtpState,
+        Action, Esmtp, SmtpState,
     },
 };
 
@@ -45,14 +44,14 @@ pub fn apply_helo(helo: SmtpHelo, is_extended: bool, state: &mut SmtpState) {
 mod tests {
     use super::*;
     use crate::{
-        mail::{Builder, Recipient},
+        mail::Recipient,
         smtp::{command::SmtpMail, SmtpHost, SmtpPath},
     };
 
     #[test]
     fn transaction_gets_reset() {
         async_std::task::block_on(async move {
-            let mut set = SmtpState::new(Builder::default().build());
+            let mut set = SmtpState::default();
             set.transaction.id = "someid".to_owned();
             set.transaction.mail = Some(SmtpMail::Mail(SmtpPath::Null, vec![]));
             set.transaction.rcpts.push(Recipient::null());
@@ -74,7 +73,7 @@ mod tests {
     #[test]
     fn helo_is_set() {
         async_std::task::block_on(async move {
-            let mut set = SmtpState::new(Builder::default().build());
+            let mut set = SmtpState::default();
 
             Esmtp
                 .apply(
@@ -91,7 +90,7 @@ mod tests {
 
     #[test]
     fn is_sync_and_send() {
-        let mut set = SmtpState::new(Builder::default().build());
+        let mut set = SmtpState::default();
         let res = Esmtp.apply(
             SmtpHelo {
                 verb: "EHLO".to_string(),
