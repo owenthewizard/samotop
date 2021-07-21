@@ -1,3 +1,5 @@
+use std::ops::Deref;
+
 use crate::{
     common::*,
     io::tls::MayBeTls,
@@ -8,15 +10,17 @@ pub trait DriverProvider: fmt::Debug {
     fn get_driver<'io>(&self, io: &'io mut (dyn DriverIo)) -> Box<dyn Drive + Sync + Send + 'io>;
     fn get_interpretter(&self) -> Box<dyn Interpret + Sync + Send>;
 }
-impl<T> DriverProvider for Arc<T>
+
+impl<S: DriverProvider + ?Sized, T: Deref<Target = S>> DriverProvider for T
 where
-    T: DriverProvider,
+    T: fmt::Debug + Send + Sync,
+    S: Sync,
 {
     fn get_driver<'io>(&self, io: &'io mut (dyn DriverIo)) -> Box<dyn Drive + Sync + Send + 'io> {
-        T::get_driver(self, io)
+        S::get_driver(Deref::deref(self), io)
     }
     fn get_interpretter(&self) -> Box<dyn Interpret + Sync + Send> {
-        T::get_interpretter(self)
+        S::get_interpretter(Deref::deref(self))
     }
 }
 

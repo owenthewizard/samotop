@@ -1,5 +1,5 @@
 use crate::common::*;
-use std::ops::DerefMut;
+use std::ops::{Deref, DerefMut};
 
 /// A stream implementing this trait may be able to upgrade to TLS
 /// But maybe not...
@@ -51,4 +51,14 @@ pub trait TlsUpgrade: Sync + Send {
         stream: Box<dyn Io>,
         name: String,
     ) -> S3Fut<std::io::Result<Box<dyn Io>>>;
+}
+
+impl<S: TlsProvider + ?Sized, T: Deref<Target = S>> TlsProvider for T
+where
+    T: fmt::Debug + Send + Sync,
+    S: Sync,
+{
+    fn get_tls_upgrade(&self) -> Option<Box<dyn crate::io::tls::TlsUpgrade>> {
+        S::get_tls_upgrade(Deref::deref(self))
+    }
 }

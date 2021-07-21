@@ -15,7 +15,6 @@ mod rfc821;
 mod service;
 mod session;
 mod setup;
-mod tls;
 mod transaction;
 
 pub use self::builder::*;
@@ -36,5 +35,4 @@ pub use self::rfc821::*;
 pub use self::service::*;
 pub use self::session::*;
 pub use self::setup::*;
-pub use self::tls::*;
 pub use self::transaction::*;

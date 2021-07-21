@@ -1,3 +1,5 @@
+use std::ops::Deref;
+
 use crate::common::*;
 use crate::mail::{SessionInfo, Transaction};
 
@@ -17,9 +19,10 @@ pub trait MailDispatch: fmt::Debug {
         's: 'f;
 }
 
-impl<T> MailDispatch for Arc<T>
+impl<S: MailDispatch + ?Sized, T: Deref<Target = S>> MailDispatch for T
 where
-    T: MailDispatch,
+    T: fmt::Debug + Send + Sync,
+    S: Sync,
 {
     fn send_mail<'a, 's, 'f>(
         &'a self,
@@ -30,7 +33,7 @@ where
         'a: 'f,
         's: 'f,
     {
-        T::send_mail(self, session, transaction)
+        Box::pin(async move { S::send_mail(Deref::deref(self), session, transaction).await })
     }
 }
 

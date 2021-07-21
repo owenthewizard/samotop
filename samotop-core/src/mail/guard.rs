@@ -1,3 +1,5 @@
+use std::ops::Deref;
+
 use crate::mail::{SessionInfo, Transaction};
 use crate::{common::*, smtp::SmtpPath};
 
@@ -23,9 +25,10 @@ pub trait MailGuard: fmt::Debug {
         's: 'f;
 }
 
-impl<T> MailGuard for Arc<T>
+impl<S: MailGuard + ?Sized, T: Deref<Target = S>> MailGuard for T
 where
-    T: MailGuard,
+    T: fmt::Debug + Send + Sync,
+    S: Sync,
 {
     fn add_recipient<'a, 'f>(
         &'a self,
@@ -34,7 +37,7 @@ where
     where
         'a: 'f,
     {
-        T::add_recipient(self, request)
+        Box::pin(async move { S::add_recipient(Deref::deref(self), request).await })
     }
     fn start_mail<'a, 's, 'f>(
         &'a self,
@@ -45,7 +48,7 @@ where
         'a: 'f,
         's: 'f,
     {
-        T::start_mail(self, session, request)
+        Box::pin(async move { S::start_mail(Deref::deref(self), session, request).await })
     }
 }
 

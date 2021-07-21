@@ -1,3 +1,5 @@
+use std::ops::Deref;
+
 use crate::common::*;
 use crate::io::tls::MayBeTls;
 use crate::smtp::SmtpState;
@@ -48,9 +50,10 @@ pub trait EsmtpService: fmt::Debug {
         's: 'f;
 }
 
-impl<T> EsmtpService for Arc<T>
+impl<S: EsmtpService + ?Sized, T: Deref<Target = S>> EsmtpService for T
 where
-    T: EsmtpService,
+    T: fmt::Debug + Send + Sync,
+    S: Sync,
 {
     fn prepare_session<'a, 'i, 's, 'f>(
         &'a self,
@@ -62,6 +65,6 @@ where
         'i: 'f,
         's: 'f,
     {
-        T::prepare_session(self, io, state)
+        Box::pin(async move { S::prepare_session(Deref::deref(self), io, state).await })
     }
 }
