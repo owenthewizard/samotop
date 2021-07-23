@@ -38,7 +38,7 @@ mod tests {
             Esmtp
                 .apply(SmtpInvalidCommand::new(b"HOOO".to_vec()), &mut set)
                 .await;
-            match set.writes.pop_front() {
+            match set.pop_control() {
                 Some(DriverControl::Response(bytes)) if bytes.starts_with(b"500 ") => {}
                 otherwise => panic!("Expected syntax failure, got {:?}", otherwise),
             }

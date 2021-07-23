@@ -40,7 +40,7 @@ mod tests {
             Esmtp
                 .apply(SmtpUnknownCommand::new("HOOO".to_owned(), vec![]), &mut set)
                 .await;
-            match set.writes.pop_front() {
+            match set.pop_control() {
                 Some(DriverControl::Response(bytes)) if bytes.starts_with(b"502 ") => {}
                 otherwise => panic!("Expected command not implemented, got {:?}", otherwise),
             }

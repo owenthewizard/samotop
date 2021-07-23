@@ -23,9 +23,9 @@ impl SMimeMail {
     }
 }
 
-impl MailSetup for SMimeMail {
-    fn setup(self, config: &mut Configuration) {
-        config.dispatch.insert(0, Box::new(self))
+impl<T: AcceptsDispatch> MailSetup<T> for SMimeMail {
+    fn setup(self, config: &mut T) {
+        config.add_dispatch(self)
     }
 }
 

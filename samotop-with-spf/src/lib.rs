@@ -5,7 +5,7 @@ mod lookup;
 
 use self::lookup::*;
 use samotop_core::common::*;
-use samotop_core::mail::{Configuration, DispatchError, DispatchResult, MailDispatch, MailSetup};
+use samotop_core::mail::{AcceptsDispatch, DispatchError, DispatchResult, MailDispatch, MailSetup};
 use samotop_core::smtp::{SessionInfo, SmtpPath, Transaction};
 pub use viaspf::Config;
 use viaspf::{evaluate_spf, SpfResult};
@@ -31,9 +31,9 @@ impl SpfService {
     }
 }
 
-impl MailSetup for Provider<Config> {
-    fn setup(self, config: &mut Configuration) {
-        config.dispatch.insert(0, Box::new(SpfService::new(self.0)));
+impl<T: AcceptsDispatch> MailSetup<T> for Provider<Config> {
+    fn setup(self, config: &mut T) {
+        config.add_dispatch(SpfService::new(self.0))
     }
 }
 

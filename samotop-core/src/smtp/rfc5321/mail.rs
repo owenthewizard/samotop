@@ -65,7 +65,7 @@ mod tests {
             Esmtp
                 .apply(SmtpMail::Mail(SmtpPath::Postmaster, vec![]), &mut set)
                 .await;
-            match set.writes.pop_front() {
+            match set.pop_control() {
                 Some(DriverControl::Response(bytes)) if bytes.starts_with(b"250 ") => {}
                 otherwise => panic!("Expected OK, got {:?}", otherwise),
             }
@@ -84,7 +84,7 @@ mod tests {
             Esmtp
                 .apply(SmtpMail::Mail(SmtpPath::Postmaster, vec![]), &mut set)
                 .await;
-            match set.writes.pop_front() {
+            match set.pop_control() {
                 Some(DriverControl::Response(bytes)) if bytes.starts_with(b"250 ") => {}
                 otherwise => panic!("Expected OK, got {:?}", otherwise),
             }
@@ -104,7 +104,7 @@ mod tests {
             Esmtp
                 .apply(SmtpMail::Mail(SmtpPath::Postmaster, vec![]), &mut set)
                 .await;
-            match set.writes.pop_front() {
+            match set.pop_control() {
                 Some(DriverControl::Response(bytes)) if bytes.starts_with(b"503 ") => {}
                 otherwise => panic!("Expected command sequence failure, got {:?}", otherwise),
             }

@@ -40,11 +40,10 @@ async fn main_fut() -> Result<()> {
         (Regex::new("[^@a-zA-Z0-9]+")?, "-".to_owned()), // sanitize the user name example.org@localhost => example-org@localhost
     ]);
     let lmtp_connector: TcpConnector<NoTls> = TcpConnector::default();
-    let mail_service = Builder::default()
-        .using(LmtpDispatch::new("dovecot:24".to_owned(), lmtp_connector)?.reuse(0))
-        .using(rcpt_map)
-        .using(Esmtp.with(SmtpParser))
-        .build();
+    let service = Builder
+        + LmtpDispatch::new("dovecot:24".to_owned(), lmtp_connector)?.reuse(0)
+        + rcpt_map
+        + Esmtp.with(SmtpParser);
 
-    TcpServer::on("localhost:2525").serve(mail_service).await
+    TcpServer::on("localhost:2525").serve(service.build()).await
 }

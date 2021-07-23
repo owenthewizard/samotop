@@ -44,10 +44,7 @@ async fn main_fut() -> Result<()> {
 async fn main_fut() -> Result<()> {
     use samotop::server::UnixServer;
 
-    let mail_service = Builder::default()
-        .using(Dir::new("tmp/samotop/spool/".into())?)
-        .using(Esmtp.with(SmtpParser))
-        .build();
+    let service = Builder + Dir::new("tmp/samotop/spool/".into())? + Esmtp.with(SmtpParser);
 
-    UnixServer::on("local.socket").serve(mail_service).await
+    UnixServer::on("local.socket").serve(service.build()).await
 }

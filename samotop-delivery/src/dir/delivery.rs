@@ -17,11 +17,9 @@ impl Dir {
     }
 }
 
-impl MailSetup for Dir {
-    fn setup(self, config: &mut Configuration) {
+impl<T: AcceptsDispatch> MailSetup<T> for Dir {
+    fn setup(self, config: &mut T) {
         let transport = MaildirTransport::new(self.path);
-        config
-            .dispatch
-            .insert(0, Box::new(DispatchMail::new(transport)))
+        config.add_dispatch(DispatchMail::new(transport))
     }
 }

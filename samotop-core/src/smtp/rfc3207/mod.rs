@@ -1,6 +1,6 @@
 use crate::common::{ready, S1Fut};
 use crate::io::tls::{MayBeTls, TlsProvider};
-use crate::mail::{Configuration, MailSetup};
+use crate::mail::{AcceptsEsmtp, AcceptsInterpret, MailSetup};
 use crate::smtp::{extension, EsmtpService, Interpretter, Parser, SmtpState};
 use std::sync::Arc;
 
@@ -38,14 +38,17 @@ impl EsmtpStartTls {
     }
 }
 
-impl MailSetup for EsmtpStartTls {
-    fn setup(self, config: &mut Configuration) {
-        config.interpret.insert(0, Box::new(self.interpret.clone()));
-        config.esmtp.insert(0, Box::new(self));
+impl<T: AcceptsEsmtp + AcceptsInterpret> MailSetup<T> for EsmtpStartTls {
+    fn setup(self, config: &mut T) {
+        config.add_interpret(self.interpret.clone());
+        config.add_esmtp(self);
     }
 }
 
 impl EsmtpService for EsmtpStartTls {
+    fn read_timeout(&self) -> Option<std::time::Duration> {
+        None
+    }
     fn prepare_session<'a, 'i, 's, 'f>(
         &'a self,
         io: &'i mut Box<dyn MayBeTls>,

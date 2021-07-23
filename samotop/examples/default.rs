@@ -28,10 +28,7 @@ type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>
 #[async_std::main]
 async fn main() -> Result<()> {
     env_logger::init();
-    let mail_service = Builder::default()
-        .using(NullDispatch)
-        .using(Esmtp.with(SmtpParser))
-        .build();
+    let service = Builder + NullDispatch + Esmtp.with(SmtpParser);
 
-    TcpServer::on("localhost:2525").serve(mail_service).await
+    TcpServer::on("localhost:2525").serve(service.build()).await
 }

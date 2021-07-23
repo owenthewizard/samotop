@@ -21,11 +21,9 @@ impl Default for Journal {
     }
 }
 
-impl MailSetup for Journal {
-    fn setup(self, config: &mut Configuration) {
+impl<T: AcceptsDispatch> MailSetup<T> for Journal {
+    fn setup(self, config: &mut T) {
         let transport = JournalTransport::new(self.path);
-        config
-            .dispatch
-            .insert(0, Box::new(DispatchMail::new(transport)))
+        config.add_dispatch(DispatchMail::new(transport))
     }
 }

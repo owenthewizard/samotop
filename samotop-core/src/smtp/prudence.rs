@@ -1,24 +1,46 @@
 use crate::common::*;
 use crate::io::tls::MayBeTls;
-use crate::mail::{Configuration, MailSetup};
-use crate::smtp::{EsmtpService, SmtpState};
+use crate::mail::{AcceptsEsmtp, AcceptsInterpret, MailSetup};
+use crate::smtp::{EsmtpService, Interpret, InterpretResult, ParseError, SmtpState};
 use async_std::prelude::FutureExt;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
-/// Prevent or monitor bad SMTP behavior
-#[derive(Debug)]
+/// Prevent bad SMTP behavior
+#[derive(Debug, Default)]
 pub struct Prudence {
     /// Monitor bad behavior of clients not waiting for a banner given time
-    pub wait_for_banner_delay: Option<Duration>,
+    wait_for_banner_delay: Option<Duration>,
+    /// Maximum read time
+    read_timeout: Option<Duration>,
 }
 
-impl MailSetup for Prudence {
-    fn setup(self, config: &mut Configuration) {
-        config.esmtp.insert(0, Box::new(self));
+impl Prudence {
+    /// Shut the session down if the client sends commands before the delayed banner
+    pub fn with_banner_delay(mut self, delay: Duration) -> Self {
+        self.wait_for_banner_delay = Some(delay);
+        self
+    }
+    /// Shut the session down if the client takes too long to send a command
+    pub fn with_read_timeout(mut self, timeout: Duration) -> Self {
+        self.read_timeout = Some(timeout);
+        self
+    }
+}
+
+impl<T> MailSetup<T> for Prudence
+where
+    T: AcceptsEsmtp + AcceptsInterpret,
+{
+    fn setup(self, config: &mut T) {
+        config.wrap_interprets(|inner| Impatience { inner });
+        config.add_esmtp(self);
     }
 }
 
 impl EsmtpService for Prudence {
+    fn read_timeout(&self) -> Option<Duration> {
+        self.read_timeout
+    }
     fn prepare_session<'a, 'i, 's, 'f>(
         &'a self,
         io: &'i mut Box<dyn MayBeTls>,
@@ -127,5 +149,43 @@ impl Write for ConcatRW {
 
     fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         Pin::new(&mut self.io).poll_close(cx)
+    }
+}
+
+/// Enforces the specified command timeout
+#[derive(Debug)]
+struct Impatience {
+    inner: Box<dyn Interpret + Sync + Send>,
+}
+
+impl Interpret for Impatience {
+    fn interpret<'a, 'i, 's, 'f>(
+        &'a self,
+        input: &'i [u8],
+        state: &'s mut SmtpState,
+    ) -> S1Fut<'f, InterpretResult>
+    where
+        'a: 'f,
+        'i: 'f,
+        's: 'f,
+    {
+        Box::pin(self.interpret_inner(input, state))
+    }
+}
+
+impl Impatience {
+    pub async fn interpret_inner(&self, input: &[u8], state: &mut SmtpState) -> InterpretResult {
+        let res = self.inner.interpret(input, state).await;
+
+        if let Some(timeout) = state.service.read_timeout() {
+            if let Err(ParseError::Incomplete) = res {
+                if Instant::now().saturating_duration_since(state.session.last_command_at) > timeout
+                {
+                    state.say_shutdown_timeout();
+                    return Ok(None);
+                }
+            }
+        }
+        res
     }
 }

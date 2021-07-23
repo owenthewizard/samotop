@@ -8,7 +8,7 @@ pub struct SmtpState {
     pub service: Box<dyn MailService + Sync + Send>,
     pub session: SessionInfo,
     pub transaction: Transaction,
-    pub writes: VecDeque<DriverControl>,
+    writes: VecDeque<DriverControl>,
 }
 
 impl Default for SmtpState {
@@ -45,6 +45,9 @@ impl SmtpState {
         self.reset();
         self.session = SessionInfo::default();
         self.say(DriverControl::Shutdown)
+    }
+    pub fn pop_control(&mut self) -> Option<DriverControl> {
+        self.writes.pop_front()
     }
 }
 

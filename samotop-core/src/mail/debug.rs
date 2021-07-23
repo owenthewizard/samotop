@@ -10,29 +10,35 @@ use std::fmt;
 //use uuid::Uuid;
 
 #[derive(Clone, Debug)]
-pub struct DebugMailService {
+pub struct Debug {
     id: String,
 }
-impl DebugMailService {
+impl Debug {
     pub fn new(id: String) -> Self {
         Self { id }
     }
 }
-impl Default for DebugMailService {
+impl Default for Debug {
     fn default() -> Self {
         Self {
             id: "samotop".to_owned(),
         }
     }
 }
-impl MailSetup for DebugMailService {
-    fn setup(self, config: &mut Configuration) {
-        config.esmtp.insert(0, Box::new(self.clone()));
-        config.guard.insert(0, Box::new(self.clone()));
-        config.dispatch.insert(0, Box::new(self));
+impl<T> MailSetup<T> for Debug
+where
+    T: AcceptsEsmtp + AcceptsGuard + AcceptsDispatch,
+{
+    fn setup(self, config: &mut T) {
+        config.add_esmtp(self.clone());
+        config.add_guard(self.clone());
+        config.add_dispatch(self);
     }
 }
-impl EsmtpService for DebugMailService {
+impl EsmtpService for Debug {
+    fn read_timeout(&self) -> Option<std::time::Duration> {
+        None
+    }
     fn prepare_session<'a, 'i, 's, 'f>(
         &'a self,
         _io: &'i mut Box<dyn MayBeTls>,
@@ -48,7 +54,7 @@ impl EsmtpService for DebugMailService {
     }
 }
 
-impl MailGuard for DebugMailService {
+impl MailGuard for Debug {
     fn add_recipient<'a, 'f>(
         &'a self,
         request: AddRecipientRequest,
@@ -79,7 +85,7 @@ impl MailGuard for DebugMailService {
     }
 }
 
-impl MailDispatch for DebugMailService {
+impl MailDispatch for Debug {
     fn send_mail<'a, 's, 'f>(
         &'a self,
         session: &'s SessionInfo,
@@ -182,7 +188,7 @@ mod tests {
         async_std::task::block_on(async move {
             let sess = SessionInfo::default();
             let tran = Transaction::default();
-            let sut = DebugMailService::default();
+            let sut = Debug::default();
             let _tran = sut.start_mail(&sess, tran).await;
         })
     }

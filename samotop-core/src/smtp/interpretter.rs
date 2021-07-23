@@ -1,6 +1,6 @@
 use crate::{
     common::*,
-    mail::{Configuration, MailSetup},
+    mail::{AcceptsInterpret, MailSetup},
     smtp::{ParseError, Parser, SmtpState},
 };
 use std::{
@@ -78,9 +78,9 @@ pub struct Interpretter {
     calls: Vec<Box<dyn Interpret + Send + Sync>>,
 }
 
-impl MailSetup for Interpretter {
-    fn setup(self, config: &mut Configuration) {
-        config.interpret.insert(0, Box::new(self))
+impl<T: AcceptsInterpret> MailSetup<T> for Interpretter {
+    fn setup(self, config: &mut T) {
+        config.add_interpret(self)
     }
 }
 impl Interpret for Interpretter {
@@ -260,7 +260,7 @@ mod tests {
     #[test]
     fn interpretter_session_setup_test() {
         insta::assert_debug_snapshot!(
-            Interpretter::default(), 
+            Interpretter::default(),
             @"Interpretter(0)");
     }
     #[test]

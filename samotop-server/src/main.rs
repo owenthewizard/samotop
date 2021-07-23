@@ -119,7 +119,7 @@ use rustls::ServerConfig;
 use samotop::io::tls::RustlsProvider;
 use samotop::mail::{Builder, Dir, Name};
 use samotop::server::TcpServer;
-use samotop::smtp::{Esmtp, EsmtpStartTls, Impatience, Prudence, SmtpParser};
+use samotop::smtp::{Esmtp, EsmtpStartTls, Prudence, SmtpParser};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 use structopt::StructOpt;
@@ -136,21 +136,17 @@ async fn main_fut() -> Result<()> {
 
     let ports = setup.get_service_ports();
 
-    let mut builder = Builder::default()
-        .using(Name::new(setup.get_my_name()))
-        .using(Dir::new(setup.get_mail_dir())?)
-        .using(samotop::mail::spf::provide_viaspf())
-        .using(Esmtp.with(SmtpParser))
-        .using(Impatience::timeout(Duration::from_secs(30)))
-        .using(Prudence {
-            wait_for_banner_delay: Some(Duration::from_millis(1234)),
-        });
+    let mut builder = Builder
+        + Name::new(setup.get_my_name())
+        + Dir::new(setup.get_mail_dir())?
+        + samotop::mail::spf::provide_viaspf()
+        + Esmtp.with(SmtpParser)
+        + Prudence::default()
+            .with_banner_delay(Duration::from_millis(1234))
+            .with_read_timeout(Duration::from_secs(30));
 
     if let Some(cfg) = setup.get_tls_config().await? {
-        builder = builder.using(EsmtpStartTls::with(
-            SmtpParser,
-            RustlsProvider::from(TlsAcceptor::from(cfg)),
-        ));
+        builder += EsmtpStartTls::with(SmtpParser, RustlsProvider::from(TlsAcceptor::from(cfg)));
     }
 
     info!("I am {}", setup.get_my_name());

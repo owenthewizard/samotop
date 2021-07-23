@@ -42,10 +42,7 @@ fn main() -> Result<()> {
 }
 
 async fn main_fut() -> Result<()> {
-    let mail_service = Builder::default()
-        .using(Journal::new("tmp/journal/"))
-        .using(Lmtp.with(SmtpParser))
-        .build();
+    let service = Builder + Journal::new("tmp/journal/") + Lmtp.with(SmtpParser);
 
     let stream = MyIo {
         read: Box::pin(async_std::io::stdin()),
@@ -54,7 +51,7 @@ async fn main_fut() -> Result<()> {
     let stream = TlsCapable::plaintext(Box::new(stream));
     let conn = ConnectionInfo::default();
 
-    mail_service.handle(Ok(Box::new(stream)), conn).await
+    service.build().handle(Ok(Box::new(stream)), conn).await
 }
 
 struct MyIo<R, W> {

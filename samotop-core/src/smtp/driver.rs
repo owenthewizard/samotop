@@ -2,8 +2,10 @@ use crate::common::io::{prelude::BufReadExt, BufReader};
 use crate::common::*;
 use crate::io::tls::MayBeTls;
 use crate::smtp::{DriverControl, Interpret, ParseError, SmtpState};
+use async_std::prelude::FutureExt;
 use std::fmt;
 use std::fmt::Display;
+use std::time::{Duration, Instant};
 
 pub trait Drive {
     fn drive<'a, 's, 'f>(
@@ -34,10 +36,16 @@ where
         'a: 'f,
         's: 'f,
     {
+        // default to a day?
+        let read_timeout = state
+            .service
+            .read_timeout()
+            .unwrap_or_else(|| Duration::from_secs(60 * 60 * 24));
+
         Box::pin(async move {
             while self.is_open() {
                 // fetch and apply commands
-                self.drive_once(state).await?
+                self.drive_once(state, read_timeout).await?
             }
             Ok(())
         })
@@ -57,7 +65,11 @@ where
     fn is_open(&self) -> bool {
         self.io.is_some()
     }
-    async fn drive_once(&mut self, state: &mut SmtpState) -> std::result::Result<(), DriverError> {
+    async fn drive_once(
+        &mut self,
+        state: &mut SmtpState,
+        read_timeout: Duration,
+    ) -> std::result::Result<(), DriverError> {
         let mut io = if let Some(io) = self.io.take() {
             io
         } else {
@@ -65,7 +77,7 @@ where
         };
 
         // write all pending responses
-        while let Some(response) = state.writes.pop_front() {
+        while let Some(response) = state.pop_control() {
             trace!("Processing driver control {:?}", response);
             match response {
                 DriverControl::Response(bytes) => {
@@ -81,7 +93,6 @@ where
                     match write.and(flush) {
                         Ok(()) => {}
                         Err(e) => {
-                            state.writes.push_front(DriverControl::Response(bytes));
                             return Err(e);
                         }
                     }
@@ -117,23 +128,37 @@ where
                     assert!(consumed != 0, "if consumed is 0, infinite loop is likely");
                     // TODO: handle buffer more efficiently, now allocating all the time
                     self.buffer = self.buffer.split_off(consumed);
+                    state.session.last_command_at = Instant::now();
                     break Some(io);
                 }
                 Err(ParseError::Incomplete) => {
                     // TODO: take care of large chunks without LF
-                    if io.read_until(b'\n', &mut self.buffer).await? == 0 {
-                        if self.buffer.is_empty() {
-                            // client went silent, we're done!
-                            state.shutdown();
-                        } else {
-                            error!(
-                                "Incomplete and finished: {:?}",
-                                String::from_utf8_lossy(self.buffer.as_slice())
-                            );
-                            // client did not finish the command and left.
-                            state.say_shutdown_processing_err("Incomplete command".into());
-                        };
-                        break Some(io);
+                    match io
+                        .read_until(b'\n', &mut self.buffer)
+                        .timeout(read_timeout)
+                        .await
+                        .ok()
+                        .transpose()?
+                    {
+                        None => {
+                            warn!("session read timeout");
+                            state.say_shutdown_timeout();
+                        }
+                        Some(0) => {
+                            if self.buffer.is_empty() {
+                                // client went silent, we're done!
+                                state.shutdown();
+                            } else {
+                                error!(
+                                    "Incomplete and finished: {:?}",
+                                    String::from_utf8_lossy(self.buffer.as_slice())
+                                );
+                                // client did not finish the command and left.
+                                state.say_shutdown_processing_err("Incomplete command".into());
+                            };
+                            break Some(io);
+                        }
+                        Some(_) => { /* good, interpret again */ }
                     }
                 }
                 Err(e) => {

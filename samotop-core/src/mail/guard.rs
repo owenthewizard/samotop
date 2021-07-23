@@ -52,6 +52,33 @@ where
     }
 }
 
+impl MailGuard for Dummy {
+    fn add_recipient<'a, 'f>(
+        &'a self,
+        request: AddRecipientRequest,
+    ) -> S2Fut<'f, AddRecipientResult>
+    where
+        'a: 'f,
+    {
+        Box::pin(ready(AddRecipientResult::Inconclusive(request)))
+    }
+
+    fn start_mail<'a, 's, 'f>(
+        &'a self,
+        _session: &'s SessionInfo,
+        _request: StartMailRequest,
+    ) -> S2Fut<'f, StartMailResult>
+    where
+        'a: 'f,
+        's: 'f,
+    {
+        Box::pin(ready(StartMailResult::Failed(
+            StartMailFailure::Rejected,
+            "dummy".to_string(),
+        )))
+    }
+}
+
 pub type StartMailRequest = Transaction;
 
 #[derive(Debug)]

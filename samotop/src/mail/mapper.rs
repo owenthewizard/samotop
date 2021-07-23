@@ -6,6 +6,7 @@ use crate::{
     mail::*,
     smtp::{SessionInfo, SmtpParser},
 };
+use log::*;
 use regex::Regex;
 
 /// A mail guard that converts recipient addresses according to a regex map.
@@ -20,9 +21,9 @@ impl Mapper {
     }
 }
 
-impl MailSetup for Mapper {
-    fn setup(self, config: &mut Configuration) {
-        config.guard.insert(0, Box::new(self))
+impl<T: AcceptsGuard> MailSetup<T> for Mapper {
+    fn setup(self, config: &mut T) {
+        config.add_guard(self)
     }
 }
 

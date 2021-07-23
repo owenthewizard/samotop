@@ -37,10 +37,7 @@ fn main() -> Result<()> {
 }
 
 async fn main_fut() -> Result<()> {
-    let mail_service = Builder::default()
-        .using(Dir::new("tmp/samotop/spool/".into())?)
-        .using(Esmtp.with(SmtpParser))
-        .build();
+    let service = Builder + Dir::new("tmp/samotop/spool/".into())? + Esmtp.with(SmtpParser);
 
-    TcpServer::on("localhost:2525").serve(mail_service).await
+    TcpServer::on("localhost:2525").serve(service.build()).await
 }

@@ -44,24 +44,20 @@ async fn main_fut() -> Result<()> {
 
     let ports = setup.get_service_ports();
 
-    let mail_service = Builder::default()
-        .using(Name::new(setup.get_my_name()))
-        .using(Accounts::new(setup.absolute_path("accounts")))
-        .using(SMimeMail::new(
-            setup.get_id_file_path(),
-            setup.get_cert_file_path(),
-        ))
-        .using(Dir::new(setup.get_mail_dir())?)
-        .using(samotop::mail::spf::provide_viaspf())
-        .using(Esmtp.with(SmtpParser))
-        .using(EsmtpStartTls::with(
+    let service = Builder
+        + Name::new(setup.get_my_name())
+        + Accounts::new(setup.absolute_path("accounts"))
+        + SMimeMail::new(setup.get_id_file_path(), setup.get_cert_file_path())
+        + Dir::new(setup.get_mail_dir())?
+        + samotop::mail::spf::provide_viaspf()
+        + Esmtp.with(SmtpParser)
+        + EsmtpStartTls::with(
             SmtpParser,
             RustlsProvider::from(TlsAcceptor::from(setup.get_tls_config().await?)),
-        ))
-        .build();
+        );
 
     info!("I am {}", setup.get_my_name());
-    TcpServer::on_all(ports).serve(mail_service).await
+    TcpServer::on_all(ports).serve(service.build()).await
 }
 
 pub struct Setup {

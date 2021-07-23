@@ -1,6 +1,7 @@
 use super::{DispatchResult, MailDispatch, MailSetup};
 use crate::{
     common::*,
+    mail::AcceptsDispatch,
     smtp::{SessionInfo, Transaction},
 };
 
@@ -23,9 +24,9 @@ impl MailDispatch for NullDispatch {
         Box::pin(ready(Ok(transaction)))
     }
 }
-impl MailSetup for NullDispatch {
-    fn setup(self, config: &mut super::Configuration) {
-        config.dispatch.insert(0, Box::new(self))
+impl<T: AcceptsDispatch> MailSetup<T> for NullDispatch {
+    fn setup(self, config: &mut T) {
+        config.add_dispatch(self)
     }
 }
 

@@ -95,7 +95,7 @@ You can also implement your own `TlsProvider` and plug it in.
 
 You can easily run a plaintext SMTP service without support for STARTTLS.
 Replace `Builder` with your own implementation or compose
-a mail service with `Builder::using()` and provided features.
+a mail service with `Builder + mailsetup` and provided features.
 
 Look at samotop-server for a working example with TLS and other features.
 
@@ -106,8 +106,8 @@ extern crate samotop;
 fn main() {
     env_logger::init();
     let interpretter = samotop::smtp::Esmtp.with(samotop::smtp::SmtpParser);
-    let mail = samotop::mail::Builder::default().using(interpretter).build();
-    let srv = samotop::server::TcpServer::on("localhost:25").serve(mail);
+    let mail = samotop::mail::Builder + interpretter;
+    let srv = samotop::server::TcpServer::on("localhost:25").serve(mail.build());
     async_std::task::block_on(srv).unwrap()
 }
 ```
@@ -185,9 +185,6 @@ In Rust world I have so far found mostly SMTP clients.
 * [ferric-mail](https://github.com/wraithan/ferric-mail) by **wraithan**, looks abandoned since 2014.
 * [new-tokio-smtp](https://crates.io/crates/new-tokio-smtp) is na SMTP client by **Philipp Korber**, now only pasively maintained
 */
-
-#[macro_use]
-extern crate log;
 
 pub mod io;
 pub mod mail;

@@ -64,7 +64,7 @@ mod tests {
             set.transaction.sink = Some(Box::pin(sink));
 
             Esmtp.apply(SmtpData, &mut set).await;
-            match set.writes.pop_front() {
+            match set.pop_control() {
                 Some(DriverControl::Response(bytes)) if bytes.starts_with(b"354 ") => {}
                 otherwise => panic!("Expected mail data input challenge, got {:?}", otherwise),
             }
@@ -79,7 +79,7 @@ mod tests {
             let mut set = SmtpState::default();
 
             Esmtp.apply(SmtpData, &mut set).await;
-            match set.writes.pop_front() {
+            match set.pop_control() {
                 Some(DriverControl::Response(bytes)) if bytes.starts_with(b"503 ") => {}
                 otherwise => panic!("Expected command sequence failure, got {:?}", otherwise),
             }
@@ -94,7 +94,7 @@ mod tests {
             set.session.peer_name = Some("xx.iu".to_owned());
 
             Esmtp.apply(SmtpData, &mut set).await;
-            match set.writes.pop_front() {
+            match set.pop_control() {
                 Some(DriverControl::Response(bytes)) if bytes.starts_with(b"503 ") => {}
                 otherwise => panic!("Expected command sequence failure, got {:?}", otherwise),
             }
@@ -109,7 +109,7 @@ mod tests {
             set.transaction.mail = Some(SmtpMail::Mail(SmtpPath::Null, vec![]));
 
             Esmtp.apply(SmtpData, &mut set).await;
-            match set.writes.pop_front() {
+            match set.pop_control() {
                 Some(DriverControl::Response(bytes)) if bytes.starts_with(b"503 ") => {}
                 otherwise => panic!("Expected command sequence failure, got {:?}", otherwise),
             }

@@ -1,4 +1,5 @@
 use std::ops::Deref;
+use std::time::Duration;
 
 use crate::common::*;
 use crate::io::tls::MayBeTls;
@@ -11,6 +12,7 @@ The service which implements this trait delivers ESMTP extensions.
 use samotop_core::common::S1Fut;
 use samotop_core::smtp::*;
 use samotop_core::io::tls::MayBeTls;
+use std::time::Duration;
 
 /// This mail service canhabdle 8-bit MIME
 #[derive(Clone, Debug)]
@@ -18,6 +20,7 @@ pub struct EnableEightBit;
 
 impl EsmtpService for EnableEightBit
 {
+    fn read_timeout(&self) -> Option<Duration> { None }
     fn prepare_session<'a, 'i, 's, 'f>(
         &'a self,
         _io: &'i mut Box<dyn MayBeTls>,
@@ -38,6 +41,7 @@ impl EsmtpService for EnableEightBit
 ```
 */
 pub trait EsmtpService: fmt::Debug {
+    fn read_timeout(&self) -> Option<Duration>;
     fn prepare_session<'a, 'i, 's, 'f>(
         &'a self,
         io: &'i mut Box<dyn MayBeTls>,
@@ -54,6 +58,9 @@ where
     T: fmt::Debug + Send + Sync,
     S: Sync,
 {
+    fn read_timeout(&self) -> Option<Duration> {
+        S::read_timeout(&self)
+    }
     fn prepare_session<'a, 'i, 's, 'f>(
         &'a self,
         io: &'i mut Box<dyn MayBeTls>,
@@ -65,5 +72,24 @@ where
         's: 'f,
     {
         Box::pin(async move { S::prepare_session(Deref::deref(self), io, state).await })
+    }
+}
+
+impl EsmtpService for Dummy {
+    fn read_timeout(&self) -> Option<Duration> {
+        None
+    }
+
+    fn prepare_session<'a, 'i, 's, 'f>(
+        &'a self,
+        _io: &'i mut Box<dyn MayBeTls>,
+        _state: &'s mut SmtpState,
+    ) -> S1Fut<'f, ()>
+    where
+        'a: 'f,
+        'i: 'f,
+        's: 'f,
+    {
+        Box::pin(ready(()))
     }
 }

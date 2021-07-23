@@ -47,11 +47,10 @@ async fn main_fut() -> Result<()> {
     ]);
     use samotop::io::client::UnixConnector;
     let lmtp_connector: UnixConnector<NoTls> = UnixConnector::default();
-    let mail_service = Builder::default()
-        .using(LmtpDispatch::new("/var/run/dovecot/lmtp".to_owned(), lmtp_connector)?.reuse(0))
-        .using(rcpt_map)
-        .using(Lmtp.with(SmtpParser))
-        .build();
+    let service = Builder
+        + LmtpDispatch::new("/var/run/dovecot/lmtp".to_owned(), lmtp_connector)?.reuse(0)
+        + rcpt_map
+        + Lmtp.with(SmtpParser);
 
-    TcpServer::on("localhost:2525").serve(mail_service).await
+    TcpServer::on("localhost:2525").serve(service.build()).await
 }

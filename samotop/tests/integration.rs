@@ -29,13 +29,10 @@ async fn svc() -> Result<()> {
     ));
     let testio = TestIo::new(read, s);
     let io = Box::new(TlsCapable::plaintext(Box::new(testio)));
-    let mail_service = Builder::default()
-        .using(Name::new("testik"))
-        .using(NullDispatch)
-        .using(Esmtp.with(SmtpParser))
-        .build();
+    let service = Builder + Name::new("testik") + NullDispatch + Esmtp.with(SmtpParser);
 
-    mail_service
+    service
+        .build()
         .handle(Ok(io), ConnectionInfo::default())
         .await?;
 
@@ -77,14 +74,12 @@ async fn prudent_blocks_bad_client() -> Result<()> {
     let read = Cursor::new(concat!("ehlo macca\r\n",));
     let testio = TestIo::new(read, s);
     let io = Box::new(TlsCapable::plaintext(Box::new(testio)));
-    let mail_service = Builder::default()
-        .using(Name::new("prudic"))
-        .using(Prudence {
-            wait_for_banner_delay: Some(Duration::from_millis(50)),
-        })
-        .build();
+    let service = Builder
+        + Name::new("prudic")
+        + Prudence::default().with_banner_delay(Duration::from_millis(50));
 
-    mail_service
+    service
+        .build()
         .handle(Ok(io), ConnectionInfo::default())
         .await?;
 
@@ -103,15 +98,13 @@ async fn prudent_allows_good_client() -> Result<()> {
     let read = DelayRead::new(100, Cursor::new(concat!("ehlo macca\r\n",)));
     let testio = TestIo::new(read, s);
     let io = Box::new(TlsCapable::plaintext(Box::new(testio)));
-    let mail_service = Builder::default()
-        .using(Name::new("prudic"))
-        .using(Esmtp.with(SmtpParser))
-        .using(Prudence {
-            wait_for_banner_delay: Some(Duration::from_millis(50)),
-        })
-        .build();
+    let service = Builder
+        + Name::new("prudic")
+        + Esmtp.with(SmtpParser)
+        + Prudence::default().with_banner_delay(Duration::from_millis(50));
 
-    mail_service
+    service
+        .build()
         .handle(Ok(io), ConnectionInfo::default())
         .await?;
 
