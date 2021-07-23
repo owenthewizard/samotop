@@ -59,7 +59,7 @@ where
     S: Sync,
 {
     fn read_timeout(&self) -> Option<Duration> {
-        S::read_timeout(&self)
+        S::read_timeout(self)
     }
     fn prepare_session<'a, 'i, 's, 'f>(
         &'a self,

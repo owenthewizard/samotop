@@ -24,7 +24,7 @@ find tmp/samotop/spool/
 
 use async_std::task;
 use samotop::{
-    mail::{Builder, Dir},
+    mail::{Builder, MailDir},
     smtp::{Esmtp, SmtpParser},
 };
 
@@ -44,7 +44,7 @@ async fn main_fut() -> Result<()> {
 async fn main_fut() -> Result<()> {
     use samotop::server::UnixServer;
 
-    let service = Builder + Dir::new("tmp/samotop/spool/".into())? + Esmtp.with(SmtpParser);
+    let service = Builder + MailDir::new("tmp/samotop/spool/".into())? + Esmtp.with(SmtpParser);
 
     UnixServer::on("local.socket").serve(service.build()).await
 }

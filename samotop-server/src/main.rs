@@ -117,7 +117,8 @@ use async_std::{fs::File, io::Read};
 use async_tls::TlsAcceptor;
 use rustls::ServerConfig;
 use samotop::io::tls::RustlsProvider;
-use samotop::mail::{Builder, Dir, Name};
+use samotop::mail::spf::Spf;
+use samotop::mail::{Builder, MailDir, Name};
 use samotop::server::TcpServer;
 use samotop::smtp::{Esmtp, EsmtpStartTls, Prudence, SmtpParser};
 use std::path::{Path, PathBuf};
@@ -138,8 +139,8 @@ async fn main_fut() -> Result<()> {
 
     let mut builder = Builder
         + Name::new(setup.get_my_name())
-        + Dir::new(setup.get_mail_dir())?
-        + samotop::mail::spf::provide_viaspf()
+        + MailDir::new(setup.get_mail_dir())?
+        + Spf
         + Esmtp.with(SmtpParser)
         + Prudence::default()
             .with_banner_delay(Duration::from_millis(1234))

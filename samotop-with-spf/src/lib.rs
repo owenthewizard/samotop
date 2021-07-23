@@ -10,34 +10,36 @@ use samotop_core::smtp::{SessionInfo, SmtpPath, Transaction};
 pub use viaspf::Config;
 use viaspf::{evaluate_spf, SpfResult};
 
-/// MailSetup that adds SPF check. If the SPF check results in Fail, mail is rejected.
-pub fn provide_viaspf() -> Provider<Config> {
-    Provider(Config::default())
-}
-
-#[derive(Clone, Debug, Default)]
-pub struct Provider<T>(pub T);
-
+/// enables checking for SPF records
 #[derive(Clone, Debug)]
-pub struct SpfService {
-    config: Arc<Config>,
-}
+pub struct Spf;
 
-impl SpfService {
-    pub fn new(config: Config) -> Self {
-        Self {
+impl Spf {
+    /// use viaspf config
+    pub fn with_config(self, config: Config) -> SpfWithConfig {
+        SpfWithConfig {
             config: Arc::new(config),
         }
     }
 }
 
-impl<T: AcceptsDispatch> MailSetup<T> for Provider<Config> {
+#[derive(Clone, Debug)]
+pub struct SpfWithConfig {
+    config: Arc<Config>,
+}
+
+impl<T: AcceptsDispatch> MailSetup<T> for SpfWithConfig {
     fn setup(self, config: &mut T) {
-        config.add_dispatch(SpfService::new(self.0))
+        config.add_dispatch(self)
+    }
+}
+impl<T: AcceptsDispatch> MailSetup<T> for Spf {
+    fn setup(self, config: &mut T) {
+        config.add_dispatch(Spf.with_config(Config::default()))
     }
 }
 
-impl MailDispatch for SpfService {
+impl MailDispatch for SpfWithConfig {
     fn send_mail<'a, 's, 'f>(
         &'a self,
         session: &'s SessionInfo,
@@ -106,7 +108,7 @@ mod tests {
             ..Default::default()
         };
         let cfg = Config::default();
-        let sut = SpfService::new(cfg);
+        let sut = Spf.with_config(cfg);
         let fut = sut.send_mail(&sess, tran);
         is_send(fut);
     }

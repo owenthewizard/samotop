@@ -24,7 +24,8 @@ use samotop::{
     io::tls::RustlsProvider,
     mail::{
         smime::{Accounts, SMimeMail},
-        Builder, Dir, Name,
+        spf::Spf,
+        Builder, MailDir, Name,
     },
     server::TcpServer,
     smtp::{Esmtp, EsmtpStartTls, SmtpParser},
@@ -48,8 +49,8 @@ async fn main_fut() -> Result<()> {
         + Name::new(setup.get_my_name())
         + Accounts::new(setup.absolute_path("accounts"))
         + SMimeMail::new(setup.get_id_file_path(), setup.get_cert_file_path())
-        + Dir::new(setup.get_mail_dir())?
-        + samotop::mail::spf::provide_viaspf()
+        + MailDir::new(setup.get_mail_dir())?
+        + Spf
         + Esmtp.with(SmtpParser)
         + EsmtpStartTls::with(
             SmtpParser,

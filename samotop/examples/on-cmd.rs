@@ -29,7 +29,7 @@ use async_std::io::Write;
 use async_std::task;
 use samotop::{
     io::{tls::TlsCapable, ConnectionInfo, IoService},
-    mail::{Builder, Dir},
+    mail::{Builder, MailDir},
     smtp::{Lmtp, SmtpParser},
 };
 use std::pin::Pin;
@@ -42,7 +42,7 @@ fn main() -> Result<()> {
 }
 
 async fn main_fut() -> Result<()> {
-    let service = Builder + Dir::new("tmp/samotop/spool/".into())? + Lmtp.with(SmtpParser);
+    let service = Builder + MailDir::new("tmp/samotop/spool/".into())? + Lmtp.with(SmtpParser);
 
     let stream = MyIo {
         read: Box::pin(async_std::io::stdin()),
