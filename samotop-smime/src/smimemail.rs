@@ -25,7 +25,7 @@ impl SMimeMail {
 
 impl<T: AcceptsDispatch> MailSetup<T> for SMimeMail {
     fn setup(self, config: &mut T) {
-        config.add_dispatch(self)
+        config.add_last_dispatch(self)
     }
 }
 

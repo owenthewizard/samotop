@@ -1,4 +1,4 @@
-use crate::common::*;
+use crate::common::{io::Write, *};
 use crate::mail::Recipient;
 use crate::smtp::*;
 

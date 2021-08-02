@@ -66,7 +66,7 @@ impl MailDataStream for StubStream {
     }
 }
 
-impl Write for StubStream {
+impl io::Write for StubStream {
     fn poll_write(
         self: Pin<&mut Self>,
         _cx: &mut Context<'_>,

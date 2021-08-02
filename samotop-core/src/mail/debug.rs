@@ -4,41 +4,38 @@ use crate::{
     common::*,
     io::tls::MayBeTls,
     mail::*,
-    smtp::{EsmtpService, MailDataSink, SessionInfo, SmtpState, Transaction},
+    smtp::{MailDataSink, SessionInfo, SessionService, SmtpState, Transaction},
 };
 use std::fmt;
 //use uuid::Uuid;
 
 #[derive(Clone, Debug)]
-pub struct Debug {
+pub struct DebugService {
     id: String,
 }
-impl Debug {
+impl DebugService {
     pub fn new(id: String) -> Self {
         Self { id }
     }
 }
-impl Default for Debug {
+impl Default for DebugService {
     fn default() -> Self {
         Self {
-            id: "samotop".to_owned(),
+            id: time_based_id(),
         }
     }
 }
-impl<T> MailSetup<T> for Debug
+impl<T> MailSetup<T> for DebugService
 where
-    T: AcceptsEsmtp + AcceptsGuard + AcceptsDispatch,
+    T: AcceptsSessionService + AcceptsGuard + AcceptsDispatch,
 {
     fn setup(self, config: &mut T) {
-        config.add_esmtp(self.clone());
-        config.add_guard(self.clone());
-        config.add_dispatch(self);
+        config.add_last_session_service(self.clone());
+        config.add_last_guard(self.clone());
+        config.add_last_dispatch(self);
     }
 }
-impl EsmtpService for Debug {
-    fn read_timeout(&self) -> Option<std::time::Duration> {
-        None
-    }
+impl SessionService for DebugService {
     fn prepare_session<'a, 'i, 's, 'f>(
         &'a self,
         _io: &'i mut Box<dyn MayBeTls>,
@@ -49,12 +46,15 @@ impl EsmtpService for Debug {
         'i: 'f,
         's: 'f,
     {
-        info!("{}: I am {}", self.id, state.session.service_name);
+        info!(
+            "{}: I am {}! Preparing {}",
+            self.id, state.session.service_name, state.session.connection
+        );
         Box::pin(ready(()))
     }
 }
 
-impl MailGuard for Debug {
+impl MailGuard for DebugService {
     fn add_recipient<'a, 'f>(
         &'a self,
         request: AddRecipientRequest,
@@ -85,7 +85,7 @@ impl MailGuard for Debug {
     }
 }
 
-impl MailDispatch for Debug {
+impl MailDispatch for DebugService {
     fn send_mail<'a, 's, 'f>(
         &'a self,
         session: &'s SessionInfo,
@@ -129,18 +129,18 @@ pub struct DebugSink {
     inner: Pin<Box<dyn MailDataSink>>,
 }
 
-impl Write for DebugSink {
+impl io::Write for DebugSink {
     fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
         self.inner.as_mut().poll_flush(cx)
     }
     fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
         match self.inner.as_mut().poll_flush(cx) {
             Poll::Ready(Ok(())) => {
-                info!("Mail complete: {}", self.id);
+                info!("{}: Mail complete", self.id);
                 Poll::Ready(Ok(()))
             }
             Poll::Ready(Err(e)) => {
-                info!("Mail failed: {} - {:?}", self.id, e);
+                info!("{}: Mail failed: {:?}", self.id, e);
                 Poll::Ready(Ok(()))
             }
             Poll::Pending => Poll::Pending,
@@ -154,7 +154,7 @@ impl Write for DebugSink {
         match self.inner.as_mut().poll_write(cx, buf) {
             Poll::Ready(Ok(len)) => {
                 debug!(
-                    "Mail data written: {} len {} {:?}",
+                    "{}: Mail data written: len {} {:?}",
                     self.id,
                     len,
                     String::from_utf8_lossy(&buf[..len])
@@ -162,7 +162,7 @@ impl Write for DebugSink {
                 Poll::Ready(Ok(len))
             }
             Poll::Ready(Err(e)) => {
-                info!("Mail data failed: {} - {:?}", self.id, e);
+                info!("{}: Mail data failed: {:?}", self.id, e);
                 Poll::Ready(Err(e))
             }
             Poll::Pending => Poll::Pending,
@@ -188,7 +188,7 @@ mod tests {
         async_std::task::block_on(async move {
             let sess = SessionInfo::default();
             let tran = Transaction::default();
-            let sut = Debug::default();
+            let sut = DebugService::default();
             let _tran = sut.start_mail(&sess, tran).await;
         })
     }

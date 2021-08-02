@@ -10,7 +10,7 @@ pub use traits::*;
 
 use crate::common::*;
 
-impl Read for Dummy {
+impl io::Read for Dummy {
     fn poll_read(
         self: Pin<&mut Self>,
         _cx: &mut Context<'_>,
@@ -20,7 +20,7 @@ impl Read for Dummy {
     }
 }
 
-impl Write for Dummy {
+impl io::Write for Dummy {
     fn poll_write(
         self: Pin<&mut Self>,
         _cx: &mut Context<'_>,

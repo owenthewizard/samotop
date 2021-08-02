@@ -2,16 +2,13 @@ use crate::{
     common::*,
     io::tls::MayBeTls,
     mail::{
-        AcceptsDispatch, AcceptsEsmtp, AcceptsGuard, AcceptsInterpret, AddRecipientRequest,
-        AddRecipientResult, DispatchResult, MailDispatch, MailGuard, MailSetup, Service,
-        StartMailRequest, StartMailResult,
+        AcceptsDispatch, AcceptsGuard, AcceptsInterpretter, AcceptsSessionService,
+        AddRecipientRequest, AddRecipientResult, DispatchResult, MailDispatch, MailGuard,
+        MailSetup, Service, StartMailRequest, StartMailResult,
     },
-    smtp::{EsmtpService, Interpret, Interpretter, SessionInfo, SmtpState, Transaction},
+    smtp::{Drive, Interpret, Interpretter, SessionInfo, SessionService, SmtpState, Transaction},
 };
-use std::{
-    ops::{Add, AddAssign},
-    time::Duration,
-};
+use std::ops::{Add, AddAssign};
 
 /// Builds MailService from components
 #[derive(Default)]
@@ -44,66 +41,43 @@ impl<T: MailSetup<Configuration>> AddAssign<T> for BuilderWithConfig {
     }
 }
 
-impl AcceptsInterpret for Configuration {
-    fn add_interpret<T: Interpret + Send + Sync + 'static>(&mut self, interpret: T) {
-        self.interpret.insert(0, Box::new(interpret));
+impl AcceptsSessionService for Configuration {
+    fn add_first_session_service<T: SessionService + Send + Sync + 'static>(&mut self, session: T) {
+        self.session.insert(0, Box::new(session));
     }
 
-    fn add_interpret_fallback<T: Interpret + Send + Sync + 'static>(&mut self, interpret: T) {
-        self.interpret.push(Box::new(interpret))
+    fn add_last_session_service<T: SessionService + Send + Sync + 'static>(&mut self, session: T) {
+        self.session.push(Box::new(session))
     }
 
-    fn wrap_interprets<
-        T: Interpret + Send + Sync + 'static,
-        F: Fn(Box<dyn Interpret + Send + Sync>) -> T,
+    fn wrap_session_service<
+        T: SessionService + Send + Sync + 'static,
+        F: FnOnce(Box<dyn SessionService + Send + Sync>) -> T,
     >(
         &mut self,
         wrap: F,
     ) {
-        let interpret = wrap(Box::new(Interpretter::new(std::mem::take(
-            &mut self.interpret,
-        ))));
-        self.interpret.push(Box::new(interpret))
-    }
-}
-
-impl AcceptsEsmtp for Configuration {
-    fn add_esmtp<T: EsmtpService + Send + Sync + 'static>(&mut self, esmtp: T) {
-        self.esmtp.insert(0, Box::new(esmtp));
-    }
-
-    fn add_esmtp_fallback<T: EsmtpService + Send + Sync + 'static>(&mut self, esmtp: T) {
-        self.esmtp.push(Box::new(esmtp))
-    }
-
-    fn wrap_esmtps<
-        T: EsmtpService + Send + Sync + 'static,
-        F: Fn(Box<dyn EsmtpService + Send + Sync>) -> T,
-    >(
-        &mut self,
-        wrap: F,
-    ) {
-        let items = std::mem::take(&mut self.esmtp);
-        let esmtp = wrap(Box::new(EsmtpBunch {
+        let items = std::mem::take(&mut self.session);
+        let session = wrap(Box::new(EsmtpBunch {
             id: time_based_id(),
             items,
         }));
-        self.esmtp.push(Box::new(esmtp))
+        self.session.push(Box::new(session))
     }
 }
 
 impl AcceptsGuard for Configuration {
-    fn add_guard<T: MailGuard + Send + Sync + 'static>(&mut self, guard: T) {
+    fn add_first_guard<T: MailGuard + Send + Sync + 'static>(&mut self, guard: T) {
         self.guard.insert(0, Box::new(guard));
     }
 
-    fn add_guard_fallback<T: MailGuard + Send + Sync + 'static>(&mut self, guard: T) {
+    fn add_last_guard<T: MailGuard + Send + Sync + 'static>(&mut self, guard: T) {
         self.guard.push(Box::new(guard))
     }
 
     fn wrap_guards<
         T: MailGuard + Send + Sync + 'static,
-        F: Fn(Box<dyn MailGuard + Send + Sync>) -> T,
+        F: FnOnce(Box<dyn MailGuard + Send + Sync>) -> T,
     >(
         &mut self,
         wrap: F,
@@ -118,17 +92,17 @@ impl AcceptsGuard for Configuration {
 }
 
 impl AcceptsDispatch for Configuration {
-    fn add_dispatch<T: MailDispatch + Send + Sync + 'static>(&mut self, dispatch: T) {
+    fn add_first_dispatch<T: MailDispatch + Send + Sync + 'static>(&mut self, dispatch: T) {
         self.dispatch.insert(0, Box::new(dispatch));
     }
 
-    fn add_dispatch_fallback<T: MailDispatch + Send + Sync + 'static>(&mut self, dispatch: T) {
+    fn add_last_dispatch<T: MailDispatch + Send + Sync + 'static>(&mut self, dispatch: T) {
         self.dispatch.push(Box::new(dispatch))
     }
 
     fn wrap_dispatches<
         T: MailDispatch + Send + Sync + 'static,
-        F: Fn(Box<dyn MailDispatch + Send + Sync>) -> T,
+        F: FnOnce(Box<dyn MailDispatch + Send + Sync>) -> T,
     >(
         &mut self,
         wrap: F,
@@ -142,6 +116,27 @@ impl AcceptsDispatch for Configuration {
     }
 }
 
+impl AcceptsInterpretter for Configuration {
+    fn add_first_interpretter<T: Interpret + Send + Sync + 'static>(&mut self, item: T) {
+        self.interpret.insert(0, Box::new(item));
+    }
+
+    fn add_last_interpretter<T: Interpret + Send + Sync + 'static>(&mut self, item: T) {
+        self.interpret.push(Box::new(item))
+    }
+
+    fn wrap_interpretter<
+        T: Interpret + Send + Sync + 'static,
+        F: FnOnce(Box<dyn Interpret + Send + Sync>) -> T,
+    >(
+        &mut self,
+        wrap: F,
+    ) {
+        let items = std::mem::take(&mut self.interpret);
+        self.interpret
+            .push(Box::new(wrap(Box::new(Interpretter::new(items)))));
+    }
+}
 impl Builder {
     pub fn empty() -> BuilderWithConfig {
         BuilderWithConfig::default()
@@ -164,21 +159,28 @@ impl BuilderWithConfig {
     pub fn using(self, setup: impl MailSetup<Configuration>) -> Self {
         self + setup
     }
+    #[cfg(feature = "driver")]
     /// Finalize and produce the MailService.
     pub fn build(self) -> Service {
+        self.build_with_driver(crate::smtp::SmtpDriver)
+    }
+
+    /// Finalize and produce the MailService.
+    pub fn build_with_driver(self, driver: impl Drive + Send + Sync + 'static) -> Service {
         let Configuration {
             id,
-            esmtp,
-            interpret,
+            session,
             guard,
             dispatch,
+            interpret,
         } = self.config;
         Service::new(
+            driver,
+            Interpretter::new(interpret),
             EsmtpBunch {
                 id: id.clone(),
-                items: esmtp,
+                items: session,
             },
-            Interpretter::new(interpret),
             GuardBunch {
                 id: id.clone(),
                 items: guard,
@@ -196,19 +198,19 @@ impl BuilderWithConfig {
 pub struct Configuration {
     /// ID used for identifying this instance in logs
     pub id: String,
-    interpret: Vec<Box<dyn Interpret + Send + Sync>>,
     dispatch: Vec<Box<dyn MailDispatch + Sync + Send + 'static>>,
     guard: Vec<Box<dyn MailGuard + Sync + Send + 'static>>,
-    esmtp: Vec<Box<dyn EsmtpService + Sync + Send + 'static>>,
+    session: Vec<Box<dyn SessionService + Sync + Send + 'static>>,
+    interpret: Vec<Box<dyn Interpret + Sync + Send + 'static>>,
 }
 impl Default for Configuration {
     fn default() -> Self {
         Self {
             id: time_based_id(),
-            interpret: Default::default(),
             dispatch: Default::default(),
             guard: Default::default(),
-            esmtp: Default::default(),
+            session: Default::default(),
+            interpret: Default::default(),
         }
     }
 }
@@ -312,21 +314,10 @@ impl MailGuard for GuardBunch {
 #[derive(Debug)]
 struct EsmtpBunch {
     id: String,
-    items: Vec<Box<dyn EsmtpService + Sync + Send>>,
+    items: Vec<Box<dyn SessionService + Sync + Send>>,
 }
 
-impl EsmtpService for EsmtpBunch {
-    fn read_timeout(&self) -> Option<std::time::Duration> {
-        self.items.iter().fold(None, |timeout, svc| {
-            svc.read_timeout()
-                .map(|dur| {
-                    timeout
-                        .map(|timeout| Duration::min(dur, timeout))
-                        .unwrap_or(dur)
-                })
-                .or(timeout)
-        })
-    }
+impl SessionService for EsmtpBunch {
     fn prepare_session<'a, 'i, 's, 'f>(
         &'a self,
         io: &'i mut Box<dyn MayBeTls>,
@@ -339,24 +330,32 @@ impl EsmtpService for EsmtpBunch {
     {
         Box::pin(async move {
             debug!(
-                "Esmtp {} with {} esmtps preparing session {:?}",
+                "SessionService {} with {} children preparing session {:?}",
                 self.id,
                 self.items.len(),
                 state.session
             );
-            for esmtp in self.items.iter() {
-                trace!("Esmtp {} prepare_session calling {:?}", self.id, esmtp);
-                esmtp.prepare_session(io, state).await;
+
+            for svc in self.items.iter() {
+                trace!(
+                    "SessionService {} prepare_session calling {:?}",
+                    self.id,
+                    svc
+                );
+                svc.prepare_session(io, state).await;
             }
 
             if state.session.service_name.is_empty() {
                 state.session.service_name = format!("Samotop-{}", self.id);
                 warn!(
-                    "Esmtp {} service name is empty. Using default {:?}",
+                    "SessionService {} service name is empty. Using default {:?}",
                     self.id, state.session.service_name
                 );
             } else {
-                info!("Service name is {:?}", state.session.service_name);
+                info!(
+                    "SessionService service name is {:?}",
+                    state.session.service_name
+                );
             }
         })
     }

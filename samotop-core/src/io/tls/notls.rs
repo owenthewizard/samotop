@@ -25,7 +25,7 @@ impl TlsUpgrade for Impossible {
     }
 }
 
-impl Read for Impossible {
+impl io::Read for Impossible {
     fn poll_read(
         self: Pin<&mut Self>,
         __cx: &mut Context<'_>,
@@ -35,7 +35,7 @@ impl Read for Impossible {
     }
 }
 
-impl Write for Impossible {
+impl io::Write for Impossible {
     fn poll_write(
         self: Pin<&mut Self>,
         _cx: &mut Context<'_>,

@@ -30,12 +30,12 @@ pub struct SpfWithConfig {
 
 impl<T: AcceptsDispatch> MailSetup<T> for SpfWithConfig {
     fn setup(self, config: &mut T) {
-        config.add_dispatch(self)
+        config.add_last_dispatch(self)
     }
 }
 impl<T: AcceptsDispatch> MailSetup<T> for Spf {
     fn setup(self, config: &mut T) {
-        config.add_dispatch(Spf.with_config(Config::default()))
+        config.add_last_dispatch(Spf.with_config(Config::default()))
     }
 }
 

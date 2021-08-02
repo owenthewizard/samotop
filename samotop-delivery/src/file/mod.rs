@@ -10,6 +10,7 @@ use crate::MailDataStream;
 use crate::Transport;
 use crate::{file::error::Error, SyncFuture};
 use async_std::fs::File;
+use async_std::io::prelude::WriteExt;
 use async_std::path::Path;
 use samotop_core::common::*;
 use std::path::PathBuf;
@@ -83,7 +84,7 @@ impl MailDataStream for FileStream {
     }
 }
 
-impl Write for FileStream {
+impl io::Write for FileStream {
     fn poll_write(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,

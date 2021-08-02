@@ -1,15 +1,13 @@
-use std::ops::Deref;
-use std::time::Duration;
-
 use crate::common::*;
 use crate::io::tls::MayBeTls;
 use crate::smtp::SmtpState;
+use std::ops::Deref;
 
 /**
 The service which implements this trait delivers ESMTP extensions.
 
 ```
-use samotop_core::common::S1Fut;
+use samotop_core::common::*;
 use samotop_core::smtp::*;
 use samotop_core::io::tls::MayBeTls;
 use std::time::Duration;
@@ -18,9 +16,8 @@ use std::time::Duration;
 #[derive(Clone, Debug)]
 pub struct EnableEightBit;
 
-impl EsmtpService for EnableEightBit
+impl SessionService for EnableEightBit
 {
-    fn read_timeout(&self) -> Option<Duration> { None }
     fn prepare_session<'a, 'i, 's, 'f>(
         &'a self,
         _io: &'i mut Box<dyn MayBeTls>,
@@ -40,8 +37,7 @@ impl EsmtpService for EnableEightBit
 }
 ```
 */
-pub trait EsmtpService: fmt::Debug {
-    fn read_timeout(&self) -> Option<Duration>;
+pub trait SessionService: fmt::Debug {
     fn prepare_session<'a, 'i, 's, 'f>(
         &'a self,
         io: &'i mut Box<dyn MayBeTls>,
@@ -53,14 +49,11 @@ pub trait EsmtpService: fmt::Debug {
         's: 'f;
 }
 
-impl<S: EsmtpService + ?Sized, T: Deref<Target = S>> EsmtpService for T
+impl<S: SessionService + ?Sized, T: Deref<Target = S>> SessionService for T
 where
     T: fmt::Debug + Send + Sync,
     S: Sync,
 {
-    fn read_timeout(&self) -> Option<Duration> {
-        S::read_timeout(self)
-    }
     fn prepare_session<'a, 'i, 's, 'f>(
         &'a self,
         io: &'i mut Box<dyn MayBeTls>,
@@ -75,11 +68,7 @@ where
     }
 }
 
-impl EsmtpService for Dummy {
-    fn read_timeout(&self) -> Option<Duration> {
-        None
-    }
-
+impl SessionService for Dummy {
     fn prepare_session<'a, 'i, 's, 'f>(
         &'a self,
         _io: &'i mut Box<dyn MayBeTls>,

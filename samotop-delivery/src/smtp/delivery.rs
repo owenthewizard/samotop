@@ -44,6 +44,6 @@ where
 {
     fn setup(self, config: &mut T) {
         let transport = self.client.connect_with(self.connector);
-        config.add_dispatch(DispatchMail::new(transport))
+        config.add_last_dispatch(DispatchMail::new(transport))
     }
 }

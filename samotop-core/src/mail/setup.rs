@@ -1,6 +1,6 @@
 use crate::{
     mail::{MailDispatch, MailGuard},
-    smtp::{EsmtpService, Interpret},
+    smtp::{Interpret, SessionService},
 };
 
 /**
@@ -27,50 +27,50 @@ pub trait MailSetup<T>: std::fmt::Debug {
     fn setup(self, config: &mut T);
 }
 
-pub trait AcceptsInterpret {
-    fn add_interpret<T: Interpret + Send + Sync + 'static>(&mut self, interpret: T);
-    fn add_interpret_fallback<T: Interpret + Send + Sync + 'static>(&mut self, interpret: T);
-    fn wrap_interprets<T, F>(&mut self, wrap: F)
+pub trait AcceptsSessionService {
+    fn add_first_session_service<T: SessionService + Send + Sync + 'static>(&mut self, item: T);
+    fn add_last_session_service<T: SessionService + Send + Sync + 'static>(&mut self, item: T);
+    fn wrap_session_service<T, F>(&mut self, wrap: F)
+    where
+        T: SessionService + Send + Sync + 'static,
+        F: FnOnce(Box<dyn SessionService + Send + Sync>) -> T;
+}
+pub trait AcceptsInterpretter {
+    fn add_first_interpretter<T: Interpret + Send + Sync + 'static>(&mut self, item: T);
+    fn add_last_interpretter<T: Interpret + Send + Sync + 'static>(&mut self, item: T);
+    fn wrap_interpretter<T, F>(&mut self, wrap: F)
     where
         T: Interpret + Send + Sync + 'static,
-        F: Fn(Box<dyn Interpret + Send + Sync>) -> T;
-}
-pub trait AcceptsEsmtp {
-    fn add_esmtp<T: EsmtpService + Send + Sync + 'static>(&mut self, item: T);
-    fn add_esmtp_fallback<T: EsmtpService + Send + Sync + 'static>(&mut self, item: T);
-    fn wrap_esmtps<T, F>(&mut self, wrap: F)
-    where
-        T: EsmtpService + Send + Sync + 'static,
-        F: Fn(Box<dyn EsmtpService + Send + Sync>) -> T;
+        F: FnOnce(Box<dyn Interpret + Send + Sync>) -> T;
 }
 pub trait AcceptsGuard {
-    fn add_guard<T: MailGuard + Send + Sync + 'static>(&mut self, item: T);
-    fn add_guard_fallback<T: MailGuard + Send + Sync + 'static>(&mut self, item: T);
+    fn add_first_guard<T: MailGuard + Send + Sync + 'static>(&mut self, item: T);
+    fn add_last_guard<T: MailGuard + Send + Sync + 'static>(&mut self, item: T);
     fn wrap_guards<T, F>(&mut self, wrap: F)
     where
         T: MailGuard + Send + Sync + 'static,
-        F: Fn(Box<dyn MailGuard + Send + Sync>) -> T;
+        F: FnOnce(Box<dyn MailGuard + Send + Sync>) -> T;
 }
 pub trait AcceptsDispatch {
-    fn add_dispatch<T: MailDispatch + Send + Sync + 'static>(&mut self, item: T);
-    fn add_dispatch_fallback<T: MailDispatch + Send + Sync + 'static>(&mut self, item: T);
+    fn add_first_dispatch<T: MailDispatch + Send + Sync + 'static>(&mut self, item: T);
+    fn add_last_dispatch<T: MailDispatch + Send + Sync + 'static>(&mut self, item: T);
     fn wrap_dispatches<T, F>(&mut self, wrap: F)
     where
         T: MailDispatch + Send + Sync + 'static,
-        F: Fn(Box<dyn MailDispatch + Send + Sync>) -> T;
+        F: FnOnce(Box<dyn MailDispatch + Send + Sync>) -> T;
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mail::{Builder, Debug, MailService};
+    use crate::mail::{Builder, DebugService, MailService};
 
     #[derive(Debug)]
     struct TestSetup;
 
     impl<T: AcceptsDispatch> MailSetup<T> for TestSetup {
         fn setup(self, config: &mut T) {
-            config.add_dispatch(Debug::default())
+            config.add_last_dispatch(DebugService::default())
         }
     }
 

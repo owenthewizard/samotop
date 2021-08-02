@@ -23,7 +23,7 @@ impl Mapper {
 
 impl<T: AcceptsGuard> MailSetup<T> for Mapper {
     fn setup(self, config: &mut T) {
-        config.add_guard(self)
+        config.add_last_guard(self)
     }
 }
 

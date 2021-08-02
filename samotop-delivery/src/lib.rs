@@ -102,7 +102,7 @@ pub mod prelude {
 }
 
 use crate::types::*;
-use samotop_core::common::io::copy;
+use async_std::io::{copy, Write};
 use samotop_core::common::*;
 use std::{fmt, pin::Pin};
 
@@ -129,7 +129,7 @@ pub trait Transport: std::fmt::Debug {
     where
         Self::DataStream: Unpin + Send + Sync,
         Self::Error: From<std::io::Error>,
-        R: Read + Unpin + Send + Sync + 'r,
+        R: io::Read + Unpin + Send + Sync + 'r,
         's: 'a,
         'r: 'a,
     {
@@ -137,13 +137,13 @@ pub trait Transport: std::fmt::Debug {
         Box::pin(async move {
             let mut stream = stream.await?;
             copy(message, &mut stream).await?;
-            stream.close().await?;
+            poll_fn(|cx| Pin::new(&mut stream).poll_close(cx)).await?;
             Ok(stream)
         })
     }
 }
 
-pub trait MailDataStream: fmt::Debug + Write {
+pub trait MailDataStream: fmt::Debug + io::Write {
     /// Return the result of sending the mail.
     /// This should return false if the mail has not been fully dispatched.
     /// In other words, the test should fail if the mail data stream hasn't been closed.

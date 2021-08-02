@@ -2,7 +2,9 @@ mod body;
 mod helo;
 
 use crate::{
-    common::S1Fut,
+    common::*,
+    io::tls::MayBeTls,
+    mail::{AcceptsInterpretter, AcceptsSessionService, MailSetup},
     smtp::{
         command::{MailBody, SmtpCommand},
         *,
@@ -16,36 +18,60 @@ pub struct Lmtp;
 pub type Rfc2033 = Lmtp;
 
 impl Lmtp {
-    pub fn with<P>(&self, parser: P) -> Interpretter
+    pub fn with<P>(&self, parser: P) -> LmtpConfigured<P>
     where
-        P: Send + Sync + 'static,
-        P: Clone,
         P: Parser<SmtpCommand>,
         P: Parser<MailBody<Vec<u8>>>,
+        P: Send + Sync + 'static,
     {
-        Interpretter::default()
-            .call(Banner)
-            .parse::<SmtpCommand>()
-            .with(parser.clone())
-            .and_apply(Lmtp)
-            .parse::<MailBody<Vec<u8>>>()
-            .with(parser)
-            .and_apply(Lmtp)
+        LmtpConfigured {
+            parser: Arc::new(parser),
+        }
     }
 }
 
-impl Action<SmtpCommand> for Lmtp {
-    fn apply<'a, 's, 'f>(&'a self, cmd: SmtpCommand, state: &'s mut SmtpState) -> S1Fut<'f, ()>
+#[derive(Debug)]
+pub struct LmtpConfigured<P> {
+    parser: Arc<P>,
+}
+
+impl<T: AcceptsSessionService + AcceptsInterpretter, P> MailSetup<T> for LmtpConfigured<P>
+where
+    P: Parser<SmtpCommand>,
+    P: Parser<MailBody<Vec<u8>>>,
+    P: fmt::Debug + Send + Sync + 'static,
+{
+    fn setup(self, config: &mut T) {
+        config.add_last_interpretter(
+            Interpretter::default()
+                .parse::<SmtpCommand>()
+                .with(self.parser.clone())
+                .and_apply(Lmtp)
+                .parse::<MailBody<Vec<u8>>>()
+                .with(self.parser.clone())
+                .and_apply(Lmtp),
+        );
+        config.add_last_session_service(self);
+    }
+}
+
+impl<P> SessionService for LmtpConfigured<P>
+where
+    P: Parser<SmtpCommand>,
+    P: Parser<MailBody<Vec<u8>>>,
+    P: fmt::Debug + Send + Sync + 'static,
+{
+    fn prepare_session<'a, 'i, 's, 'f>(
+        &'a self,
+        _io: &'i mut Box<dyn MayBeTls>,
+        state: &'s mut SmtpState,
+    ) -> S1Fut<'f, ()>
     where
         'a: 'f,
+        'i: 'f,
         's: 'f,
     {
-        Box::pin(async move {
-            use SmtpCommand as C;
-            match cmd {
-                C::Helo(helo) => Lmtp.apply(helo, state).await,
-                cmd => Esmtp.apply(cmd, state).await,
-            }
-        })
+        state.say_service_ready();
+        Box::pin(ready(()))
     }
 }

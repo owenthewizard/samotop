@@ -26,17 +26,17 @@ impl MailDispatch for NullDispatch {
 }
 impl<T: AcceptsDispatch> MailSetup<T> for NullDispatch {
     fn setup(self, config: &mut T) {
-        config.add_dispatch(self)
+        config.add_last_dispatch(self)
     }
 }
 
 struct NullSink;
 
-impl Write for NullSink {
-    fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+impl io::Write for NullSink {
+    fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         Poll::Ready(Ok(()))
     }
-    fn poll_close(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+    fn poll_close(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         Poll::Ready(Ok(()))
     }
     fn poll_write(

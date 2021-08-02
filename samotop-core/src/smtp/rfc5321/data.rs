@@ -1,6 +1,6 @@
 use super::Esmtp;
 use crate::common::S1Fut;
-use crate::mail::DispatchError;
+use crate::mail::{DispatchError, MailDispatch};
 use crate::smtp::{command::SmtpData, Action, SmtpState};
 
 impl Action<SmtpData> for Esmtp {
@@ -20,7 +20,7 @@ impl Action<SmtpData> for Esmtp {
             }
             let transaction = std::mem::take(&mut state.transaction);
 
-            match state.service.send_mail(&state.session, transaction).await {
+            match state.service().send_mail(&state.session, transaction).await {
                 Ok(transaction) if transaction.sink.is_none() => {
                     warn!(
                         "Send_mail returned OK message without sink for transaction {}",

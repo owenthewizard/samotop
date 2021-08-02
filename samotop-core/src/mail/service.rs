@@ -1,37 +1,61 @@
-use std::time::Duration;
-
 use crate::{
     common::*,
-    io::tls::MayBeTls,
+    io::{tls::MayBeTls, ConnectionInfo, IoService},
     mail::{
-        AddRecipientRequest, AddRecipientResult, DispatchResult, DriverProvider, MailDispatch,
-        MailGuard, StartMailRequest, StartMailResult,
+        AddRecipientRequest, AddRecipientResult, DispatchResult, MailDispatch, MailGuard,
+        StartMailRequest, StartMailResult,
     },
-    smtp::{EsmtpService, Interpret, SessionInfo, SmtpDriver, SmtpState, Transaction},
+    smtp::{Drive, Interpret, SessionInfo, SessionService, SmtpState, Transaction},
 };
 
 #[derive(Debug, Clone)]
 pub struct Service {
-    esmtp: Arc<dyn EsmtpService + Sync + Send>,
-    interpret: Arc<dyn Interpret + Sync + Send>,
+    session: Arc<dyn SessionService + Sync + Send>,
     guard: Arc<dyn MailGuard + Sync + Send>,
     dispatch: Arc<dyn MailDispatch + Sync + Send>,
+    driver: Arc<dyn Drive + Sync + Send>,
+    interpret: Arc<dyn Interpret + Sync + Send>,
 }
 
 impl Service {
-    pub fn new<E, I, G, D>(esmtp: E, interpret: I, guard: G, dispatch: D) -> Self
+    pub fn new<T, I, E, G, D>(drive: T, interpret: I, session: E, guard: G, dispatch: D) -> Self
     where
-        E: EsmtpService + Sync + Send + 'static,
+        T: Drive + Sync + Send + 'static,
         I: Interpret + Sync + Send + 'static,
+        E: SessionService + Sync + Send + 'static,
         G: MailGuard + Sync + Send + 'static,
         D: MailDispatch + Sync + Send + 'static,
     {
         Self {
-            esmtp: Arc::new(esmtp),
-            interpret: Arc::new(interpret),
+            session: Arc::new(session),
             dispatch: Arc::new(dispatch),
             guard: Arc::new(guard),
+            driver: Arc::new(drive),
+            interpret: Arc::new(interpret),
         }
+    }
+}
+
+impl IoService for Service {
+    fn handle(
+        &self,
+        io: Result<Box<dyn MayBeTls>>,
+        connection: ConnectionInfo,
+    ) -> S1Fut<'static, Result<()>> {
+        let service = self.clone();
+        let driver = self.driver.clone();
+        let interpret = self.interpret.clone();
+
+        trace!("New peer connection {}", connection);
+        let mut state = SmtpState::default();
+        state.set_service(service);
+        state.session.connection = connection;
+
+        Box::pin(async move {
+            // fetch and apply commands
+            driver.drive(&mut io?, &interpret, &mut state).await?;
+            Ok(())
+        })
     }
 }
 
@@ -73,11 +97,7 @@ impl MailGuard for Service {
     }
 }
 
-impl EsmtpService for Service {
-    fn read_timeout(&self) -> Option<Duration> {
-        self.esmtp.read_timeout()
-    }
-
+impl SessionService for Service {
     fn prepare_session<'a, 'i, 's, 'f>(
         &'a self,
         io: &'i mut Box<dyn MayBeTls>,
@@ -88,34 +108,6 @@ impl EsmtpService for Service {
         'i: 'f,
         's: 'f,
     {
-        self.esmtp.prepare_session(io, state)
-    }
-}
-
-impl Interpret for Service {
-    fn interpret<'a, 'i, 's, 'f>(
-        &'a self,
-        input: &'i [u8],
-        state: &'s mut SmtpState,
-    ) -> S1Fut<'f, crate::smtp::InterpretResult>
-    where
-        'a: 'f,
-        'i: 'f,
-        's: 'f,
-    {
-        self.interpret.interpret(input, state)
-    }
-}
-
-impl DriverProvider for Service {
-    fn get_driver<'io>(
-        &self,
-        io: &'io mut dyn MayBeTls,
-    ) -> Box<dyn crate::smtp::Drive + Sync + Send + 'io> {
-        Box::new(SmtpDriver::new(io))
-    }
-
-    fn get_interpretter(&self) -> Box<dyn Interpret + Sync + Send> {
-        Box::new(self.clone())
+        self.session.prepare_session(io, state)
     }
 }

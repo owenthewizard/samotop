@@ -1,35 +1,34 @@
 use crate::{
+    common::Arc,
     mail::{AddRecipientFailure, Builder, MailService, StartMailFailure},
-    smtp::{DriverControl, SessionInfo, SmtpPath, SmtpReply, Transaction},
+    smtp::{SessionInfo, SmtpPath, SmtpReply, Transaction},
 };
-use std::collections::VecDeque;
 
 pub struct SmtpState {
-    pub service: Box<dyn MailService + Sync + Send>,
+    service: Arc<dyn MailService + Sync + Send>,
     pub session: SessionInfo,
     pub transaction: Transaction,
-    writes: VecDeque<DriverControl>,
 }
 
 impl Default for SmtpState {
     fn default() -> Self {
         SmtpState {
-            service: Box::new(Builder::default().build()),
+            service: Arc::new(Builder::default().build()),
             session: SessionInfo::default(),
             transaction: Transaction::default(),
-            writes: vec![].into(),
         }
     }
 }
 
 impl SmtpState {
-    pub fn new(service: impl MailService + Send + Sync + 'static) -> Self {
-        Self {
-            service: Box::new(service),
-            writes: Default::default(),
-            transaction: Default::default(),
-            session: Default::default(),
-        }
+    pub fn emtpy() -> Self {
+        Self::default()
+    }
+    pub fn service(&self) -> impl MailService {
+        self.service.clone()
+    }
+    pub fn set_service(&mut self, service: impl MailService + Send + Sync + 'static) {
+        self.service = Arc::new(service)
     }
     pub fn reset_helo(&mut self, peer_name: String) {
         self.reset();
@@ -43,17 +42,20 @@ impl SmtpState {
     /// Shut the session down without a response
     pub fn shutdown(&mut self) -> SayResult {
         self.reset();
-        self.session = SessionInfo::default();
         self.say(DriverControl::Shutdown)
     }
     pub fn pop_control(&mut self) -> Option<DriverControl> {
-        self.writes.pop_front()
+        if self.session.output.is_empty() {
+            None
+        } else {
+            Some(self.session.output.remove(0))
+        }
     }
 }
 
 impl SmtpState {
     pub fn say(&mut self, what: DriverControl) -> SayResult {
-        self.writes.push_back(what);
+        self.session.output.push(what);
     }
     pub fn say_reply(&mut self, c: SmtpReply) -> SayResult {
         self.say(DriverControl::Response(c.to_string().into()))
@@ -197,6 +199,39 @@ impl SmtpState {
 }
 
 type SayResult = ();
+
+/// Represents the instructions for the client side of the stream.
+#[derive(Clone, Eq, PartialEq)]
+pub enum DriverControl {
+    /// Write an SMTP response
+    Response(Vec<u8>),
+    /// Start TLS encryption
+    StartTls,
+    /// Shut the stream down
+    Shutdown,
+}
+
+impl std::fmt::Debug for DriverControl {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        #[derive(Debug)]
+        enum TextOrBytes<'a> {
+            T(&'a str),
+            B(&'a [u8]),
+        }
+        fn tb(inp: &[u8]) -> TextOrBytes {
+            if let Ok(text) = std::str::from_utf8(inp) {
+                TextOrBytes::T(text)
+            } else {
+                TextOrBytes::B(inp)
+            }
+        }
+        match self {
+            DriverControl::Response(r) => f.debug_tuple("Response").field(&tb(r)).finish(),
+            DriverControl::StartTls => f.debug_tuple("StartTls").finish(),
+            DriverControl::Shutdown => f.debug_tuple("Shutdown").finish(),
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {

@@ -2,7 +2,7 @@ use crate::{
     common::S1Fut,
     smtp::{
         apply_helo,
-        command::{SmtpHelo, SmtpUnknownCommand},
+        command::{SmtpCommand, SmtpHelo, SmtpUnknownCommand},
         Action, Esmtp, Lmtp, SmtpState,
     },
 };
@@ -19,6 +19,22 @@ impl Action<SmtpHelo> for Lmtp {
             match cmd.verb.to_ascii_uppercase().as_str() {
                 "LHLO" => apply_helo(cmd, true, state),
                 _ => Esmtp.apply(SmtpUnknownCommand::default(), state).await,
+            }
+        })
+    }
+}
+
+impl Action<SmtpCommand> for Lmtp {
+    fn apply<'a, 's, 'f>(&'a self, cmd: SmtpCommand, state: &'s mut SmtpState) -> S1Fut<'f, ()>
+    where
+        'a: 'f,
+        's: 'f,
+    {
+        Box::pin(async move {
+            use SmtpCommand as C;
+            match cmd {
+                C::Helo(helo) => Lmtp.apply(helo, state).await,
+                cmd => Esmtp.apply(cmd, state).await,
             }
         })
     }

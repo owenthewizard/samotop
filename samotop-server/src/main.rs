@@ -48,7 +48,7 @@ You can run your own privacy focussed, resource efficient mail server. [Samotop 
 
 Both should produce a usage information not too different from this:
 
-    samotop 1.0.1
+    samotop 1.2.0
 
     USAGE:
         samotop-server [FLAGS] [OPTIONS] --cert-file <cert file path> --identity-file <identity file path>
@@ -61,15 +61,17 @@ Both should produce a usage information not too different from this:
     OPTIONS:
         -n, --name <SMTP service name>              Use the given name in SMTP greetings, or if absent, use hostname
         -b, --base-dir <base dir path>              What is the base dir for other relative paths? [default: .]
-        -c, --cert-file <cert file path>            Use this cert file for TLS. If a relative path is given, it will be
-                                                    relative to base-dir
-        -i, --identity-file <identity file path>    Use this identity file for TLS. If a relative path is given, it will be
-                                                    relative to base-dir
+        -c, --cert-file <cert file path>            Use this cert file for TLS. Disabled with --no-tls. If a relative path
+                                                    is given, it will be relative to base-dir
+            --banner_delay <delay>                  Should we enforce prudent banner deleay? Delay is in miliseconds
+        -i, --identity-file <identity file path>    Use this identity file for TLS. Disabled with --no-tls. If a relative
+                                                    path is given, it will be relative to base-dir
         -m, --mail-dir <mail dir path>              Where to store incoming mail? If a relative path is given, it will be
                                                     relative to base-dir [default: inmail]
         -p, --port <port>...                        SMTP server address:port, such as 127.0.0.1:25 or localhost:12345. The
                                                     option can be set multiple times and the server will start on all given
                                                     ports. If no ports are given, the default is to start on localhost:25
+            --command_timeout <timeout>             Should we enforce prudent command timeout? Timeout is in miliseconds
 
 # TLS
 
@@ -111,14 +113,14 @@ openssl x509 -pubkey -noout -in Samotop.crt  > Samotop.pem
 #[macro_use]
 extern crate log;
 
+use async_std::fs::File;
 use async_std::io::ReadExt;
 use async_std::task;
-use async_std::{fs::File, io::Read};
 use async_tls::TlsAcceptor;
 use rustls::ServerConfig;
 use samotop::io::tls::RustlsProvider;
 use samotop::mail::spf::Spf;
-use samotop::mail::{Builder, MailDir, Name};
+use samotop::mail::{Builder, DebugService, MailDir, Name};
 use samotop::server::TcpServer;
 use samotop::smtp::{Esmtp, EsmtpStartTls, Prudence, SmtpParser};
 use std::path::{Path, PathBuf};
@@ -135,23 +137,21 @@ fn main() -> Result<()> {
 async fn main_fut() -> Result<()> {
     let setup = Setup::from_args();
 
-    let ports = setup.get_service_ports();
-
-    let mut builder = Builder
-        + Name::new(setup.get_my_name())
-        + MailDir::new(setup.get_mail_dir())?
-        + Spf
+    let mut service = Builder
+        + Name::new(setup.name())
+        + DebugService::default()
         + Esmtp.with(SmtpParser)
-        + Prudence::default()
-            .with_banner_delay(Duration::from_millis(1234))
-            .with_read_timeout(Duration::from_secs(30));
+        + setup.prudence()
+        + Spf
+        + MailDir::new(setup.mail_dir())?;
 
-    if let Some(cfg) = setup.get_tls_config().await? {
-        builder += EsmtpStartTls::with(SmtpParser, RustlsProvider::from(TlsAcceptor::from(cfg)));
+    if let Some(cfg) = setup.tls_config().await? {
+        service += EsmtpStartTls.with(SmtpParser, RustlsProvider::from(TlsAcceptor::from(cfg)));
     }
 
-    info!("I am {}", setup.get_my_name());
-    TcpServer::on_all(ports).serve(builder.build()).await
+    TcpServer::on_all(setup.ports())
+        .serve(service.build())
+        .await
 }
 
 pub struct Setup {
@@ -165,19 +165,18 @@ impl Setup {
         }
     }
 
-    pub async fn get_id_file(&self) -> Result<impl Read> {
-        let id_path = self.absolute_path(
-            &self
-                .opt
-                .identity_file
-                .as_ref()
-                .expect("identity-file must be set unless --no-tls"),
-        );
-        let id_file = File::open(&id_path).await?;
-        Ok(id_file)
+    pub fn prudence(&self) -> Prudence {
+        let mut prudence = Prudence::default();
+        if let Some(delay) = self.opt.prudent_banner_delay {
+            prudence = prudence.with_banner_delay(Duration::from_millis(delay));
+        }
+        if let Some(timeout) = self.opt.prudent_command_timeout {
+            prudence = prudence.with_read_timeout(Duration::from_millis(timeout));
+        }
+        prudence
     }
 
-    pub async fn get_tls_config(&self) -> Result<Option<ServerConfig>> {
+    pub async fn tls_config(&self) -> Result<Option<ServerConfig>> {
         let opt = &self.opt;
 
         if opt.no_tls {
@@ -197,7 +196,7 @@ impl Setup {
             let _ = idfile.read_to_end(&mut idbuf).await?;
             let mut idbuf = std::io::BufReader::new(&idbuf[..]);
             let keys = rustls::internal::pemfile::pkcs8_private_keys(&mut idbuf)
-                .map_err(|_| format!("Could not load identity from {:?}", id_path))?;
+                .map_err(|_| "Could not load identity key".to_string())?;
             //let key = rustls::PrivateKey(idbuf);
             keys.first()
                 .ok_or(format!("No private key found in {:?}", id_path))?
@@ -230,7 +229,7 @@ impl Setup {
     }
 
     /// Get all TCP ports to serve the service on
-    pub fn get_service_ports(&self) -> Vec<String> {
+    pub fn ports(&self) -> Vec<String> {
         if self.opt.ports.is_empty() {
             vec!["localhost:25".to_owned()]
         } else {
@@ -239,7 +238,7 @@ impl Setup {
     }
 
     /// Mail service, use a given name or default to host name
-    pub fn get_my_name(&self) -> String {
+    pub fn name(&self) -> String {
         match &self.opt.name {
             None => match hostname::get() {
                 Err(e) => {
@@ -258,7 +257,7 @@ impl Setup {
         }
     }
 
-    pub fn get_mail_dir(&self) -> PathBuf {
+    pub fn mail_dir(&self) -> PathBuf {
         self.absolute_path(&self.opt.mail_dir)
     }
 
@@ -330,4 +329,14 @@ struct Opt {
         default_value = "."
     )]
     base_dir: PathBuf,
+
+    /// Should we enforce prudent banner deleay?
+    /// Delay is in miliseconds.
+    #[structopt(long = "banner_delay", name = "delay")]
+    prudent_banner_delay: Option<u64>,
+
+    /// Should we enforce prudent command timeout?
+    /// Timeout is in miliseconds.
+    #[structopt(long = "command_timeout", name = "timeout")]
+    prudent_command_timeout: Option<u64>,
 }

@@ -32,9 +32,20 @@ where
                 // CheckMe: silence. MailBody::End should respond with error.
                 return;
             };
-            let mut write_all = sink.write_all(data.as_ref());
 
-            match (&mut write_all).await {
+            let mut copy_from = data.as_ref();
+            let mut copy_to = sink.as_mut();
+            let copy = Box::pin(poll_fn(move |cx| loop {
+                match copy_to.as_mut().poll_write(cx, copy_from)? {
+                    Poll::Ready(written) => copy_from = &copy_from[written..],
+                    Poll::Pending => return Poll::Pending,
+                }
+                if copy_from.is_empty() {
+                    break Poll::Ready(Ok::<(), io::Error>(()));
+                }
+            }));
+
+            match copy.await {
                 Ok(()) => {
                     //let WriteAll { to, .. } = write_all;
                     state.transaction.sink = Some(sink);

@@ -41,7 +41,7 @@ regex = { version = "1.5", optional = true, default-features = false }
 [dependencies.samotop-core]
 version = "0.13.0-samotop-dev"
 path = "../samotop-core"
-features = ["server"]
+features = ["server", "driver", "prudence"]
 
 [dependencies.samotop-parser]
 version = "0.13.0-samotop-dev"

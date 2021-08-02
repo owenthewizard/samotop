@@ -28,7 +28,7 @@ impl Default for ConnectionInfo {
 
 impl std::fmt::Display for ConnectionInfo {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
-        write!(f, "Connection from peer ")?;
+        write!(f, "connection from peer ")?;
         if self.peer_addr.is_empty() {
             f.write_str("Unknown")?;
         } else {

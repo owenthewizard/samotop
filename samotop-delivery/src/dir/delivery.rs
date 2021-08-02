@@ -20,6 +20,6 @@ impl MailDir {
 impl<T: AcceptsDispatch> MailSetup<T> for MailDir {
     fn setup(self, config: &mut T) {
         let transport = MaildirTransport::new(self.path);
-        config.add_dispatch(DispatchMail::new(transport))
+        config.add_last_dispatch(DispatchMail::new(transport))
     }
 }

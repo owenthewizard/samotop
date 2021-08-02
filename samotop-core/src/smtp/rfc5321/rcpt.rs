@@ -1,7 +1,7 @@
 use super::Esmtp;
 use crate::{
     common::S1Fut,
-    mail::{AddRecipientRequest, AddRecipientResult, Recipient},
+    mail::{AddRecipientRequest, AddRecipientResult, MailGuard, Recipient},
     smtp::{command::SmtpRcpt, Action, SmtpState},
 };
 
@@ -22,7 +22,7 @@ impl Action<SmtpRcpt> for Esmtp {
                 rcpt: Recipient::new(cmd.0.clone()),
             };
 
-            match state.service.add_recipient(request).await {
+            match state.service().add_recipient(request).await {
                 AddRecipientResult::Inconclusive(AddRecipientRequest {
                     mut transaction,
                     rcpt,

@@ -33,7 +33,7 @@ impl std::fmt::Debug for MailFile {
             .finish()
     }
 }
-impl Write for MailFile {
+impl io::Write for MailFile {
     fn poll_write(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,

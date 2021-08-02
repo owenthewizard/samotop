@@ -1,6 +1,6 @@
 use crate::{
     common::{time_based_id, S1Fut},
-    mail::StartMailResult,
+    mail::{MailGuard, StartMailResult},
     smtp::{command::SmtpMail, Action, Esmtp, SmtpState, Transaction},
 };
 
@@ -23,7 +23,11 @@ impl Action<SmtpMail> for Esmtp {
             };
 
             use StartMailResult as R;
-            match state.service.start_mail(&state.session, transaction).await {
+            match state
+                .service()
+                .start_mail(&state.session, transaction)
+                .await
+            {
                 R::Failed(failure, description) => {
                     state.say_mail_failed(failure, description);
                 }

@@ -1,8 +1,10 @@
 use super::error::Error;
 use crate::{EmailAddress, Envelope, MailDataStream};
+use async_std::io::prelude::WriteExt;
 use async_std::{
     fs::{create_dir_all, OpenOptions},
     io,
+    io::Write,
     path::{Path, PathBuf},
 };
 use lozizol::model::{Sequence, Vuint};
@@ -139,7 +141,11 @@ impl io::Write for JournalStream {
                         self.state = State::Closing(Box::pin(async move {
                             match bucket.lease().await {
                                 Err(_) => Ok(()),
-                                Ok(lease) => Ok(lease.steal().write.close().await?),
+                                Ok(lease) => {
+                                    let mut w = lease.steal().write;
+                                    poll_fn(|cx| Pin::new(&mut w).poll_close(cx)).await?;
+                                    Ok(())
+                                }
                             }
                         }));
                     } else {
@@ -317,11 +323,8 @@ async fn get_bucket<P: AsRef<Path>>(
     match potential {
         Ok(mut bucket) => {
             if bucket.written >= max_size || bucket.created.elapsed() >= max_age {
-                bucket
-                    .replace(create_bucket(dir).await?)
-                    .write
-                    .close()
-                    .await?;
+                let mut w = bucket.replace(create_bucket(dir).await?).write;
+                poll_fn(|cx| Pin::new(&mut w).poll_close(cx)).await?;
             }
             Ok(bucket)
         }

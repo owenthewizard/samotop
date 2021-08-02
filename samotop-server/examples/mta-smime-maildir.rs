@@ -52,7 +52,7 @@ async fn main_fut() -> Result<()> {
         + MailDir::new(setup.get_mail_dir())?
         + Spf
         + Esmtp.with(SmtpParser)
-        + EsmtpStartTls::with(
+        + EsmtpStartTls.with(
             SmtpParser,
             RustlsProvider::from(TlsAcceptor::from(setup.get_tls_config().await?)),
         );

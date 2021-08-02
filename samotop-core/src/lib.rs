@@ -13,12 +13,16 @@ pub mod server;
 pub mod common {
     pub type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
     pub type Result<T> = std::result::Result<T, Error>;
-    pub use async_std::future::poll_fn;
-    pub use async_std::future::ready;
-    pub use async_std::io;
-    pub use async_std::io::prelude::{ReadExt, WriteExt};
-    pub use async_std::io::{Read, Write};
-    pub use async_std::task::ready;
+    pub mod io {
+        pub use futures_io::{
+            AsyncBufRead as BufRead, AsyncRead as Read, AsyncSeek as Seek, AsyncWrite as Write,
+        };
+        pub use std::io::{Error, ErrorKind, Result};
+    }
+    //pub use async_std::io;
+    //pub use async_std::io::prelude::{ReadExt, WriteExt};
+    //pub use async_std::io::{Read, Write};
+    pub use futures_core::ready;
     pub use std::future::*;
     pub type S3Fut<T> = Pin<Box<dyn Future<Output = T> + Sync + Send + 'static>>;
     pub type S2Fut<'a, T> = Pin<Box<dyn Future<Output = T> + Sync + Send + 'a>>;
@@ -31,6 +35,36 @@ pub mod common {
     #[derive(Debug, Copy, Clone)]
     pub struct Dummy;
 
+    // pub async fn ready<T>(val: T) -> T {
+    //     val
+    // }
+
+    // replace with std once stable - use of unstable library feature 'future_poll_fn'
+    pub async fn poll_fn<F, T>(f: F) -> T
+    where
+        F: FnMut(&mut Context<'_>) -> Poll<T>,
+    {
+        let fut = PollFn { f };
+        fut.await
+    }
+
+    struct PollFn<F> {
+        f: F,
+    }
+
+    impl<F> Unpin for PollFn<F> {}
+
+    impl<T, F> Future for PollFn<F>
+    where
+        F: FnMut(&mut Context<'_>) -> Poll<T>,
+    {
+        type Output = T;
+
+        fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<T> {
+            (&mut self.f)(cx)
+        }
+    }
+
     /// In the absence of random number generator produces a time based identifier
     /// It is not reliable nor secure, RNG/PRNG should be preffered.
     pub fn time_based_id() -> String {
@@ -39,46 +73,5 @@ pub mod common {
         }
         // for the lack of better unique string without extra dependencies
         format!("{:?}", std::time::Instant::now()).replace(nonnumber, "")
-    }
-
-    /// Enable async close
-    /// TODO: remove after https://github.com/async-rs/async-std/issues/977
-    pub trait WriteClose {
-        fn close(&mut self) -> CloseFuture<'_, Self>
-        where
-            Self: Unpin;
-    }
-    impl<T> WriteClose for T
-    where
-        T: Write,
-    {
-        /// Closes the writer.
-        fn close(&mut self) -> CloseFuture<'_, Self>
-        where
-            Self: Unpin,
-        {
-            CloseFuture { writer: self }
-        }
-    }
-
-    /// Future for the [`AsyncWriteExt::close()`] method.
-    /// Async close future
-    /// TODO: remove after https://github.com/async-rs/async-std/issues/977
-    #[derive(Debug)]
-    #[must_use = "futures do nothing unless you `.await` or poll them"]
-    pub struct CloseFuture<'a, W: Unpin + ?Sized> {
-        writer: &'a mut W,
-    }
-
-    impl<W: Unpin + ?Sized> Unpin for CloseFuture<'_, W> {}
-
-    impl<W: Write + Unpin + ?Sized> Future for CloseFuture<'_, W> {
-        type Output = io::Result<()>;
-
-        fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-            // CHECKME: sometimes, last response is not written (I guess, based on NetCat experience)
-            //ready!(Pin::new(&mut *self.writer).poll_flush(cx))?;
-            Pin::new(&mut *self.writer).poll_close(cx)
-        }
     }
 }
