@@ -2,7 +2,7 @@ use super::MailSetup;
 use crate::common::{ready, S1Fut};
 use crate::io::tls::MayBeTls;
 use crate::mail::AcceptsSessionService;
-use crate::smtp::{SessionService, SmtpState};
+use crate::smtp::{SessionService, SmtpContext};
 
 /// MailSetup that uses the given service name for a session.
 #[derive(Debug)]
@@ -21,7 +21,7 @@ impl SessionService for Name {
     fn prepare_session<'a, 'i, 's, 'f>(
         &'a self,
         _io: &'i mut Box<dyn MayBeTls>,
-        state: &'s mut SmtpState,
+        state: &'s mut SmtpContext,
     ) -> S1Fut<'f, ()>
     where
         'a: 'f,

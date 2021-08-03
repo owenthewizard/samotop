@@ -1,6 +1,6 @@
 use crate::{
     common::*,
-    smtp::{ParseError, Parser, SmtpState},
+    smtp::{ParseError, Parser, SmtpContext},
 };
 use std::{
     fmt::{self, Debug},
@@ -8,7 +8,7 @@ use std::{
     ops::Deref,
 };
 pub trait Interpret: Debug {
-    fn interpret<'a, 's, 'f>(&'a self, state: &'s mut SmtpState) -> S1Fut<'f, InterpretResult>
+    fn interpret<'a, 's, 'f>(&'a self, state: &'s mut SmtpContext) -> S1Fut<'f, InterpretResult>
     where
         'a: 'f,
         's: 'f;
@@ -16,14 +16,14 @@ pub trait Interpret: Debug {
 
 /// An action modifies the SMTP state based on some command
 pub trait Action<CMD> {
-    fn apply<'a, 's, 'f>(&'a self, cmd: CMD, state: &'s mut SmtpState) -> S1Fut<'f, ()>
+    fn apply<'a, 's, 'f>(&'a self, cmd: CMD, state: &'s mut SmtpContext) -> S1Fut<'f, ()>
     where
         'a: 'f,
         's: 'f;
 }
 
 impl<CMD: Send + 'static> Action<CMD> for Dummy {
-    fn apply<'a, 's, 'f>(&'a self, _cmd: CMD, _state: &'s mut SmtpState) -> S1Fut<'f, ()>
+    fn apply<'a, 's, 'f>(&'a self, _cmd: CMD, _state: &'s mut SmtpContext) -> S1Fut<'f, ()>
     where
         'a: 'f,
         's: 'f,
@@ -33,7 +33,10 @@ impl<CMD: Send + 'static> Action<CMD> for Dummy {
 }
 
 impl Interpret for Dummy {
-    fn interpret<'a, 'i, 's, 'f>(&'a self, _state: &'s mut SmtpState) -> S1Fut<'f, InterpretResult>
+    fn interpret<'a, 'i, 's, 'f>(
+        &'a self,
+        _state: &'s mut SmtpContext,
+    ) -> S1Fut<'f, InterpretResult>
     where
         'a: 'f,
         's: 'f,
@@ -46,7 +49,7 @@ where
     T::Target: Interpret,
     T: Debug,
 {
-    fn interpret<'a, 'i, 's, 'f>(&'a self, state: &'s mut SmtpState) -> S1Fut<'f, InterpretResult>
+    fn interpret<'a, 'i, 's, 'f>(&'a self, state: &'s mut SmtpContext) -> S1Fut<'f, InterpretResult>
     where
         'a: 'f,
         's: 'f,
@@ -63,7 +66,7 @@ pub struct Interpretter {
 }
 
 impl Interpret for Interpretter {
-    fn interpret<'a, 'i, 's, 'f>(&'a self, state: &'s mut SmtpState) -> S1Fut<'f, InterpretResult>
+    fn interpret<'a, 'i, 's, 'f>(&'a self, state: &'s mut SmtpContext) -> S1Fut<'f, InterpretResult>
     where
         'a: 'f,
         's: 'f,
@@ -110,7 +113,7 @@ impl Debug for Interpretter {
 
 pub(crate) async fn interpret_all(
     calls: &[Box<dyn Interpret + Send + Sync>],
-    state: &mut SmtpState,
+    state: &mut SmtpContext,
 ) -> InterpretResult {
     let mut mismatches = vec![];
     let mut failures = vec![];
@@ -198,7 +201,7 @@ where
     A: Action<CMD> + 'static + Send + Sync,
     CMD: 'static + Send + Sync,
 {
-    async fn perform_inner(&self, state: &mut SmtpState) -> InterpretResult {
+    async fn perform_inner(&self, state: &mut SmtpContext) -> InterpretResult {
         let (length, cmd) = self.parser.parse(state.session.input.as_slice(), state)?;
         self.action.apply(cmd, state).await;
         Ok(Some(length))
@@ -210,7 +213,7 @@ where
     A: Action<CMD> + Debug + 'static + Send + Sync,
     CMD: Debug + 'static + Send + Sync,
 {
-    fn interpret<'a, 's, 'f>(&'a self, state: &'s mut SmtpState) -> S1Fut<'f, InterpretResult>
+    fn interpret<'a, 's, 'f>(&'a self, state: &'s mut SmtpContext) -> S1Fut<'f, InterpretResult>
     where
         'a: 'f,
         's: 'f,
@@ -239,10 +242,11 @@ mod tests {
     }
     #[test]
     fn builder_parse_with_apply_test() {
-        insta::assert_debug_snapshot!(Interpretter::default()
-            .parse::<SmtpUnknownCommand>()
-            .with(Dummy)
-            .and_apply(Dummy),
+        insta::assert_debug_snapshot!(
+            Interpretter::default()
+                .parse::<SmtpUnknownCommand>()
+                .with(Dummy)
+                .and_apply(Dummy),
             @"Interpretter(1)");
     }
 }

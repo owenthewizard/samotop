@@ -31,3 +31,4 @@ log = "0.4"
 
 [dev-dependencies]
 insta = { version = "1.7" }
+regex = "1.5"

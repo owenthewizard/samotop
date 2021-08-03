@@ -2,10 +2,10 @@ use log::error;
 use samotop_core::{
     common::{ready, S2Fut},
     mail::{
-        AcceptsGuard, AddRecipientFailure, AddRecipientRequest, AddRecipientResult, Certificate,
-        MailGuard, MailSetup, StartMailRequest, StartMailResult,
+        AcceptsGuard, AddRecipientFailure, AddRecipientResult, Certificate, MailGuard, MailSetup,
+        StartMailResult,
     },
-    smtp::SessionInfo,
+    smtp::SmtpSession,
 };
 use std::path::PathBuf;
 
@@ -27,32 +27,33 @@ impl<T: AcceptsGuard> MailSetup<T> for Accounts {
 }
 
 impl MailGuard for Accounts {
-    fn add_recipient<'a, 'f>(
+    fn add_recipient<'a, 's, 'f>(
         &'a self,
-        mut request: AddRecipientRequest,
+        _session: &'s mut SmtpSession,
+        mut rcpt: samotop_core::mail::Recipient,
     ) -> S2Fut<'f, AddRecipientResult>
     where
         'a: 'f,
+        's: 'f,
     {
-        if request.rcpt.certificate.is_some() {
-            return Box::pin(ready(AddRecipientResult::Inconclusive(request)));
+        if rcpt.certificate.is_some() {
+            return Box::pin(ready(AddRecipientResult::Inconclusive(rcpt)));
         }
         let mut path = async_std::path::PathBuf::from(&self.accounts_dir);
         // TODO: hash the value for privacy
-        path.push(request.rcpt.address.address().to_lowercase());
+        path.push(rcpt.address.address().to_lowercase());
         path.push("certificate");
 
         Box::pin(async move {
             if path.exists().await {
                 match path.to_str() {
                     Some(cert) => {
-                        request.rcpt.certificate = Some(Certificate::File(cert.to_owned()));
-                        AddRecipientResult::Inconclusive(request)
+                        rcpt.certificate = Some(Certificate::File(cert.to_owned()));
+                        AddRecipientResult::Inconclusive(rcpt)
                     }
                     None => {
                         error!("Invalid recipient cert path {:?}", path);
                         AddRecipientResult::Failed(
-                            request.transaction,
                             AddRecipientFailure::FailedTemporarily,
                             "Not ready".to_owned(),
                         )
@@ -61,7 +62,6 @@ impl MailGuard for Accounts {
             } else {
                 error!("Recipient cert missing {:?}", path);
                 AddRecipientResult::Failed(
-                    request.transaction,
                     AddRecipientFailure::FailedTemporarily,
                     "Not ready".to_owned(),
                 )
@@ -69,15 +69,11 @@ impl MailGuard for Accounts {
         })
     }
 
-    fn start_mail<'a, 's, 'f>(
-        &'a self,
-        _session: &'s SessionInfo,
-        request: StartMailRequest,
-    ) -> S2Fut<'f, StartMailResult>
+    fn start_mail<'a, 's, 'f>(&'a self, _session: &'s mut SmtpSession) -> S2Fut<'f, StartMailResult>
     where
         'a: 'f,
         's: 'f,
     {
-        Box::pin(ready(StartMailResult::Accepted(request)))
+        Box::pin(ready(StartMailResult::Accepted))
     }
 }

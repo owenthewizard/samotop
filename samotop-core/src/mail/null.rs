@@ -1,27 +1,25 @@
-use super::{DispatchResult, MailDispatch, MailSetup};
 use crate::{
     common::*,
-    mail::AcceptsDispatch,
-    smtp::{SessionInfo, Transaction},
+    mail::{AcceptsDispatch, DispatchResult, MailDispatch, MailSetup},
+    smtp::SmtpSession,
 };
 
 #[derive(Debug)]
 pub struct NullDispatch;
 
 impl MailDispatch for NullDispatch {
-    fn send_mail<'a, 's, 'f>(
+    fn open_mail_body<'a, 's, 'f>(
         &'a self,
-        _session: &'s SessionInfo,
-        mut transaction: Transaction,
-    ) -> crate::common::S1Fut<'f, DispatchResult>
+        session: &'s mut SmtpSession,
+    ) -> S1Fut<'f, DispatchResult>
     where
         'a: 'f,
         's: 'f,
     {
-        if transaction.sink.is_none() {
-            transaction.sink = Some(Box::pin(NullSink))
+        if session.transaction.sink.is_none() {
+            session.transaction.sink = Some(Box::pin(NullSink))
         }
-        Box::pin(ready(Ok(transaction)))
+        Box::pin(ready(Ok(())))
     }
 }
 impl<T: AcceptsDispatch> MailSetup<T> for NullDispatch {

@@ -11,7 +11,7 @@ use crate::samotop::smtp::*;
 fn main() -> std::io::Result<()> {
     let mut input = String::new();
 
-    let mut state = SmtpState::default();
+    let mut state = SmtpContext::default();
 
     loop {
         let _len = stdin().read_line(&mut input)?;

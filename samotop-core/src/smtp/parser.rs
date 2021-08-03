@@ -1,6 +1,6 @@
 use crate::{
     common::Dummy,
-    smtp::{command::SmtpUnknownCommand, SmtpState},
+    smtp::{command::SmtpUnknownCommand, SmtpContext},
 };
 use std::{
     fmt::{self, Debug},
@@ -27,17 +27,17 @@ impl std::error::Error for ParseError {}
 pub type ParseResult<T> = std::result::Result<(usize, T), ParseError>;
 
 pub trait Parser<CMD>: fmt::Debug {
-    fn parse(&self, input: &[u8], state: &SmtpState) -> ParseResult<CMD>;
+    fn parse(&self, input: &[u8], state: &SmtpContext) -> ParseResult<CMD>;
 }
 
 impl<CMD, S: Parser<CMD>, T: Deref<Target = S> + Debug> Parser<CMD> for T {
-    fn parse(&self, input: &[u8], state: &SmtpState) -> ParseResult<CMD> {
+    fn parse(&self, input: &[u8], state: &SmtpContext) -> ParseResult<CMD> {
         S::parse(Deref::deref(self), input, state)
     }
 }
 
 impl Parser<SmtpUnknownCommand> for Dummy {
-    fn parse(&self, input: &[u8], _state: &SmtpState) -> ParseResult<SmtpUnknownCommand> {
+    fn parse(&self, input: &[u8], _state: &SmtpContext) -> ParseResult<SmtpUnknownCommand> {
         if let Some(line) = input.split(|b| *b == b'\n').next() {
             Ok((line.len(), Default::default()))
         } else {

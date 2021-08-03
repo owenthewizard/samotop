@@ -3,14 +3,14 @@ use crate::{
     smtp::{
         apply_helo,
         command::{SmtpCommand, SmtpHelo, SmtpUnknownCommand},
-        Action, Esmtp, Lmtp, SmtpState,
+        Action, Esmtp, Lmtp, SmtpContext,
     },
 };
 
 impl Action<SmtpHelo> for Lmtp {
     /// Applies given helo to the state
     /// It asserts the right HELO/EHLO variant
-    fn apply<'a, 's, 'f>(&'a self, cmd: SmtpHelo, state: &'s mut SmtpState) -> S1Fut<'f, ()>
+    fn apply<'a, 's, 'f>(&'a self, cmd: SmtpHelo, state: &'s mut SmtpContext) -> S1Fut<'f, ()>
     where
         'a: 'f,
         's: 'f,
@@ -25,7 +25,7 @@ impl Action<SmtpHelo> for Lmtp {
 }
 
 impl Action<SmtpCommand> for Lmtp {
-    fn apply<'a, 's, 'f>(&'a self, cmd: SmtpCommand, state: &'s mut SmtpState) -> S1Fut<'f, ()>
+    fn apply<'a, 's, 'f>(&'a self, cmd: SmtpCommand, state: &'s mut SmtpContext) -> S1Fut<'f, ()>
     where
         'a: 'f,
         's: 'f,
@@ -51,11 +51,14 @@ mod tests {
     #[test]
     fn transaction_gets_reset() {
         async_std::task::block_on(async move {
-            let mut set = SmtpState::default();
-            set.transaction.id = "someid".to_owned();
-            set.transaction.mail = Some(SmtpMail::Mail(SmtpPath::Null, vec![]));
-            set.transaction.rcpts.push(Recipient::null());
-            set.transaction.extra_headers.insert_str(0, "feeeha");
+            let mut set = SmtpContext::default();
+            set.session.transaction.id = "someid".to_owned();
+            set.session.transaction.mail = Some(SmtpMail::Mail(SmtpPath::Null, vec![]));
+            set.session.transaction.rcpts.push(Recipient::null());
+            set.session
+                .transaction
+                .extra_headers
+                .insert_str(0, "feeeha");
 
             Lmtp.apply(
                 SmtpHelo {
@@ -65,14 +68,14 @@ mod tests {
                 &mut set,
             )
             .await;
-            assert!(set.transaction.is_empty());
+            assert!(set.session.transaction.is_empty());
         })
     }
 
     #[test]
     fn helo_is_set() {
         async_std::task::block_on(async move {
-            let mut set = SmtpState::default();
+            let mut set = SmtpContext::default();
 
             Lmtp.apply(
                 SmtpHelo {
@@ -89,7 +92,7 @@ mod tests {
     #[test]
     fn is_sync_and_send() {
         async_std::task::block_on(async move {
-            let mut set = SmtpState::default();
+            let mut set = SmtpContext::default();
             let res = Lmtp.apply(
                 SmtpHelo {
                     verb: "LHLO".to_string(),

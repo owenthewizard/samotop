@@ -2,10 +2,10 @@ use crate::SmtpParserPeg;
 use samotop_core::smtp::{command::MailBody, *};
 
 impl Parser<MailBody<Vec<u8>>> for SmtpParserPeg {
-    fn parse(&self, input: &[u8], state: &SmtpState) -> ParseResult<MailBody<Vec<u8>>> {
-        let crlf = match state.transaction.mode {
-            Some(Transaction::DATA_MODE) => true,
-            Some(Transaction::DATA_PARTIAL_MODE) => false,
+    fn parse(&self, input: &[u8], state: &SmtpContext) -> ParseResult<MailBody<Vec<u8>>> {
+        let crlf = match state.session.mode {
+            Some(SmtpSession::DATA_MODE) => true,
+            Some(SmtpSession::DATA_PARTIAL_MODE) => false,
             mode => {
                 return Err(ParseError::Mismatch(format!(
                     "Not matching data stream in {:?} mode",

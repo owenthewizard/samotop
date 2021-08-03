@@ -4,7 +4,7 @@ use crate::{
     common::*,
     io::tls::MayBeTls,
     mail::*,
-    smtp::{MailDataSink, SessionInfo, SessionService, SmtpState, Transaction},
+    smtp::{SessionService, SmtpContext, SmtpSession},
 };
 use std::fmt;
 //use uuid::Uuid;
@@ -39,7 +39,7 @@ impl SessionService for DebugService {
     fn prepare_session<'a, 'i, 's, 'f>(
         &'a self,
         _io: &'i mut Box<dyn MayBeTls>,
-        state: &'s mut SmtpState,
+        state: &'s mut SmtpContext,
     ) -> S1Fut<'f, ()>
     where
         'a: 'f,
@@ -55,41 +55,38 @@ impl SessionService for DebugService {
 }
 
 impl MailGuard for DebugService {
-    fn add_recipient<'a, 'f>(
+    fn add_recipient<'a, 's, 'f>(
         &'a self,
-        request: AddRecipientRequest,
+        session: &'s mut SmtpSession,
+        rcpt: Recipient,
     ) -> S2Fut<'f, AddRecipientResult>
     where
         'a: 'f,
+        's: 'f,
     {
         info!(
             "{}: RCPT {} from {:?} (mailid: {:?}).",
-            self.id, request.rcpt.address, request.transaction.mail, request.transaction.id
+            self.id, rcpt.address, session.transaction.mail, session.transaction.id
         );
-        Box::pin(ready(AddRecipientResult::Inconclusive(request)))
+        Box::pin(ready(AddRecipientResult::Inconclusive(rcpt)))
     }
-    fn start_mail<'a, 's, 'f>(
-        &'a self,
-        session: &'s SessionInfo,
-        request: StartMailRequest,
-    ) -> S2Fut<'f, StartMailResult>
+    fn start_mail<'a, 's, 'f>(&'a self, session: &'s mut SmtpSession) -> S2Fut<'f, StartMailResult>
     where
         'a: 'f,
         's: 'f,
     {
         info!(
             "{}: MAIL from {:?} (mailid: {:?}). {}",
-            self.id, request.mail, request.id, session
+            self.id, session.transaction.mail, session.transaction.id, session
         );
-        Box::pin(ready(StartMailResult::Accepted(request)))
+        Box::pin(ready(StartMailResult::Accepted))
     }
 }
 
 impl MailDispatch for DebugService {
-    fn send_mail<'a, 's, 'f>(
+    fn open_mail_body<'a, 's, 'f>(
         &'a self,
-        session: &'s SessionInfo,
-        mut transaction: Transaction,
+        session: &'s mut SmtpSession,
     ) -> S1Fut<'f, DispatchResult>
     where
         'a: 'f,
@@ -100,7 +97,7 @@ impl MailDispatch for DebugService {
             ref id,
             ref rcpts,
             ..
-        } = transaction;
+        } = session.transaction;
         info!(
             "Mail from {:?} for {} (mailid: {:?}). {}",
             mail.as_ref()
@@ -114,13 +111,13 @@ impl MailDispatch for DebugService {
             id,
             session
         );
-        transaction.sink = transaction.sink.take().map(|inner| {
+        session.transaction.sink = session.transaction.sink.take().map(|inner| {
             Box::pin(DebugSink {
                 id: id.clone(),
                 inner,
             }) as Pin<Box<dyn MailDataSink>>
         });
-        Box::pin(ready(Ok(transaction)))
+        Box::pin(ready(Ok(())))
     }
 }
 
@@ -186,10 +183,10 @@ mod tests {
     #[test]
     fn test_setup() {
         async_std::task::block_on(async move {
-            let sess = SessionInfo::default();
-            let tran = Transaction::default();
+            let mut sess = SmtpSession::default();
             let sut = DebugService::default();
-            let _tran = sut.start_mail(&sess, tran).await;
+            let tran = sut.start_mail(&mut sess).await;
+            assert_eq!(tran, StartMailResult::Accepted)
         })
     }
 }

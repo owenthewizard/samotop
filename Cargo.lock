@@ -1530,6 +1530,7 @@ dependencies = [
  "futures-util",
  "insta",
  "log",
+ "regex",
  "smol-timeout",
 ]
 

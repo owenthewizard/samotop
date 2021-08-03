@@ -1,7 +1,7 @@
 use crate::common::{ready, S1Fut};
 use crate::io::tls::{MayBeTls, TlsProvider};
 use crate::mail::{AcceptsInterpretter, AcceptsSessionService, MailSetup};
-use crate::smtp::{extension, Interpretter, Parser, SessionService, SmtpState};
+use crate::smtp::{extension, Interpretter, Parser, SessionService, SmtpContext};
 use std::sync::Arc;
 
 mod starttls;
@@ -53,7 +53,7 @@ impl SessionService for EsmtpStartTlsConfigured {
     fn prepare_session<'a, 'i, 's, 'f>(
         &'a self,
         io: &'i mut Box<dyn MayBeTls>,
-        state: &'s mut SmtpState,
+        state: &'s mut SmtpContext,
     ) -> S1Fut<'f, ()>
     where
         'a: 'f,

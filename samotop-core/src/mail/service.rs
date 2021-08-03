@@ -2,10 +2,9 @@ use crate::{
     common::*,
     io::{tls::MayBeTls, ConnectionInfo, IoService},
     mail::{
-        AddRecipientRequest, AddRecipientResult, DispatchResult, MailDispatch, MailGuard,
-        StartMailRequest, StartMailResult,
+        AddRecipientResult, DispatchResult, MailDispatch, MailGuard, Recipient, StartMailResult,
     },
-    smtp::{Drive, Interpret, SessionInfo, SessionService, SmtpState, Transaction},
+    smtp::{Drive, Interpret, SessionService, SmtpContext, SmtpSession},
 };
 
 #[derive(Debug, Clone)]
@@ -47,9 +46,7 @@ impl IoService for Service {
         let interpret = self.interpret.clone();
 
         trace!("New peer connection {}", connection);
-        let mut state = SmtpState::default();
-        state.set_service(service);
-        state.session.connection = connection;
+        let mut state = SmtpContext::new(service, connection);
 
         Box::pin(async move {
             // fetch and apply commands
@@ -60,40 +57,37 @@ impl IoService for Service {
 }
 
 impl MailDispatch for Service {
-    fn send_mail<'a, 's, 'f>(
+    fn open_mail_body<'a, 's, 'f>(
         &'a self,
-        session: &'s SessionInfo,
-        transaction: Transaction,
+        session: &'s mut SmtpSession,
     ) -> S1Fut<'f, DispatchResult>
     where
         'a: 'f,
         's: 'f,
     {
-        self.dispatch.send_mail(session, transaction)
+        self.dispatch.open_mail_body(session)
     }
 }
 
 impl MailGuard for Service {
-    fn add_recipient<'a, 'f>(
+    fn add_recipient<'a, 's, 'f>(
         &'a self,
-        request: AddRecipientRequest,
+        session: &'s mut SmtpSession,
+        rcpt: Recipient,
     ) -> S2Fut<'f, AddRecipientResult>
-    where
-        'a: 'f,
-    {
-        self.guard.add_recipient(request)
-    }
-
-    fn start_mail<'a, 's, 'f>(
-        &'a self,
-        session: &'s SessionInfo,
-        request: StartMailRequest,
-    ) -> S2Fut<'f, StartMailResult>
     where
         'a: 'f,
         's: 'f,
     {
-        self.guard.start_mail(session, request)
+        self.guard.add_recipient(session, rcpt)
+    }
+
+    fn start_mail<'a, 's, 'f>(&'a self, session: &'s mut SmtpSession) -> S2Fut<'f, StartMailResult>
+    where
+        'a: 'f,
+        's: 'f,
+    {
+        self.guard.start_mail(session)
     }
 }
 
@@ -101,7 +95,7 @@ impl SessionService for Service {
     fn prepare_session<'a, 'i, 's, 'f>(
         &'a self,
         io: &'i mut Box<dyn MayBeTls>,
-        state: &'s mut SmtpState,
+        state: &'s mut SmtpContext,
     ) -> S1Fut<'f, ()>
     where
         'a: 'f,

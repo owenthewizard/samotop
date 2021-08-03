@@ -1,10 +1,9 @@
 use crate::io::ConnectionInfo;
+use crate::mail::{AddRecipientFailure, StartMailFailure, Transaction};
 use crate::smtp::*;
-use std::any::{Any, TypeId};
-use std::collections::HashMap;
 
-#[derive(Debug)]
-pub struct SessionInfo {
+#[derive(Debug, Default)]
+pub struct SmtpSession {
     /// Description of the underlying connection
     pub connection: ConnectionInfo,
     /// ESMTP extensions enabled for this session
@@ -17,39 +16,196 @@ pub struct SessionInfo {
     pub output: Vec<DriverControl>,
     /// Input to be interpretted
     pub input: Vec<u8>,
-    /// Extension-specific value store
-    pub store: HashMap<TypeId, Box<dyn Any + Send + Sync>>,
+    /// Special mode used to switch parsers
+    pub mode: Option<&'static str>,
+    /// Current e-mail transaction
+    pub transaction: Transaction,
 }
 
-impl SessionInfo {
-    pub fn new(connection: ConnectionInfo, service_name: String) -> Self {
+impl SmtpSession {
+    /// Special mode where classic SMTP data are expected,
+    /// used after reading some data without CRLF to keep track of the dot state
+    pub const DATA_PARTIAL_MODE: &'static str = "DATA_PARTIAL";
+    /// Special mode where classic SMTP data are expected
+    pub const DATA_MODE: &'static str = "DATA";
+
+    pub fn new(connection: ConnectionInfo) -> Self {
         Self {
             connection,
-            service_name,
             ..Default::default()
         }
     }
-}
+    pub fn is_expecting_commands(&self) -> bool {
+        self.mode.is_none() || self.transaction.sink.is_none()
+    }
+    pub fn reset_helo(&mut self, peer_name: String) {
+        self.reset();
+        self.peer_name = Some(peer_name);
+    }
 
-impl Default for SessionInfo {
-    fn default() -> Self {
-        SessionInfo {
-            connection: Default::default(),
-            extensions: Default::default(),
-            service_name: Default::default(),
-            peer_name: Default::default(),
-            input: vec![],
-            output: vec![],
-            store: HashMap::new(),
+    pub fn reset(&mut self) -> SayResult {
+        self.transaction = Transaction::default();
+        self.mode = None;
+    }
+
+    /// Shut the session down without a response
+    pub fn shutdown(&mut self) -> SayResult {
+        self.reset();
+        self.say(DriverControl::Shutdown)
+    }
+    pub fn pop_control(&mut self) -> Option<DriverControl> {
+        if self.output.is_empty() {
+            None
+        } else {
+            Some(self.output.remove(0))
         }
+    }
+
+    pub fn say(&mut self, what: DriverControl) -> SayResult {
+        self.output.push(what);
+    }
+    pub fn say_reply(&mut self, c: SmtpReply) -> SayResult {
+        self.say(DriverControl::Response(c.to_string().into()))
+    }
+    /// Reply "250 Ok"
+    pub fn say_ok(&mut self) -> SayResult {
+        self.say_reply(SmtpReply::OkInfo)
+    }
+    /// Reply "250 @info"
+    pub fn say_ok_info(&mut self, info: String) -> SayResult {
+        self.say_reply(SmtpReply::OkMessageInfo(info))
+    }
+    /// Reply "502 Not implemented"
+    pub fn say_not_implemented(&mut self) -> SayResult {
+        self.say_reply(SmtpReply::CommandNotImplementedFailure)
+    }
+    /// Reply "500 Syntax error"
+    pub fn say_invalid_syntax(&mut self) -> SayResult {
+        self.say_reply(SmtpReply::CommandSyntaxFailure)
+    }
+    /// Reply "503 Command sequence error"
+    pub fn say_command_sequence_fail(&mut self) -> SayResult {
+        self.say_reply(SmtpReply::CommandSequenceFailure)
+    }
+    /// Reply "220 @name service ready"
+    pub fn say_service_ready(&mut self) -> SayResult {
+        // TODO - indicate ESMTP if available
+        self.say_reply(SmtpReply::ServiceReadyInfo(self.service_name.clone()))
+    }
+    /// Reply something like "250 @local greets @remote"
+    pub fn say_helo(&mut self) -> SayResult {
+        self.say_reply(SmtpReply::OkHeloInfo {
+            local: self.service_name.clone(),
+            remote: self
+                .peer_name
+                .as_ref()
+                .unwrap_or(&self.connection.peer_addr)
+                .clone(),
+            extensions: vec![],
+        })
+    }
+    /// Reply something like "250 @local greets @remote, we have extensions: <extensions>"
+    pub fn say_ehlo(&mut self) -> SayResult {
+        self.say_reply(SmtpReply::OkHeloInfo {
+            local: self.service_name.clone(),
+            remote: self
+                .peer_name
+                .as_ref()
+                .unwrap_or(&self.connection.peer_addr)
+                .clone(),
+
+            extensions: self.extensions.iter().map(String::from).collect(),
+        })
+    }
+    /// Reply and shut the session down
+    pub fn say_shutdown(&mut self, reply: SmtpReply) -> SayResult {
+        self.say_reply(reply);
+        self.shutdown()
+    }
+    /// Reply "421 @name service not available, closing transmission channel" and shut the session down
+    pub fn say_shutdown_timeout(&mut self) -> SayResult {
+        warn!("Timeout expired.");
+        self.say_shutdown_service_err()
+    }
+    /// Reply "421 @name service not available, closing transmission channel" and shut the session down
+    pub fn say_shutdown_service_err(&mut self) -> SayResult {
+        self.say_shutdown(SmtpReply::ServiceNotAvailableError(
+            self.service_name.clone(),
+        ))
+    }
+    /// Processing error
+    pub fn say_shutdown_processing_err(&mut self, description: String) -> SayResult {
+        error!("Processing error: {}", description);
+        self.say_shutdown(SmtpReply::ProcesingError)
+    }
+    /// Normal response to quit command
+    pub fn say_shutdown_ok(&mut self) -> SayResult {
+        self.say_shutdown(SmtpReply::ClosingConnectionInfo(self.service_name.clone()))
+    }
+    pub fn say_mail_failed(&mut self, failure: StartMailFailure, description: String) -> SayResult {
+        use StartMailFailure as F;
+        error!("Sending mail failed: {:?}, {}", failure, description);
+        match failure {
+            F::TerminateSession => self.say_shutdown_service_err(),
+            F::Rejected => self.say_reply(SmtpReply::MailboxNotAvailableFailure),
+            F::InvalidSender => self.say_reply(SmtpReply::MailboxNameInvalidFailure),
+            F::InvalidParameter => self.say_reply(SmtpReply::UnknownMailParametersFailure),
+            F::InvalidParameterValue => self.say_reply(SmtpReply::ParametersNotAccommodatedError),
+            F::StorageExhaustedPermanently => self.say_reply(SmtpReply::StorageFailure),
+            F::StorageExhaustedTemporarily => self.say_reply(SmtpReply::StorageError),
+            F::FailedTemporarily => self.say_reply(SmtpReply::ProcesingError),
+        }
+    }
+    pub fn say_rcpt_failed(
+        &mut self,
+        failure: AddRecipientFailure,
+        description: String,
+    ) -> SayResult {
+        use AddRecipientFailure as F;
+        error!("Adding RCPT failed: {:?}, {}", failure, description);
+        match failure {
+            F::TerminateSession => self.say_shutdown_service_err(),
+            F::Moved(path) => self.say_reply(SmtpReply::UserNotLocalFailure(format!("{}", path))),
+            F::RejectedPermanently => self.say_reply(SmtpReply::MailboxNotAvailableFailure),
+            F::RejectedTemporarily => self.say_reply(SmtpReply::MailboxNotAvailableError),
+            F::InvalidRecipient => self.say_reply(SmtpReply::MailboxNameInvalidFailure),
+            F::InvalidParameter => self.say_reply(SmtpReply::UnknownMailParametersFailure),
+            F::InvalidParameterValue => self.say_reply(SmtpReply::ParametersNotAccommodatedError),
+            F::StorageExhaustedPermanently => self.say_reply(SmtpReply::StorageFailure),
+            F::StorageExhaustedTemporarily => self.say_reply(SmtpReply::StorageError),
+            F::FailedTemporarily => self.say_reply(SmtpReply::ProcesingError),
+        }
+    }
+    pub fn say_ok_recipient_not_local(&mut self, path: SmtpPath) -> SayResult {
+        self.say_reply(SmtpReply::UserNotLocalInfo(format!("{}", path)))
+    }
+    pub fn say_mail_queue_refused(&mut self) -> SayResult {
+        self.say_reply(SmtpReply::MailboxNotAvailableFailure)
+    }
+    pub fn say_start_data_challenge(&mut self) -> SayResult {
+        self.say_reply(SmtpReply::StartMailInputChallenge);
+        self.mode = Some(Self::DATA_MODE);
+    }
+    pub fn say_start_tls(&mut self) -> SayResult {
+        self.say_service_ready();
+        self.say(DriverControl::StartTls);
+    }
+    pub fn say_mail_queue_failed_temporarily(&mut self) -> SayResult {
+        self.say_reply(SmtpReply::MailboxNotAvailableError)
+    }
+    pub fn say_mail_queued(&mut self, id: &str) -> SayResult {
+        let info = format!("Queued as {}", id);
+        self.say_ok_info(info)
     }
 }
 
-impl std::fmt::Display for SessionInfo {
+type SayResult = ();
+
+impl std::fmt::Display for SmtpSession {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
         write!(
             f,
-            "Client {:?} using service {} with extensions {} on {}. There are {} input bytes and {} output items pending, {} items in the store.",
+            "Client {:?} using service {} with extensions {} on {}. There are {} input bytes and {} output items pending.",
             self.peer_name,
             self.service_name,
             self.extensions
@@ -57,8 +213,27 @@ impl std::fmt::Display for SessionInfo {
                 .fold(String::new(), |s, r| s + format!("{}, ", r).as_ref()),
             self.connection,
             self.input.len(),
-            self.output.len(),
-            self.store.len()
+            self.output.len()
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        mail::Recipient,
+        smtp::{command::SmtpMail, SmtpPath},
+    };
+
+    #[test]
+    fn transaction_gets_reset() {
+        let mut sut = SmtpSession::default();
+        sut.transaction.id = "someid".to_owned();
+        sut.transaction.mail = Some(SmtpMail::Mail(SmtpPath::Null, vec![]));
+        sut.transaction.rcpts.push(Recipient::null());
+        sut.transaction.extra_headers.insert_str(0, "feeeha");
+        sut.reset();
+        assert!(sut.transaction.is_empty());
     }
 }

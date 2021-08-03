@@ -4,9 +4,11 @@ extern crate log;
 mod lookup;
 
 use self::lookup::*;
-use samotop_core::common::*;
-use samotop_core::mail::{AcceptsDispatch, DispatchError, DispatchResult, MailDispatch, MailSetup};
-use samotop_core::smtp::{SessionInfo, SmtpPath, Transaction};
+use samotop_core::{
+    common::*,
+    mail::{AcceptsDispatch, DispatchError, DispatchResult, MailDispatch, MailSetup},
+    smtp::{SmtpPath, SmtpSession},
+};
 pub use viaspf::Config;
 use viaspf::{evaluate_spf, SpfResult};
 
@@ -40,10 +42,9 @@ impl<T: AcceptsDispatch> MailSetup<T> for Spf {
 }
 
 impl MailDispatch for SpfWithConfig {
-    fn send_mail<'a, 's, 'f>(
+    fn open_mail_body<'a, 's, 'f>(
         &'a self,
-        session: &'s SessionInfo,
-        mut transaction: Transaction,
+        session: &'s mut SmtpSession,
     ) -> S1Fut<'f, DispatchResult>
     where
         'a: 'f,
@@ -54,7 +55,7 @@ impl MailDispatch for SpfWithConfig {
             Ok(ip) => ip,
         };
         let peer_name = session.peer_name.clone().unwrap_or_default();
-        let sender = match transaction.mail.as_ref().map(|m| m.sender()) {
+        let sender = match session.transaction.mail.as_ref().map(|m| m.sender()) {
             None | Some(SmtpPath::Null) | Some(SmtpPath::Postmaster) => String::new(),
             Some(SmtpPath::Mailbox { host, .. }) => host.domain(),
         };
@@ -63,7 +64,7 @@ impl MailDispatch for SpfWithConfig {
             let resolver = match new_resolver().await {
                 Err(e) => {
                     error!("Could not crerate resolver! {:?}", e);
-                    return Err(DispatchError::FailedTemporarily);
+                    return Err(DispatchError::Temporary);
                 }
                 Ok(resolver) => resolver,
             };
@@ -78,14 +79,15 @@ impl MailDispatch for SpfWithConfig {
             match evaluation.result {
                 SpfResult::Fail(explanation) => {
                     info!("mail rejected due to SPF fail: {}", explanation);
-                    Err(DispatchError::Refused)
+                    Err(DispatchError::Permanent)
                 }
                 result => {
                     debug!("mail OK with SPF result: {}", result);
-                    transaction
+                    session
+                        .transaction
                         .extra_headers
                         .push_str(format!("X-Samotop-SPF: {}\r\n", result).as_str());
-                    Ok(transaction)
+                    Ok(())
                 }
             }
         };
@@ -96,20 +98,14 @@ impl MailDispatch for SpfWithConfig {
 
 #[cfg(test)]
 mod tests {
-    use samotop_core::io::ConnectionInfo;
-
     use super::*;
 
     #[test]
     fn default_mail_fut_is_sync() {
-        let sess = SessionInfo::new(ConnectionInfo::default(), "test".to_owned());
-        let tran = Transaction {
-            id: "sessionid".to_owned(),
-            ..Default::default()
-        };
+        let mut sess = SmtpSession::default();
         let cfg = Config::default();
         let sut = Spf.with_config(cfg);
-        let fut = sut.send_mail(&sess, tran);
+        let fut = sut.open_mail_body(&mut sess);
         is_send(fut);
     }
 

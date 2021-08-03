@@ -1,11 +1,11 @@
 use super::Esmtp;
 use crate::{
     common::*,
-    smtp::{command::MailBody, Action, SmtpState, Transaction},
+    smtp::{command::MailBody, Action, SmtpContext, SmtpSession},
 };
 
 impl<B: AsRef<[u8]> + Sync + Send + fmt::Debug + 'static> Action<MailBody<B>> for Esmtp {
-    fn apply<'a, 's, 'f>(&'a self, cmd: MailBody<B>, state: &'s mut SmtpState) -> S1Fut<'f, ()>
+    fn apply<'a, 's, 'f>(&'a self, cmd: MailBody<B>, state: &'s mut SmtpContext) -> S1Fut<'f, ()>
     where
         'a: 'f,
         's: 'f,
@@ -14,12 +14,12 @@ impl<B: AsRef<[u8]> + Sync + Send + fmt::Debug + 'static> Action<MailBody<B>> fo
     }
 }
 
-pub async fn apply_mail_body<B>(lmtp: bool, cmd: MailBody<B>, state: &mut SmtpState)
+pub async fn apply_mail_body<B>(lmtp: bool, cmd: MailBody<B>, state: &mut SmtpContext)
 where
     B: AsRef<[u8]> + Sync + Send + fmt::Debug + 'static,
 {
-    let sink = state.transaction.sink.take();
-    let mailid = state.transaction.id.clone();
+    let sink = state.session.transaction.sink.take();
+    let mailid = state.session.transaction.id.clone();
 
     match cmd {
         MailBody::Chunk {
@@ -48,15 +48,15 @@ where
             match copy.await {
                 Ok(()) => {
                     //let WriteAll { to, .. } = write_all;
-                    state.transaction.sink = Some(sink);
-                    state.transaction.mode = Some(match ends_with_new_line {
-                        true => Transaction::DATA_MODE,
-                        false => Transaction::DATA_PARTIAL_MODE,
+                    state.session.transaction.sink = Some(sink);
+                    state.session.mode = Some(match ends_with_new_line {
+                        true => SmtpSession::DATA_MODE,
+                        false => SmtpSession::DATA_PARTIAL_MODE,
                     })
                 }
                 Err(e) => {
                     warn!("Failed to write mail data for {} - {}", mailid, e);
-                    state.reset();
+                    state.session.reset();
                     // CheckMe: following this reset, we are not sending any response yet. MailBodyEnd should do that.
                 }
             };
@@ -65,8 +65,8 @@ where
             let mut sink = if let Some(sink) = sink {
                 sink
             } else {
-                state.say_mail_queue_failed_temporarily();
-                state.reset();
+                state.session.say_mail_queue_failed_temporarily();
+                state.session.reset();
                 return;
             };
             if match poll_fn(move |cx| sink.as_mut().poll_close(cx)).await {
@@ -79,21 +79,22 @@ where
             } {
                 if lmtp {
                     for msg in state
+                        .session
                         .transaction
                         .rcpts
                         .iter()
                         .map(|rcpt| format!("{} for {}", mailid, rcpt.address))
                         .collect::<Vec<String>>()
                     {
-                        state.say_mail_queued(msg.as_str());
+                        state.session.say_mail_queued(msg.as_str());
                     }
                 } else {
-                    state.say_mail_queued(mailid.as_str());
+                    state.session.say_mail_queued(mailid.as_str());
                 }
             } else {
-                state.say_mail_queue_failed_temporarily();
+                state.session.say_mail_queue_failed_temporarily();
             }
-            state.reset();
+            state.session.reset();
         }
     }
 }

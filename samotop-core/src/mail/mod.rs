@@ -8,6 +8,7 @@ mod null;
 mod recipient;
 mod service;
 mod setup;
+mod transaction;
 
 pub use self::builder::*;
 pub use self::debug::*;
@@ -19,3 +20,4 @@ pub use self::null::*;
 pub use self::recipient::*;
 pub use self::service::*;
 pub use self::setup::*;
+pub use self::transaction::*;

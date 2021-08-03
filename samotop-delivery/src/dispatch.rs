@@ -1,9 +1,5 @@
 use crate::prelude::{EmailAddress, Envelope, Transport};
-use samotop_core::{
-    common::*,
-    mail::*,
-    smtp::{SessionInfo, Transaction},
-};
+use samotop_core::{common::*, mail::*, smtp::SmtpSession};
 use std::fmt;
 
 #[derive(Debug)]
@@ -26,28 +22,27 @@ where
     T::DataStream: Sync + Send + 'static,
     T::Error: std::error::Error + Sync + Send + 'static,
 {
-    fn send_mail<'a, 's, 'f>(
+    fn open_mail_body<'a, 's, 'f>(
         &'a self,
-        _session: &'s SessionInfo,
-        transaction: Transaction,
+        session: &'s mut SmtpSession,
     ) -> S1Fut<'f, DispatchResult>
     where
         'a: 'f,
         's: 'f,
     {
         Box::pin(async move {
-            match start_mail(&self.transport, transaction).await {
+            match deliver_mail(&self.transport, &mut session.transaction).await {
                 Err(e) => {
                     error!("Failed to start mail: {:?}", e);
-                    Err(DispatchError::FailedTemporarily)
+                    Err(DispatchError::Temporary)
                 }
-                Ok(r) => Ok(r),
+                Ok(()) => Ok(()),
             }
         })
     }
 }
 
-async fn start_mail<T>(transport: &T, mut transaction: Transaction) -> Result<Transaction>
+async fn deliver_mail<T>(transport: &T, transaction: &mut Transaction) -> Result<()>
 where
     T: Transport + Send + Sync,
     T::DataStream: Sync + Send + 'static,
@@ -70,5 +65,5 @@ where
     let stream = transport.send_stream(envelope).await?;
     transaction.sink = Some(Box::pin(stream));
 
-    Ok(transaction)
+    Ok(())
 }

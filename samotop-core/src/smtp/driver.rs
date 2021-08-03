@@ -7,7 +7,7 @@ pub trait Drive: fmt::Debug {
         &'a self,
         io: &'i mut Box<dyn MayBeTls>,
         interpretter: &'x (dyn Interpret + Send + Sync),
-        state: &'s mut SmtpState,
+        state: &'s mut SmtpContext,
     ) -> S1Fut<'f, std::result::Result<(), DriverError>>
     where
         'a: 'f,
@@ -26,7 +26,7 @@ impl Drive for SmtpDriver {
         &'a self,
         bare_io: &'i mut Box<dyn MayBeTls>,
         interpretter: &'x (dyn Interpret + Send + Sync),
-        state: &'s mut SmtpState,
+        state: &'s mut SmtpContext,
     ) -> S1Fut<'f, std::result::Result<(), DriverError>>
     where
         'a: 'f,
@@ -40,7 +40,7 @@ impl Drive for SmtpDriver {
             // fetch and apply commands
             loop {
                 // write all pending responses
-                while let Some(response) = state.pop_control() {
+                while let Some(response) = state.session.pop_control() {
                     trace!("Processing driver control {:?}", response);
                     use async_std::io::prelude::WriteExt;
                     match response {
@@ -96,20 +96,22 @@ impl Drive for SmtpDriver {
                         match io.read_until(b'\n', &mut state.session.input).await {
                             Err(e) if e.kind() == std::io::ErrorKind::TimedOut => {
                                 warn!("session read timeout");
-                                state.say_shutdown_timeout();
+                                state.session.say_shutdown_timeout();
                             }
                             Err(e) => return Err(e.into()),
                             Ok(0) => {
                                 if state.session.input.is_empty() {
                                     // client went silent, we're done!
-                                    state.shutdown();
+                                    state.session.shutdown();
                                 } else {
                                     error!(
                                         "Incomplete and finished: {:?}",
                                         String::from_utf8_lossy(state.session.input.as_slice())
                                     );
                                     // client did not finish the command and left.
-                                    state.say_shutdown_processing_err("Incomplete command".into());
+                                    state
+                                        .session
+                                        .say_shutdown_processing_err("Incomplete command".into());
                                 };
                             }
                             Ok(_) => { /* good, interpret again */ }
@@ -134,9 +136,9 @@ impl Drive for SmtpDriver {
 
                         if split == 0 {
                             warn!("Parsing failed on empty input, this will fail again, stopping the session");
-                            state.say_shutdown_service_err()
+                            state.session.say_shutdown_service_err()
                         } else {
-                            state.say_invalid_syntax();
+                            state.session.say_invalid_syntax();
                         }
                     }
                 };

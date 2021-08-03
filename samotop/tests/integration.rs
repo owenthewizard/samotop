@@ -34,7 +34,7 @@ async fn svc() -> Result<()> {
     let testio = TestIo::new(input);
     let writes = testio.writes();
     let io = Box::new(TlsCapable::plaintext(Box::new(testio)));
-    let service = Builder + Name::new("testik") + NullDispatch + Esmtp.with(SmtpParser);
+    let service = Builder + Esmtp.with(SmtpParser) + Name::new("testik") + NullDispatch;
 
     service
         .build()
@@ -84,7 +84,7 @@ async fn prudent_blocks_bad_client_simple() {
     let mut io: Box<dyn MayBeTls> = Box::new(TlsCapable::plaintext(Box::new(testio)));
     sut.prepare_session(&mut io, &mut state).await;
 
-    let response = match state.pop_control() {
+    let response = match state.session.pop_control() {
         Some(samotop::smtp::DriverControl::Response(response)) => response,
         otherwise => panic!("Expected response, got {:?}", otherwise),
     };
@@ -93,7 +93,7 @@ async fn prudent_blocks_bad_client_simple() {
         String::from_utf8_lossy(response.as_slice()),
         @r###""451 Requested action aborted: error in processing.\r\n""###);
 
-    assert_eq!(state.pop_control(), Some(DriverControl::Shutdown));
+    assert_eq!(state.session.pop_control(), Some(DriverControl::Shutdown));
 
     assert!(state.session.output.is_empty(), "Should have no more");
 }

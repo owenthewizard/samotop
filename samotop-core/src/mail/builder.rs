@@ -3,10 +3,10 @@ use crate::{
     io::tls::MayBeTls,
     mail::{
         AcceptsDispatch, AcceptsGuard, AcceptsInterpretter, AcceptsSessionService,
-        AddRecipientRequest, AddRecipientResult, DispatchResult, MailDispatch, MailGuard,
-        MailSetup, Service, StartMailRequest, StartMailResult,
+        AddRecipientResult, DispatchResult, MailDispatch, MailGuard, MailSetup, Recipient, Service,
+        StartMailResult,
     },
-    smtp::{Drive, Interpret, Interpretter, SessionInfo, SessionService, SmtpState, Transaction},
+    smtp::{Drive, Interpret, Interpretter, SessionService, SmtpContext, SmtpSession},
 };
 use std::ops::{Add, AddAssign};
 
@@ -222,28 +222,27 @@ struct DispatchBunch {
 }
 
 impl MailDispatch for DispatchBunch {
-    fn send_mail<'a, 's, 'f>(
+    fn open_mail_body<'a, 's, 'f>(
         &'a self,
-        session: &'s SessionInfo,
-        mut transaction: Transaction,
+        session: &'s mut SmtpSession,
     ) -> S1Fut<'f, DispatchResult>
     where
         'a: 'f,
         's: 'f,
     {
         debug!(
-            "Dispatch {} with {} dispatchers sending mail {:?} on session {:?}",
+            "Dispatch {} with {} dispatchers sending mail {:?} on session {}",
             self.id,
             self.items.len(),
-            transaction,
+            session.transaction,
             session
         );
         let fut = async move {
             for disp in self.items.iter() {
                 trace!("Dispatch {} send_mail calling {:?}", self.id, disp);
-                transaction = disp.send_mail(session, transaction).await?;
+                disp.open_mail_body(session).await?;
             }
-            Ok(transaction)
+            Dummy.open_mail_body(session).await
         };
         Box::pin(fut)
     }
@@ -256,56 +255,54 @@ struct GuardBunch {
 }
 
 impl MailGuard for GuardBunch {
-    fn add_recipient<'a, 'f>(
+    fn add_recipient<'a, 's, 'f>(
         &'a self,
-        mut request: AddRecipientRequest,
+        session: &'s mut SmtpSession,
+        mut rcpt: Recipient,
     ) -> S2Fut<'f, AddRecipientResult>
-    where
-        'a: 'f,
-    {
-        debug!(
-            "Guard {} with {} guards adding recipient {:?}",
-            self.id,
-            self.items.len(),
-            request
-        );
-        let fut = async move {
-            for guard in self.items.iter() {
-                trace!("Guard {} add_recipient calling {:?}", self.id, guard);
-                match guard.add_recipient(request).await {
-                    AddRecipientResult::Inconclusive(r) => request = r,
-                    otherwise => return otherwise,
-                }
-            }
-            AddRecipientResult::Inconclusive(request)
-        };
-        Box::pin(fut)
-    }
-
-    fn start_mail<'a, 's, 'f>(
-        &'a self,
-        session: &'s SessionInfo,
-        mut request: StartMailRequest,
-    ) -> S2Fut<'f, StartMailResult>
     where
         'a: 'f,
         's: 'f,
     {
         debug!(
-            "Guard {} with {} guards starting mail {:?}",
+            "Guard {} with {} guards adding recipient {:?}",
             self.id,
             self.items.len(),
-            request
+            rcpt
+        );
+        let fut = async move {
+            for guard in self.items.iter() {
+                trace!("Guard {} add_recipient calling {:?}", self.id, guard);
+                match guard.add_recipient(session, rcpt).await {
+                    AddRecipientResult::Inconclusive(r) => rcpt = r,
+                    otherwise => return otherwise,
+                }
+            }
+            Dummy.add_recipient(session, rcpt).await
+        };
+        Box::pin(fut)
+    }
+
+    fn start_mail<'a, 's, 'f>(&'a self, session: &'s mut SmtpSession) -> S2Fut<'f, StartMailResult>
+    where
+        'a: 'f,
+        's: 'f,
+    {
+        debug!(
+            "Guard {} with {} guards starting mail {}",
+            self.id,
+            self.items.len(),
+            session.transaction.id
         );
         let fut = async move {
             for guard in self.items.iter() {
                 trace!("Guard {} start_mail calling {:?}", self.id, guard);
-                match guard.start_mail(session, request).await {
-                    StartMailResult::Accepted(r) => request = r,
+                match guard.start_mail(session).await {
+                    StartMailResult::Accepted => {}
                     otherwise => return otherwise,
                 }
             }
-            StartMailResult::Accepted(request)
+            Dummy.start_mail(session).await
         };
         Box::pin(fut)
     }
@@ -321,7 +318,7 @@ impl SessionService for EsmtpBunch {
     fn prepare_session<'a, 'i, 's, 'f>(
         &'a self,
         io: &'i mut Box<dyn MayBeTls>,
-        state: &'s mut SmtpState,
+        state: &'s mut SmtpContext,
     ) -> S1Fut<'f, ()>
     where
         'a: 'f,

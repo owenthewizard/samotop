@@ -1,9 +1,8 @@
 use crate::common::*;
 use crate::io::tls::MayBeTls;
 use crate::mail::{AcceptsInterpretter, AcceptsSessionService, MailSetup};
-use crate::smtp::{Interpret, InterpretResult, ParseError, SessionService, SmtpState};
+use crate::smtp::{Interpret, InterpretResult, ParseError, SessionService, SmtpContext};
 use smol_timeout::TimeoutExt;
-use std::any::TypeId;
 use std::time::{Duration, Instant};
 
 /// Prevent bad SMTP behavior
@@ -54,7 +53,7 @@ impl SessionService for PrudentService {
     fn prepare_session<'a, 'i, 's, 'f>(
         &'a self,
         io: &'i mut Box<dyn MayBeTls>,
-        state: &'s mut SmtpState,
+        state: &'s mut SmtpContext,
     ) -> crate::common::S1Fut<'f, ()>
     where
         'a: 'f,
@@ -71,12 +70,14 @@ impl SessionService for PrudentService {
                     }
                     Some(Ok(_)) => {
                         state.session.input.push(buf[0]);
-                        state.say_shutdown_processing_err(
+                        state.session.say_shutdown_processing_err(
                             "Client sent commands before banner".into(),
                         );
                     }
                     Some(Err(e)) => {
-                        state.say_shutdown_processing_err(format!("IO read failed {}", e));
+                        state
+                            .session
+                            .say_shutdown_processing_err(format!("IO read failed {}", e));
                     }
                     None => {
                         // timeout is correct behavior, well done!
@@ -185,7 +186,7 @@ struct PrudentInterpretter {
 }
 
 impl Interpret for PrudentInterpretter {
-    fn interpret<'a, 's, 'f>(&'a self, state: &'s mut SmtpState) -> S1Fut<'f, InterpretResult>
+    fn interpret<'a, 's, 'f>(&'a self, state: &'s mut SmtpContext) -> S1Fut<'f, InterpretResult>
     where
         'a: 'f,
         's: 'f,
@@ -195,21 +196,13 @@ impl Interpret for PrudentInterpretter {
 }
 
 impl PrudentInterpretter {
-    pub async fn interpret_inner(&self, state: &mut SmtpState) -> InterpretResult {
+    pub async fn interpret_inner(&self, state: &mut SmtpContext) -> InterpretResult {
         let res = self.inner.interpret(state).await;
 
         if let Some(timeout) = self.timeout {
-            let mystate = state
-                .session
-                .store
-                .entry(TypeId::of::<PrudentState>())
-                .or_insert_with(|| {
-                    Box::new(PrudentState {
-                        last_command_at: Instant::now(),
-                    })
-                })
-                .downcast_mut::<PrudentState>()
-                .expect("Any of type PrudentState");
+            let mystate = state.get_or_insert(|| PrudentState {
+                last_command_at: Instant::now(),
+            });
 
             match res {
                 Ok(Some(consumed)) if consumed != 0 => {
@@ -217,7 +210,7 @@ impl PrudentInterpretter {
                 }
                 Err(ParseError::Incomplete) => {
                     if Instant::now().saturating_duration_since(mystate.last_command_at) > timeout {
-                        state.say_shutdown_timeout();
+                        state.session.say_shutdown_timeout();
                         return Ok(None);
                     }
                 }

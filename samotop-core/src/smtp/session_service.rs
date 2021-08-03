@@ -1,6 +1,6 @@
 use crate::common::*;
 use crate::io::tls::MayBeTls;
-use crate::smtp::SmtpState;
+use crate::smtp::SmtpContext;
 use std::ops::Deref;
 
 /**
@@ -12,7 +12,7 @@ use samotop_core::smtp::*;
 use samotop_core::io::tls::MayBeTls;
 use std::time::Duration;
 
-/// This mail service canhabdle 8-bit MIME
+/// This mail service can handle 8-bit MIME
 #[derive(Clone, Debug)]
 pub struct EnableEightBit;
 
@@ -21,7 +21,7 @@ impl SessionService for EnableEightBit
     fn prepare_session<'a, 'i, 's, 'f>(
         &'a self,
         _io: &'i mut Box<dyn MayBeTls>,
-        state: &'s mut SmtpState,
+        state: &'s mut SmtpContext,
     ) -> S1Fut<'f, ()>
     where
         'a: 'f,
@@ -41,7 +41,7 @@ pub trait SessionService: fmt::Debug {
     fn prepare_session<'a, 'i, 's, 'f>(
         &'a self,
         io: &'i mut Box<dyn MayBeTls>,
-        state: &'s mut SmtpState,
+        state: &'s mut SmtpContext,
     ) -> S1Fut<'f, ()>
     where
         'a: 'f,
@@ -57,7 +57,7 @@ where
     fn prepare_session<'a, 'i, 's, 'f>(
         &'a self,
         io: &'i mut Box<dyn MayBeTls>,
-        state: &'s mut SmtpState,
+        state: &'s mut SmtpContext,
     ) -> S1Fut<'f, ()>
     where
         'a: 'f,
@@ -72,7 +72,7 @@ impl SessionService for Dummy {
     fn prepare_session<'a, 'i, 's, 'f>(
         &'a self,
         _io: &'i mut Box<dyn MayBeTls>,
-        _state: &'s mut SmtpState,
+        _state: &'s mut SmtpContext,
     ) -> S1Fut<'f, ()>
     where
         'a: 'f,

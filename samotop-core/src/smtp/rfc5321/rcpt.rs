@@ -1,47 +1,40 @@
 use super::Esmtp;
 use crate::{
     common::S1Fut,
-    mail::{AddRecipientRequest, AddRecipientResult, MailGuard, Recipient},
-    smtp::{command::SmtpRcpt, Action, SmtpState},
+    mail::{AddRecipientResult, MailGuard, Recipient},
+    smtp::{command::SmtpRcpt, Action, SmtpContext},
 };
 
 impl Action<SmtpRcpt> for Esmtp {
-    fn apply<'a, 's, 'f>(&'a self, cmd: SmtpRcpt, state: &'s mut SmtpState) -> S1Fut<'f, ()>
+    fn apply<'a, 's, 'f>(&'a self, cmd: SmtpRcpt, state: &'s mut SmtpContext) -> S1Fut<'f, ()>
     where
         'a: 'f,
         's: 'f,
     {
         Box::pin(async move {
-            if state.transaction.mail.is_none() {
-                state.say_command_sequence_fail();
+            if state.session.transaction.mail.is_none() {
+                state.session.say_command_sequence_fail();
                 return;
             }
-            let transaction = std::mem::take(&mut state.transaction);
-            let request = AddRecipientRequest {
-                transaction,
-                rcpt: Recipient::new(cmd.0.clone()),
-            };
+            let rcpt = Recipient::new(cmd.0.clone());
 
-            match state.service().add_recipient(request).await {
-                AddRecipientResult::Inconclusive(AddRecipientRequest {
-                    mut transaction,
-                    rcpt,
-                }) => {
-                    transaction.rcpts.push(rcpt);
-                    state.say_ok();
-                    state.transaction = transaction;
+            match state
+                .service()
+                .add_recipient(&mut state.session, rcpt)
+                .await
+            {
+                AddRecipientResult::Inconclusive(rcpt) => {
+                    state.session.transaction.rcpts.push(rcpt);
+                    state.session.say_ok();
                 }
-                AddRecipientResult::Failed(transaction, failure, description) => {
-                    state.say_rcpt_failed(failure, description);
-                    state.transaction = transaction;
+                AddRecipientResult::Failed(failure, description) => {
+                    state.session.say_rcpt_failed(failure, description);
                 }
-                AddRecipientResult::Accepted(transaction) => {
-                    state.say_ok();
-                    state.transaction = transaction;
+                AddRecipientResult::Accepted => {
+                    state.session.say_ok();
                 }
-                AddRecipientResult::AcceptedWithNewPath(transaction, path) => {
-                    state.say_ok_recipient_not_local(path);
-                    state.transaction = transaction;
+                AddRecipientResult::AcceptedWithNewPath(path) => {
+                    state.session.say_ok_recipient_not_local(path);
                 }
             };
         })
@@ -56,16 +49,19 @@ mod tests {
     #[test]
     fn recipient_is_added() {
         async_std::task::block_on(async move {
-            let mut set = SmtpState::default();
-            set.transaction.id = "someid".to_owned();
-            set.transaction.mail = Some(SmtpMail::Mail(SmtpPath::Null, vec![]));
-            set.transaction.rcpts.push(Recipient::null());
-            set.transaction.extra_headers.insert_str(0, "feeeha");
+            let mut set = SmtpContext::default();
+            set.session.transaction.id = "someid".to_owned();
+            set.session.transaction.mail = Some(SmtpMail::Mail(SmtpPath::Null, vec![]));
+            set.session.transaction.rcpts.push(Recipient::null());
+            set.session
+                .transaction
+                .extra_headers
+                .insert_str(0, "feeeha");
 
             Esmtp
                 .apply(SmtpRcpt(SmtpPath::Postmaster, vec![]), &mut set)
                 .await;
-            assert_eq!(set.transaction.rcpts.len(), 2);
+            assert_eq!(set.session.transaction.rcpts.len(), 2);
         })
     }
 }
