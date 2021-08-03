@@ -106,13 +106,13 @@ impl std::fmt::Debug for DriverControl {
 #[cfg(test)]
 mod store_tests {
     use super::*;
-    use crate::mail::Builder;
+    use crate::mail::DebugService;
     use regex::Regex;
 
     #[test]
     pub fn same_service() {
         let mut sut = SmtpContext::default();
-        let svc = Box::new(Builder.build());
+        let svc = Box::new(DebugService::default());
         let dump0 = format!("{:#?}", svc);
         sut.set_service(Dummy);
         sut.set_service(svc);
@@ -125,21 +125,8 @@ mod store_tests {
             .replace_all(&dump0, "--redaced--");
 
         insta::assert_display_snapshot!(dump, @r###"
-        Service {
-            session: EsmtpBunch {
-                id: "--redaced--",
-                items: [],
-            },
-            guard: GuardBunch {
-                id: "--redaced--",
-                items: [],
-            },
-            dispatch: DispatchBunch {
-                id: "--redaced--",
-                items: [],
-            },
-            driver: SmtpDriver,
-            interpret: Interpretter(--redaced--),
+        DebugService {
+            id: "--redaced--",
         }
         "###);
     }
@@ -148,7 +135,7 @@ mod store_tests {
     pub fn set_one_service() {
         let mut sut = SmtpContext::default();
         sut.set_service(Box::new(Dummy));
-        sut.set_service(Builder.build());
+        sut.set_service(DebugService::default());
 
         let dump = format!("{:#?}", sut);
         let dump = Regex::new("[0-9]+")

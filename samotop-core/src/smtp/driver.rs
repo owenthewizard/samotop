@@ -1,5 +1,8 @@
-use crate::common::{io::*, *};
+#[cfg(feature = "driver")]
+use crate::common::io::*;
+use crate::common::*;
 use crate::io::tls::MayBeTls;
+
 use crate::smtp::*;
 
 pub trait Drive: fmt::Debug {

@@ -63,7 +63,7 @@ pub trait AcceptsDispatch {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mail::{Builder, DebugService, MailService};
+    use crate::mail::*;
 
     #[derive(Debug)]
     struct TestSetup;
@@ -74,11 +74,11 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "driver")]
     #[test]
     fn test_composition() {
+        fn hungry(_svc: impl MailService + Send + Sync + 'static) {}
         let composite = Builder + TestSetup;
         hungry(composite.build());
     }
-
-    fn hungry(_svc: impl MailService + Send + Sync + 'static) {}
 }

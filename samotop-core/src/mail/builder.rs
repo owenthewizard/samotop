@@ -147,6 +147,7 @@ impl Builder {
     pub fn using(self, setup: impl MailSetup<Configuration>) -> BuilderWithConfig {
         BuilderWithConfig::default() + setup
     }
+    #[cfg(feature = "driver")]
     /// Finalize and produce the MailService.
     pub fn build(self) -> Service {
         BuilderWithConfig::default().build()
