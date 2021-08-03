@@ -4,14 +4,20 @@ include:
 stages:
   - release
 
-default:
-  variables:
-    CARGO_HOME: "$CI_PROJECT_DIR/.cargo"
+variables:
+  CARGO_HOME: "$CI_PROJECT_DIR/.cargo"
 
 .publish-crate:
   variables:
     COMPVER: $CI_JOB_NAME
   stage: release
+  rules:
+    - if: '$COMPVER =~ /-[^/]+$/ && $CI_COMMIT_REF_NAME != master'
+      when: always
+    - if: '$COMPVER !~ /-[^/]+$/ && $CI_COMMIT_REF_NAME == master'
+      when: always
+    - if: $CI_COMMIT_REF_NAME
+      when: never
   cache:
     key:
       files:

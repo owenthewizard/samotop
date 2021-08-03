@@ -6,7 +6,6 @@ variables:
 
 stages:
   - build
-  - test
   - release
 
 debug-build:
@@ -201,11 +200,11 @@ publish-crates:
       cargo metadata --format-version 1 | 
         jq -r '.workspace_members | .[]' | 
         cut -d ' ' -f-2 | tr ' ' '/' | 
-        sed 's/$/: {extends: .publish-crate} /g' |
+        sed 's/$/: \n  extends: .publish-crate\n /g' |
         tee -a target/publish-pipeline.yml
 
 publish-crates-trigger:
-  stage: test
+  stage: release
   trigger:
     include:
       - artifact: target/publish-pipeline.yml
