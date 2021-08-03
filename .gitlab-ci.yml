@@ -185,8 +185,6 @@ example-cmd:
 
 publish-crates:
   stage: build
-  only:
-    - tags
   cache:
     key: *cache-key
     paths: *cache-paths
