@@ -1,11 +1,5 @@
 include:
-  - "/.gitlab-ci.builder.yml"
-
-stages:
-  - release
-
-variables:
-  CARGO_HOME: "$CI_PROJECT_DIR/.cargo"
+  - "/.gitlab-ci.config.yml"
 
 .publish-crate:
   variables:
@@ -16,8 +10,7 @@ variables:
       when: always
     - if: '$COMPVER !~ /-[^\/]+$/ && $CI_COMMIT_REF_NAME == "master"'
       when: always
-    - if: $CI_COMMIT_REF_NAME
-      when: never
+    - when: never
   cache:
     key:
       files:

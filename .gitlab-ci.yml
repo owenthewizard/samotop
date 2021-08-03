@@ -1,13 +1,6 @@
 include:
   - "/.gitlab-ci.builder.yml"
 
-variables:
-  CARGO_HOME: "$CI_PROJECT_DIR/.cargo"
-
-stages:
-  - build
-  - release
-
 debug-build:
   stage: build
   only:

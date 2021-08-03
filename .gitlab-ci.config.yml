@@ -1,0 +1,11 @@
+variables:
+  BUILDER_VERSION: "2.1.0"
+  BUILDER_COMPONENT: "builder"
+  BUILDER_IMAGE: "$CI_REGISTRY_IMAGE/$BUILDER_COMPONENT:$BUILDER_VERSION"
+  CARGO_HOME: "$CI_PROJECT_DIR/.cargo"
+
+image: $BUILDER_IMAGE
+
+stages:
+  - build
+  - release

@@ -1,9 +1,5 @@
-variables:
-  BUILDER_VERSION: "2.1.0"
-  BUILDER_COMPONENT: "builder"
-  BUILDER_IMAGE: "$CI_REGISTRY_IMAGE/$BUILDER_COMPONENT:$BUILDER_VERSION"
-
-image: $BUILDER_IMAGE
+include:
+  - "/.gitlab-ci.config.yml"
 
 builder-test:
   stage: build
