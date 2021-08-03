@@ -105,8 +105,6 @@ impl std::fmt::Debug for DriverControl {
 
 #[cfg(test)]
 mod store_tests {
-    use std::time::SystemTime;
-
     use super::*;
     use crate::mail::Builder;
     use regex::Regex;
@@ -125,6 +123,7 @@ mod store_tests {
         let dump = Regex::new("[0-9]+")
             .expect("regex")
             .replace_all(&dump0, "--redaced--");
+
         insta::assert_display_snapshot!(dump, @r###"
         Service {
             session: EsmtpBunch {
@@ -151,16 +150,16 @@ mod store_tests {
         sut.set_service(Box::new(Dummy));
         sut.set_service(Builder.build());
 
-        sut.session.connection.id = "--redacted--".into();
-        sut.session.connection.established = SystemTime::UNIX_EPOCH;
-
         let dump = format!("{:#?}", sut);
+        let dump = Regex::new("[0-9]+")
+            .expect("regex")
+            .replace_all(dump.as_str(), "--redacted--");
 
         insta::assert_display_snapshot!(dump, @r###"
         SmtpContext {
             store: {
                 TypeId {
-                    t: 15396228761292846990,
+                    t: --redacted--,
                 }: Any { .. },
             },
             session: SmtpSession {
@@ -169,8 +168,8 @@ mod store_tests {
                     local_addr: "",
                     peer_addr: "",
                     established: SystemTime {
-                        tv_sec: 0,
-                        tv_nsec: 0,
+                        tv_sec: --redacted--,
+                        tv_nsec: --redacted--,
                     },
                 },
                 extensions: ExtensionSet {
