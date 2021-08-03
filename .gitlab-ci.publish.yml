@@ -1,0 +1,32 @@
+include:
+  - "/.gitlab-ci.builder.yml"
+
+stages:
+  - release
+
+default:
+  variables:
+    CARGO_HOME: "$CI_PROJECT_DIR/.cargo"
+
+.publish-crate:
+  variables:
+    COMPVER: $CI_JOB_NAME
+  stage: release
+  cache:
+    key:
+      files:
+        - Cargo.lock
+    paths:
+      - target/
+      - $CARGO_HOME
+    policy: pull
+  before_script:
+    - rustc --version --verbose
+    - cargo --version --verbose
+  script:
+    - COMPONENT="$(dirname "$COMPVER")"
+    - VERSION="${COMPVER##$COMPONENT/}"
+    - echo "Releasing component ${COMPONENT:?cannot be empty} v ${VERSION:?cannot be empty}"
+    - cargo test --manifest-path "$COMPONENT/Cargo.toml" --release --color always
+    - test "$VERSION" == "$(cargo pkgid --manifest-path "$COMPONENT/Cargo.toml" | cut -d '#' -f2- | tr -d '\n')"
+    - cargo publish --manifest-path "$COMPONENT/Cargo.toml" --token "$CRATES_KEY" --color always

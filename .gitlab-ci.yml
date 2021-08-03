@@ -183,10 +183,8 @@ example-cmd:
     - find tmp/samotop/spool/new/ -type f -print -exec cat {} \;
     - test -z "$OUTPUT" || diff tmp/samotop/spool/new/* "$OUTPUT"
 
-publish-crate:
-  variables:
-    COMPVER: $CI_COMMIT_TAG
-  stage: release
+publish-crates:
+  stage: build
   only:
     - tags
   cache:
@@ -195,17 +193,25 @@ publish-crate:
     policy: pull
   artifacts:
     paths:
-      - Cargo.lock
+      - target/publish-pipeline.yml
   before_script:
     - rustc --version --verbose
     - cargo --version --verbose
   script:
-    - COMPONENT="$(dirname "$COMPVER")"
-    - VERSION="${COMPVER##$COMPONENT/}"
-    - echo "Releasing component ${COMPONENT:?cannot be empty} v ${VERSION:?cannot be empty}"
-    - cargo test --manifest-path "$COMPONENT/Cargo.toml" --release --color always
-    - test "$VERSION" == "$(cargo pkgid --manifest-path "$COMPONENT/Cargo.toml" | cut -d '#' -f2- | tr -d '\n')"
-    - cargo publish --manifest-path "$COMPONENT/Cargo.toml" --token "$CRATES_KEY" --color always
+    - cp .gitlab-ci.publish.yml target/publish-pipeline.yml
+    - |
+      cargo metadata --format-version 1 | 
+        jq -r '.workspace_members | .[]' | 
+        cut -d ' ' -f-2 | tr ' ' '/' | 
+        sed 's/$/: {extends: .publish-crate} /g' |
+        tee -a target/publish-pipeline.yml
+
+publish-crates-trigger:
+  stage: test
+  trigger:
+    include:
+      - artifact: target/publish-pipeline.yml
+        job: publish-crates
 
 server-version:
   stage: build
