@@ -195,6 +195,7 @@ publish-crates:
         cut -d ' ' -f-2 | tr ' ' '/' | 
         sed 's/$/: \n  extends: .publish-crate\n /g' |
         tee -a target/publish-pipeline.yml
+    
 
 publish-crates-trigger:
   stage: release

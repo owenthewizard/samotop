@@ -29,6 +29,7 @@ builder-build:
   only:
     changes:
       - Dockerfile
+      - .gitlab-ci.config.yml
       - .gitlab-ci.builder.yml
   environment:
     name: builder
