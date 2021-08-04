@@ -39,7 +39,7 @@ check:
     - VERSION="${COMPVER##$COMPONENT/}"
   script:
     - echo "Testing component ${COMPONENT:?cannot be empty} v ${VERSION:?cannot be empty}"
+    - cargo publish --manifest-path "$COMPONENT/Cargo.toml" --dry-run --color always
     - cargo test --manifest-path "$COMPONENT/Cargo.toml" --release --no-default-features --color always
     - cargo test --manifest-path "$COMPONENT/Cargo.toml" --release --all-features --color always
     - test "$VERSION" == "$(cargo pkgid --manifest-path "$COMPONENT/Cargo.toml" | cut -d '#' -f2- | tr -d '\n')"
-    - cargo publish --dry-run --manifest-path "$COMPONENT/Cargo.toml" --color always
