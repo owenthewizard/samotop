@@ -52,7 +52,34 @@ pub enum ConnectionReuseParameters {
     NoReuse,
 }
 
-/// Contains client configuration
+/** Contains client configuration
+
+## Example
+```rust
+pub type Error = Box<dyn std::error::Error + Send + Sync>;
+pub type Result<T> = std::result::Result<T, Error>;
+use samotop_delivery::prelude::{
+    Envelope, SmtpClient, Transport,
+};
+async fn smtp_transport_simple() -> Result<()> {
+    let envelope = Envelope::new(
+            Some("user@localhost".parse()?),
+            vec!["root@localhost".parse()?],
+            "id".to_string(),
+        )?;
+    let message = "From: user@localhost\r\n\
+                    Content-Type: text/plain\r\n\
+                    \r\n\
+                    Hello example"
+                    .as_bytes();
+    let client = SmtpClient::new("127.0.0.1:2525")?;
+
+    // Create a client, connect and send
+    client.connect_and_send(envelope, message).await?;
+    Ok(())
+}
+```
+*/
 #[derive(Debug)]
 #[allow(missing_debug_implementations)]
 pub struct SmtpClient {

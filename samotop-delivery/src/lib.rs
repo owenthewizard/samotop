@@ -6,32 +6,6 @@ samotop-delivery is a set of transports to deliver mail to,
 notably to SMTP/LMTP, but also maildir... It is used in Samotop
 as a dispatch solution for incoming mail, but you can use it to send mail, too.
 
-## Example
-```rust
-pub type Error = Box<dyn std::error::Error + Send + Sync>;
-pub type Result<T> = std::result::Result<T, Error>;
-use samotop_delivery::prelude::{
-    Envelope, SmtpClient, Transport,
-};
-async fn smtp_transport_simple() -> Result<()> {
-    let envelope = Envelope::new(
-            Some("user@localhost".parse()?),
-            vec!["root@localhost".parse()?],
-            "id".to_string(),
-        )?;
-    let message = "From: user@localhost\r\n\
-                    Content-Type: text/plain\r\n\
-                    \r\n\
-                    Hello example"
-                    .as_bytes();
-    let client = SmtpClient::new("127.0.0.1:2525")?;
-
-    // Create a client, connect and send
-    client.connect_and_send(envelope, message).await?;
-    Ok(())
-}
-```
-
 # Features
  - [x] Do it SMTP style:
     - [x] Speak SMTP
@@ -72,7 +46,6 @@ from the awesome [delta.chat](https://delta.chat) project.
 #[macro_use]
 extern crate log;
 
-#[cfg(feature = "dir-transport")]
 pub mod dir;
 mod dispatch;
 #[cfg(feature = "file-transport")]
@@ -87,7 +60,6 @@ pub mod stub;
 pub mod types;
 
 pub mod prelude {
-    #[cfg(feature = "dir-transport")]
     pub use crate::dir::*;
     #[cfg(feature = "file-transport")]
     pub use crate::file::*;
@@ -124,7 +96,7 @@ pub trait Transport: std::fmt::Debug {
     fn send<'s, 'r, 'a, R>(
         &'s self,
         envelope: Envelope,
-        message: R,
+        mut message: R,
     ) -> SyncFuture<'a, SendResult<Self>>
     where
         Self::DataStream: Unpin + Send + Sync,
@@ -136,7 +108,7 @@ pub trait Transport: std::fmt::Debug {
         let stream = self.send_stream(envelope);
         Box::pin(async move {
             let mut stream = stream.await?;
-            copy(message, &mut stream).await?;
+            copy(&mut message, &mut stream).await?;
             poll_fn(|cx| Pin::new(&mut stream).poll_close(cx)).await?;
             Ok(stream)
         })
