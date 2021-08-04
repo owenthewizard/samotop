@@ -24,24 +24,60 @@ find tmp/journal -print -exec cat {} \;
 ```
  */
 
-use async_std::io::Read;
-use async_std::io::Write;
-use async_std::task;
-use samotop::{
-    io::{tls::TlsCapable, ConnectionInfo, IoService},
-    mail::{Builder, Journal},
-    smtp::{Lmtp, SmtpParser},
-};
-use std::pin::Pin;
+#[cfg(feature = "delivery")]
+#[async_std::main]
+async fn main() -> Result<()> {
+    use async_std::io::Read;
+    use async_std::io::Write;
+    use async_std::task;
+    use samotop::{
+        io::{tls::TlsCapable, ConnectionInfo, IoService},
+        mail::{Builder, Journal},
+        smtp::{Lmtp, SmtpParser},
+    };
+    use std::pin::Pin;
 
-type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
+    struct MyIo<R, W> {
+        read: Pin<Box<R>>,
+        write: Pin<Box<W>>,
+    }
+    
+    impl<R: Read, W> Read for MyIo<R, W> {
+        fn poll_read(
+            mut self: Pin<&mut Self>,
+            cx: &mut task::Context<'_>,
+            buf: &mut [u8],
+        ) -> task::Poll<std::io::Result<usize>> {
+            self.read.as_mut().poll_read(cx, buf)
+        }
+    }
+    
+    impl<R, W: Write> Write for MyIo<R, W> {
+        fn poll_write(
+            mut self: Pin<&mut Self>,
+            cx: &mut task::Context<'_>,
+            buf: &[u8],
+        ) -> task::Poll<std::io::Result<usize>> {
+            self.write.as_mut().poll_write(cx, buf)
+        }
+    
+        fn poll_flush(
+            mut self: Pin<&mut Self>,
+            cx: &mut task::Context<'_>,
+        ) -> task::Poll<std::io::Result<()>> {
+            self.write.as_mut().poll_flush(cx)
+        }
+    
+        fn poll_close(
+            mut self: Pin<&mut Self>,
+            cx: &mut task::Context<'_>,
+        ) -> task::Poll<std::io::Result<()>> {
+            self.write.as_mut().poll_close(cx)
+        }
+    }
 
-fn main() -> Result<()> {
     env_logger::init();
-    task::block_on(main_fut())
-}
-
-async fn main_fut() -> Result<()> {
+    
     let service = Builder + Journal::new("tmp/journal/") + Lmtp.with(SmtpParser);
 
     let stream = MyIo {
@@ -54,41 +90,10 @@ async fn main_fut() -> Result<()> {
     service.build().handle(Ok(Box::new(stream)), conn).await
 }
 
-struct MyIo<R, W> {
-    read: Pin<Box<R>>,
-    write: Pin<Box<W>>,
-}
+type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
-impl<R: Read, W> Read for MyIo<R, W> {
-    fn poll_read(
-        mut self: Pin<&mut Self>,
-        cx: &mut task::Context<'_>,
-        buf: &mut [u8],
-    ) -> task::Poll<std::io::Result<usize>> {
-        self.read.as_mut().poll_read(cx, buf)
-    }
-}
-
-impl<R, W: Write> Write for MyIo<R, W> {
-    fn poll_write(
-        mut self: Pin<&mut Self>,
-        cx: &mut task::Context<'_>,
-        buf: &[u8],
-    ) -> task::Poll<std::io::Result<usize>> {
-        self.write.as_mut().poll_write(cx, buf)
-    }
-
-    fn poll_flush(
-        mut self: Pin<&mut Self>,
-        cx: &mut task::Context<'_>,
-    ) -> task::Poll<std::io::Result<()>> {
-        self.write.as_mut().poll_flush(cx)
-    }
-
-    fn poll_close(
-        mut self: Pin<&mut Self>,
-        cx: &mut task::Context<'_>,
-    ) -> task::Poll<std::io::Result<()>> {
-        self.write.as_mut().poll_close(cx)
-    }
+#[cfg(not(feature = "delivery"))]
+#[async_std::main]
+async fn main() -> Result<()> {
+    panic!("This will only work with the delivery feature enabled.")
 }

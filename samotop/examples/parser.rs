@@ -1,14 +1,11 @@
 //! Demonstrating the SMTP parser built from PEG grammar.
 
-extern crate samotop;
-
-use std::io::stdin;
-
-use samotop::smtp::command::SmtpCommand;
-
-use crate::samotop::smtp::*;
-
+#[cfg(any(feature = "parser-peg", feature = "parser-nom"))]
 fn main() -> std::io::Result<()> {
+    use samotop::smtp::command::SmtpCommand;
+    use samotop::smtp::*;
+    use std::io::stdin;
+
     let mut input = String::new();
     let state = SmtpContext::default();
     println!("Type some SMTP commands...");
@@ -32,4 +29,9 @@ fn main() -> std::io::Result<()> {
             input = input.split_off(i);
         }
     }
+}
+
+#[cfg(not(any(feature = "parser-peg", feature = "parser-nom")))]
+fn main() -> std::io::Result<()> {
+    panic!("This will only work with either parser-peg or parser-nom feature enabled.")
 }
