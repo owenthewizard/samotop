@@ -22,8 +22,4 @@ version = "0.13.0-samotop-dev"
 path = "../samotop-core"
 
 [dependencies]
-async-native-tls = "0.3"
-
-[features]
-default = ["vendored"]
-vendored = ["async-native-tls/vendored"]
+async-native-tls = { version = "0.3", features = ["vendored"] }

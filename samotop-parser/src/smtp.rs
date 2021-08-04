@@ -1,5 +1,5 @@
 use crate::SmtpParserPeg;
-use samotop_core::{common::Error, mail::StartTls, smtp::command::*, smtp::*};
+use samotop_core::{common::Error, smtp::command::*, smtp::StartTls, smtp::*};
 use std::net::{Ipv4Addr, Ipv6Addr};
 use std::str::FromStr;
 
@@ -8,11 +8,11 @@ pub mod grammar {
 }
 
 impl Parser<StartTls> for SmtpParserPeg {
-    fn parse(&self, input: &[u8], state: &SmtpState) -> ParseResult<StartTls> {
+    fn parse(&self, input: &[u8], state: &SmtpContext) -> ParseResult<StartTls> {
         if input.is_empty() {
             return Err(ParseError::Incomplete);
         }
-        if let Some(mode) = state.transaction.mode {
+        if let Some(mode) = state.session.mode {
             return Err(ParseError::Mismatch(format!(
                 "Not parsing in {:?} mode",
                 mode
@@ -28,11 +28,11 @@ impl Parser<StartTls> for SmtpParserPeg {
 }
 
 impl Parser<SmtpCommand> for SmtpParserPeg {
-    fn parse(&self, input: &[u8], state: &SmtpState) -> ParseResult<SmtpCommand> {
+    fn parse(&self, input: &[u8], state: &SmtpContext) -> ParseResult<SmtpCommand> {
         if input.is_empty() {
             return Err(ParseError::Incomplete);
         }
-        if let Some(mode) = state.transaction.mode {
+        if let Some(mode) = state.session.mode {
             return Err(ParseError::Mismatch(format!(
                 "Not parsing in {:?} mode",
                 mode

@@ -1,66 +1,85 @@
-use crate::mail::{SessionInfo, Transaction};
-use crate::{common::*, smtp::SmtpPath};
-
-use super::Recipient;
+use crate::{
+    common::*,
+    mail::Recipient,
+    smtp::{SmtpPath, SmtpSession},
+};
+use std::ops::Deref;
 
 /**
 A mail guard can be queried whether a recepient is accepted on which address.
 */
 pub trait MailGuard: fmt::Debug {
-    fn add_recipient<'a, 'f>(
+    fn add_recipient<'a, 's, 'f>(
         &'a self,
-        request: AddRecipientRequest,
+        session: &'s mut SmtpSession,
+        rcpt: Recipient,
     ) -> S2Fut<'f, AddRecipientResult>
     where
-        'a: 'f;
-    fn start_mail<'a, 's, 'f>(
-        &'a self,
-        session: &'s SessionInfo,
-        request: StartMailRequest,
-    ) -> S2Fut<'f, StartMailResult>
+        'a: 'f,
+        's: 'f;
+    fn start_mail<'a, 's, 'f>(&'a self, session: &'s mut SmtpSession) -> S2Fut<'f, StartMailResult>
     where
         'a: 'f,
         's: 'f;
 }
 
-impl<T> MailGuard for Arc<T>
+impl<S: MailGuard + ?Sized, T: Deref<Target = S>> MailGuard for T
 where
-    T: MailGuard,
+    T: fmt::Debug + Send + Sync,
+    S: Sync,
 {
-    fn add_recipient<'a, 'f>(
+    fn add_recipient<'a, 's, 'f>(
         &'a self,
-        request: AddRecipientRequest,
+        session: &'s mut SmtpSession,
+        rcpt: Recipient,
     ) -> S2Fut<'f, AddRecipientResult>
-    where
-        'a: 'f,
-    {
-        T::add_recipient(self, request)
-    }
-    fn start_mail<'a, 's, 'f>(
-        &'a self,
-        session: &'s SessionInfo,
-        request: StartMailRequest,
-    ) -> S2Fut<'f, StartMailResult>
     where
         'a: 'f,
         's: 'f,
     {
-        T::start_mail(self, session, request)
+        Box::pin(async move { S::add_recipient(Deref::deref(self), session, rcpt).await })
+    }
+    fn start_mail<'a, 's, 'f>(&'a self, session: &'s mut SmtpSession) -> S2Fut<'f, StartMailResult>
+    where
+        'a: 'f,
+        's: 'f,
+    {
+        Box::pin(async move { S::start_mail(Deref::deref(self), session).await })
     }
 }
 
-pub type StartMailRequest = Transaction;
+impl MailGuard for Dummy {
+    fn add_recipient<'a, 's, 'f>(
+        &'a self,
+        _session: &'s mut SmtpSession,
+        rcpt: Recipient,
+    ) -> S2Fut<'f, AddRecipientResult>
+    where
+        'a: 'f,
+        's: 'f,
+    {
+        Box::pin(ready(AddRecipientResult::Inconclusive(rcpt)))
+    }
+    /// Accept
+    fn start_mail<'a, 's, 'f>(&'a self, _session: &'s mut SmtpSession) -> S2Fut<'f, StartMailResult>
+    where
+        'a: 'f,
+        's: 'f,
+    {
+        Box::pin(ready(StartMailResult::Accepted))
+    }
+}
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 #[allow(clippy::large_enum_variant)]
 pub enum StartMailResult {
     /// Failure with explanation that should include the ID
     Failed(StartMailFailure, String),
     /// 250 Mail command accepted
-    Accepted(Transaction),
+    Accepted,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StartMailFailure {
     /// The whole mail transaction failed, subsequent RCPT and DATA will fail
     /// 421  <domain> Service not available, closing transmission channel
@@ -85,25 +104,16 @@ pub enum StartMailFailure {
     InvalidParameterValue,
 }
 
-/// Request to check if mail is accepted for given recipient
-#[derive(Debug)]
-pub struct AddRecipientRequest {
-    /// The envelope to add to
-    pub transaction: Transaction,
-    /// The SMTP rcpt to:path sent by peer we want to check
-    pub rcpt: Recipient,
-}
-
 #[derive(Debug)]
 #[allow(clippy::large_enum_variant)]
 pub enum AddRecipientResult {
-    Inconclusive(AddRecipientRequest),
+    Inconclusive(Recipient),
     /// Failed with description that should include the ID, see `AddRecipientFailure`
-    Failed(Transaction, AddRecipientFailure, String),
+    Failed(AddRecipientFailure, String),
     /// 251  User not local; will forward to <forward-path>
-    AcceptedWithNewPath(Transaction, SmtpPath),
+    AcceptedWithNewPath(SmtpPath),
     /// 250  Requested mail action okay, completed
-    Accepted(Transaction),
+    Accepted,
 }
 
 #[derive(Debug, Clone)]

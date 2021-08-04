@@ -4,44 +4,47 @@ extern crate log;
 mod lookup;
 
 use self::lookup::*;
-use samotop_core::common::*;
-use samotop_core::mail::*;
-use samotop_core::smtp::*;
+use samotop_core::{
+    common::*,
+    mail::{AcceptsDispatch, DispatchError, DispatchResult, MailDispatch, MailSetup},
+    smtp::{SmtpPath, SmtpSession},
+};
 pub use viaspf::Config;
 use viaspf::{evaluate_spf, SpfResult};
 
-/// MailSetup that adds SPF check. If the SPF check results in Fail, mail is rejected.
-pub fn provide_viaspf() -> Provider<Config> {
-    Provider(Config::default())
-}
-
-#[derive(Clone, Debug, Default)]
-pub struct Provider<T>(pub T);
-
+/// enables checking for SPF records
 #[derive(Clone, Debug)]
-pub struct SpfService {
-    config: Arc<Config>,
-}
+pub struct Spf;
 
-impl SpfService {
-    pub fn new(config: Config) -> Self {
-        Self {
+impl Spf {
+    /// use viaspf config
+    pub fn with_config(self, config: Config) -> SpfWithConfig {
+        SpfWithConfig {
             config: Arc::new(config),
         }
     }
 }
 
-impl MailSetup for Provider<Config> {
-    fn setup(self, config: &mut Configuration) {
-        config.dispatch.insert(0, Box::new(SpfService::new(self.0)));
+#[derive(Clone, Debug)]
+pub struct SpfWithConfig {
+    config: Arc<Config>,
+}
+
+impl<T: AcceptsDispatch> MailSetup<T> for SpfWithConfig {
+    fn setup(self, config: &mut T) {
+        config.add_last_dispatch(self)
+    }
+}
+impl<T: AcceptsDispatch> MailSetup<T> for Spf {
+    fn setup(self, config: &mut T) {
+        config.add_last_dispatch(Spf.with_config(Config::default()))
     }
 }
 
-impl MailDispatch for SpfService {
-    fn send_mail<'a, 's, 'f>(
+impl MailDispatch for SpfWithConfig {
+    fn open_mail_body<'a, 's, 'f>(
         &'a self,
-        session: &'s SessionInfo,
-        mut transaction: Transaction,
+        session: &'s mut SmtpSession,
     ) -> S1Fut<'f, DispatchResult>
     where
         'a: 'f,
@@ -52,7 +55,7 @@ impl MailDispatch for SpfService {
             Ok(ip) => ip,
         };
         let peer_name = session.peer_name.clone().unwrap_or_default();
-        let sender = match transaction.mail.as_ref().map(|m| m.sender()) {
+        let sender = match session.transaction.mail.as_ref().map(|m| m.sender()) {
             None | Some(SmtpPath::Null) | Some(SmtpPath::Postmaster) => String::new(),
             Some(SmtpPath::Mailbox { host, .. }) => host.domain(),
         };
@@ -61,7 +64,7 @@ impl MailDispatch for SpfService {
             let resolver = match new_resolver().await {
                 Err(e) => {
                     error!("Could not crerate resolver! {:?}", e);
-                    return Err(DispatchError::FailedTemporarily);
+                    return Err(DispatchError::Temporary);
                 }
                 Ok(resolver) => resolver,
             };
@@ -76,14 +79,15 @@ impl MailDispatch for SpfService {
             match evaluation.result {
                 SpfResult::Fail(explanation) => {
                     info!("mail rejected due to SPF fail: {}", explanation);
-                    Err(DispatchError::Refused)
+                    Err(DispatchError::Permanent)
                 }
                 result => {
                     debug!("mail OK with SPF result: {}", result);
-                    transaction
+                    session
+                        .transaction
                         .extra_headers
                         .push_str(format!("X-Samotop-SPF: {}\r\n", result).as_str());
-                    Ok(transaction)
+                    Ok(())
                 }
             }
         };
@@ -94,20 +98,14 @@ impl MailDispatch for SpfService {
 
 #[cfg(test)]
 mod tests {
-    use samotop_core::io::ConnectionInfo;
-
     use super::*;
 
     #[test]
     fn default_mail_fut_is_sync() {
-        let sess = SessionInfo::new(ConnectionInfo::default(), "test".to_owned());
-        let tran = Transaction {
-            id: "sessionid".to_owned(),
-            ..Default::default()
-        };
+        let mut sess = SmtpSession::default();
         let cfg = Config::default();
-        let sut = SpfService::new(cfg);
-        let fut = sut.send_mail(&sess, tran);
+        let sut = Spf.with_config(cfg);
+        let fut = sut.open_mail_body(&mut sess);
         is_send(fut);
     }
 

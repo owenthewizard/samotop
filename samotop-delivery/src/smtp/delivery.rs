@@ -37,15 +37,13 @@ impl<C: Connector> LmtpDispatch<C> {
     }
 }
 
-impl<C: Connector> MailSetup for LmtpDispatch<C>
+impl<C: Connector, T: AcceptsDispatch> MailSetup<T> for LmtpDispatch<C>
 where
     C: 'static,
     <C as Connector>::Stream: std::fmt::Debug,
 {
-    fn setup(self, config: &mut Configuration) {
+    fn setup(self, config: &mut T) {
         let transport = self.client.connect_with(self.connector);
-        config
-            .dispatch
-            .insert(0, Box::new(DispatchMail::new(transport)))
+        config.add_last_dispatch(DispatchMail::new(transport))
     }
 }

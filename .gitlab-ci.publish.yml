@@ -1,0 +1,29 @@
+include:
+  - "/.gitlab-ci.config.yml"
+
+.publish-crate:
+  extends: .test-crate
+  stage: release
+  when: manual
+  interruptible: false
+  script:
+    - echo "Releasing component ${COMPONENT:?cannot be empty} v ${VERSION:?cannot be empty}"
+    - cargo publish --manifest-path "$COMPONENT/Cargo.toml" --no-verify --token "$CRATES_KEY" --color always
+
+.test-crate:
+  variables:
+    COMPVER: $CI_JOB_NAME
+  stage: test
+  interruptible: true
+  before_script:
+    - rustc --version --verbose
+    - cargo --version --verbose
+    - COMPVER="${COMPVER%% *}"
+    - COMPONENT="$(dirname "$COMPVER")"
+    - VERSION="${COMPVER##$COMPONENT/}"
+  script:
+    - echo "Testing component ${COMPONENT:?cannot be empty} v ${VERSION:?cannot be empty}"
+    - cargo publish --manifest-path "$COMPONENT/Cargo.toml" --dry-run --color always
+    - cargo test --manifest-path "$COMPONENT/Cargo.toml" --release --no-default-features --color always
+    - cargo test --manifest-path "$COMPONENT/Cargo.toml" --release --all-features --color always
+    - test "$VERSION" == "$(cargo pkgid --manifest-path "$COMPONENT/Cargo.toml" | cut -d '#' -f2- | tr -d '\n')"

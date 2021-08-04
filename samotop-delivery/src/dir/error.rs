@@ -11,9 +11,6 @@ pub enum Error {
     /// IO error
     #[error("io error: {0}")]
     Io(#[from] io::Error),
-    /// JSON serialization error
-    #[error("serialization error: {0}")]
-    JsonSerialization(#[from] serde_json::Error),
 }
 
 impl From<&'static str> for Error {

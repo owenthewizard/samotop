@@ -1,56 +1,68 @@
-use crate::{
-    mail::{AddRecipientFailure, Builder, MailService, SessionInfo, StartMailFailure, Transaction},
-    smtp::{DriverControl, SmtpPath, SmtpReply},
-};
-use std::collections::VecDeque;
+use crate::io::ConnectionInfo;
+use crate::mail::{AddRecipientFailure, StartMailFailure, Transaction};
+use crate::smtp::*;
 
-pub struct SmtpState {
-    pub service: Box<dyn SyncMailService>,
-    pub session: SessionInfo,
+#[derive(Debug, Default)]
+pub struct SmtpSession {
+    /// Description of the underlying connection
+    pub connection: ConnectionInfo,
+    /// ESMTP extensions enabled for this session
+    pub extensions: ExtensionSet,
+    /// The name of the service serving this session
+    pub service_name: String,
+    /// The name of the peer as introduced by the HELO command
+    pub peer_name: Option<String>,
+    /// Output to be processed by a driver - responses and IO controls
+    pub output: Vec<DriverControl>,
+    /// Input to be interpretted
+    pub input: Vec<u8>,
+    /// Special mode used to switch parsers
+    pub mode: Option<&'static str>,
+    /// Current e-mail transaction
     pub transaction: Transaction,
-    pub writes: VecDeque<DriverControl>,
 }
 
-impl Default for SmtpState {
-    fn default() -> Self {
-        SmtpState {
-            service: Box::new(Builder::default().build()),
-            session: SessionInfo::default(),
-            transaction: Transaction::default(),
-            writes: vec![].into(),
+impl SmtpSession {
+    /// Special mode where classic SMTP data are expected,
+    /// used after reading some data without CRLF to keep track of the dot state
+    pub const DATA_PARTIAL_MODE: &'static str = "DATA_PARTIAL";
+    /// Special mode where classic SMTP data are expected
+    pub const DATA_MODE: &'static str = "DATA";
+
+    pub fn new(connection: ConnectionInfo) -> Self {
+        Self {
+            connection,
+            ..Default::default()
         }
     }
-}
-
-impl SmtpState {
-    pub fn new(service: impl MailService + Send + Sync + 'static) -> Self {
-        Self {
-            service: Box::new(service),
-            writes: Default::default(),
-            transaction: Default::default(),
-            session: Default::default(),
-        }
+    pub fn is_expecting_commands(&self) -> bool {
+        self.mode.is_none() || self.transaction.sink.is_none()
     }
     pub fn reset_helo(&mut self, peer_name: String) {
         self.reset();
-        self.session.peer_name = Some(peer_name);
+        self.peer_name = Some(peer_name);
     }
 
     pub fn reset(&mut self) -> SayResult {
         self.transaction = Transaction::default();
+        self.mode = None;
     }
 
     /// Shut the session down without a response
     pub fn shutdown(&mut self) -> SayResult {
         self.reset();
-        self.session = SessionInfo::default();
         self.say(DriverControl::Shutdown)
     }
-}
+    pub fn pop_control(&mut self) -> Option<DriverControl> {
+        if self.output.is_empty() {
+            None
+        } else {
+            Some(self.output.remove(0))
+        }
+    }
 
-impl SmtpState {
     pub fn say(&mut self, what: DriverControl) -> SayResult {
-        self.writes.push_back(what);
+        self.output.push(what);
     }
     pub fn say_reply(&mut self, c: SmtpReply) -> SayResult {
         self.say(DriverControl::Response(c.to_string().into()))
@@ -78,19 +90,16 @@ impl SmtpState {
     /// Reply "220 @name service ready"
     pub fn say_service_ready(&mut self) -> SayResult {
         // TODO - indicate ESMTP if available
-        self.say_reply(SmtpReply::ServiceReadyInfo(
-            self.session.service_name.clone(),
-        ))
+        self.say_reply(SmtpReply::ServiceReadyInfo(self.service_name.clone()))
     }
     /// Reply something like "250 @local greets @remote"
     pub fn say_helo(&mut self) -> SayResult {
         self.say_reply(SmtpReply::OkHeloInfo {
-            local: self.session.service_name.clone(),
+            local: self.service_name.clone(),
             remote: self
-                .session
                 .peer_name
                 .as_ref()
-                .unwrap_or(&self.session.connection.peer_addr)
+                .unwrap_or(&self.connection.peer_addr)
                 .clone(),
             extensions: vec![],
         })
@@ -98,15 +107,14 @@ impl SmtpState {
     /// Reply something like "250 @local greets @remote, we have extensions: <extensions>"
     pub fn say_ehlo(&mut self) -> SayResult {
         self.say_reply(SmtpReply::OkHeloInfo {
-            local: self.session.service_name.clone(),
+            local: self.service_name.clone(),
             remote: self
-                .session
                 .peer_name
                 .as_ref()
-                .unwrap_or(&self.session.connection.peer_addr)
+                .unwrap_or(&self.connection.peer_addr)
                 .clone(),
 
-            extensions: self.session.extensions.iter().map(String::from).collect(),
+            extensions: self.extensions.iter().map(String::from).collect(),
         })
     }
     /// Reply and shut the session down
@@ -122,7 +130,7 @@ impl SmtpState {
     /// Reply "421 @name service not available, closing transmission channel" and shut the session down
     pub fn say_shutdown_service_err(&mut self) -> SayResult {
         self.say_shutdown(SmtpReply::ServiceNotAvailableError(
-            self.session.service_name.clone(),
+            self.service_name.clone(),
         ))
     }
     /// Processing error
@@ -132,9 +140,7 @@ impl SmtpState {
     }
     /// Normal response to quit command
     pub fn say_shutdown_ok(&mut self) -> SayResult {
-        self.say_shutdown(SmtpReply::ClosingConnectionInfo(
-            self.session.service_name.clone(),
-        ))
+        self.say_shutdown(SmtpReply::ClosingConnectionInfo(self.service_name.clone()))
     }
     pub fn say_mail_failed(&mut self, failure: StartMailFailure, description: String) -> SayResult {
         use StartMailFailure as F;
@@ -178,7 +184,7 @@ impl SmtpState {
     }
     pub fn say_start_data_challenge(&mut self) -> SayResult {
         self.say_reply(SmtpReply::StartMailInputChallenge);
-        self.transaction.mode = Some(Transaction::DATA_MODE);
+        self.mode = Some(Self::DATA_MODE);
     }
     pub fn say_start_tls(&mut self) -> SayResult {
         self.say_service_ready();
@@ -195,20 +201,34 @@ impl SmtpState {
 
 type SayResult = ();
 
-pub trait SyncMailService: MailService + Sync + Send {}
-impl<T> SyncMailService for T where T: MailService + Sync + Send {}
+impl std::fmt::Display for SmtpSession {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
+        write!(
+            f,
+            "Client {:?} using service {} with extensions {} on {}. There are {} input bytes and {} output items pending.",
+            self.peer_name,
+            self.service_name,
+            self.extensions
+                .iter()
+                .fold(String::new(), |s, r| s + format!("{}, ", r).as_ref()),
+            self.connection,
+            self.input.len(),
+            self.output.len()
+        )
+    }
+}
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::{
-        mail::{Builder, Recipient},
+        mail::Recipient,
         smtp::{command::SmtpMail, SmtpPath},
     };
 
     #[test]
     fn transaction_gets_reset() {
-        let mut sut = SmtpState::new(Builder::default().build());
+        let mut sut = SmtpSession::default();
         sut.transaction.id = "someid".to_owned();
         sut.transaction.mail = Some(SmtpMail::Mail(SmtpPath::Null, vec![]));
         sut.transaction.rcpts.push(Recipient::null());

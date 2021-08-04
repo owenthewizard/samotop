@@ -29,7 +29,7 @@ delivery = ["samotop-delivery"]
 smime = ["samotop-smime"]
 spf = ["samotop-with-spf"]
 rust-tls = ["samotop-with-rustls"]
-native-tls = ["samotop-with-native-tls", "samotop-with-native-tls/vendored"]
+native-tls = ["samotop-with-native-tls", "samotop-with-native-tls"]
 parser-peg = ["samotop-parser"]
 parser-nom = ["samotop-parser-nom"]
 mapper = ["regex"]
@@ -41,7 +41,7 @@ regex = { version = "1.5", optional = true, default-features = false }
 [dependencies.samotop-core]
 version = "0.13.0-samotop-dev"
 path = "../samotop-core"
-features = ["server"]
+features = ["server", "driver", "prudence"]
 
 [dependencies.samotop-parser]
 version = "0.13.0-samotop-dev"
@@ -81,6 +81,4 @@ optional = true
 [dev-dependencies]
 env_logger = "0.8"
 insta = { version = "1.7" }
-async-std = { version = "1.9", default-features = false, features = [
-    "attributes",
-] }
+async-std = { version = "1.9", features = ["attributes"] }

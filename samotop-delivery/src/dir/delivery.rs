@@ -7,21 +7,19 @@ use std::path::PathBuf;
 ///
 /// E-mails are stored in the given folder according to MailDir standard.
 #[derive(Debug)]
-pub struct Dir {
+pub struct MailDir {
     pub path: PathBuf,
 }
 
-impl Dir {
-    pub fn new(path: PathBuf) -> Result<Dir> {
-        Ok(Dir { path })
+impl MailDir {
+    pub fn new(path: PathBuf) -> Result<MailDir> {
+        Ok(MailDir { path })
     }
 }
 
-impl MailSetup for Dir {
-    fn setup(self, config: &mut Configuration) {
+impl<T: AcceptsDispatch> MailSetup<T> for MailDir {
+    fn setup(self, config: &mut T) {
         let transport = MaildirTransport::new(self.path);
-        config
-            .dispatch
-            .insert(0, Box::new(DispatchMail::new(transport)))
+        config.add_last_dispatch(DispatchMail::new(transport))
     }
 }

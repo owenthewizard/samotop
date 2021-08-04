@@ -18,20 +18,26 @@ EOF
 
  */
 
-use samotop::mail::NullDispatch;
-use samotop::mail::{Builder, Esmtp};
-use samotop::server::TcpServer;
-use samotop::smtp::SmtpParser;
+#[cfg(any(feature = "parser-nom", feature = "parser-peg"))]
+async fn main_fut() -> Result<()> {
+    use samotop::mail::Builder;
+    use samotop::mail::NullDispatch;
+    use samotop::server::TcpServer;
+    use samotop::smtp::{Esmtp, SmtpParser};
 
-type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
+    let service = Builder + NullDispatch + Esmtp.with(SmtpParser);
+    TcpServer::on("localhost:2525").serve(service.build()).await
+}
+
+#[cfg(not(any(feature = "parser-nom", feature = "parser-peg")))]
+async fn main_fut() -> Result<()> {
+    panic!("This will only work with some parser enabled - parser-peg or parser-nom")
+}
 
 #[async_std::main]
 async fn main() -> Result<()> {
     env_logger::init();
-    let mail_service = Builder::default()
-        .using(NullDispatch)
-        .using(Esmtp.with(SmtpParser))
-        .build();
-
-    TcpServer::on("localhost:2525").serve(mail_service).await
+    main_fut().await
 }
+
+type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;

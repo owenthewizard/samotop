@@ -1,14 +1,13 @@
 use crate::{
     common::S1Fut,
-    mail::Esmtp,
     smtp::{
         command::{SmtpHelo, SmtpUnknownCommand},
-        Action, SmtpState,
+        Action, Esmtp, SmtpContext,
     },
 };
 
 impl Action<SmtpHelo> for Esmtp {
-    fn apply<'a, 's, 'f>(&'a self, cmd: SmtpHelo, state: &'s mut SmtpState) -> S1Fut<'f, ()>
+    fn apply<'a, 's, 'f>(&'a self, cmd: SmtpHelo, state: &'s mut SmtpContext) -> S1Fut<'f, ()>
     where
         'a: 'f,
         's: 'f,
@@ -32,12 +31,12 @@ impl Action<SmtpHelo> for Esmtp {
 
 /// Applies given helo to the state
 /// It assumes it is the right HELO/EHLO/LHLO variant
-pub fn apply_helo(helo: SmtpHelo, is_extended: bool, state: &mut SmtpState) {
-    state.reset_helo(helo.host.to_string());
+pub fn apply_helo(helo: SmtpHelo, is_extended: bool, state: &mut SmtpContext) {
+    state.session.reset_helo(helo.host.to_string());
 
     match is_extended {
-        false => state.say_helo(),
-        true => state.say_ehlo(),
+        false => state.session.say_helo(),
+        true => state.session.say_ehlo(),
     };
 }
 
@@ -45,18 +44,21 @@ pub fn apply_helo(helo: SmtpHelo, is_extended: bool, state: &mut SmtpState) {
 mod tests {
     use super::*;
     use crate::{
-        mail::{Builder, Recipient},
+        mail::Recipient,
         smtp::{command::SmtpMail, SmtpHost, SmtpPath},
     };
 
     #[test]
     fn transaction_gets_reset() {
         async_std::task::block_on(async move {
-            let mut set = SmtpState::new(Builder::default().build());
-            set.transaction.id = "someid".to_owned();
-            set.transaction.mail = Some(SmtpMail::Mail(SmtpPath::Null, vec![]));
-            set.transaction.rcpts.push(Recipient::null());
-            set.transaction.extra_headers.insert_str(0, "feeeha");
+            let mut set = SmtpContext::default();
+            set.session.transaction.id = "someid".to_owned();
+            set.session.transaction.mail = Some(SmtpMail::Mail(SmtpPath::Null, vec![]));
+            set.session.transaction.rcpts.push(Recipient::null());
+            set.session
+                .transaction
+                .extra_headers
+                .insert_str(0, "feeeha");
 
             Esmtp
                 .apply(
@@ -67,14 +69,14 @@ mod tests {
                     &mut set,
                 )
                 .await;
-            assert!(set.transaction.is_empty());
+            assert!(set.session.transaction.is_empty());
         })
     }
 
     #[test]
     fn helo_is_set() {
         async_std::task::block_on(async move {
-            let mut set = SmtpState::new(Builder::default().build());
+            let mut set = SmtpContext::default();
 
             Esmtp
                 .apply(
@@ -91,7 +93,7 @@ mod tests {
 
     #[test]
     fn is_sync_and_send() {
-        let mut set = SmtpState::new(Builder::default().build());
+        let mut set = SmtpContext::default();
         let res = Esmtp.apply(
             SmtpHelo {
                 verb: "EHLO".to_string(),

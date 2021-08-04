@@ -1,6 +1,6 @@
 use crate::SMime;
 use log::error;
-use samotop_core::{common::*, mail::*};
+use samotop_core::{common::*, mail::*, smtp::SmtpSession};
 use std::collections::VecDeque;
 use std::path::PathBuf;
 
@@ -19,17 +19,16 @@ impl SMimeMail {
     }
 }
 
-impl MailSetup for SMimeMail {
-    fn setup(self, config: &mut Configuration) {
-        config.dispatch.insert(0, Box::new(self))
+impl<T: AcceptsDispatch> MailSetup<T> for SMimeMail {
+    fn setup(self, config: &mut T) {
+        config.add_last_dispatch(self)
     }
 }
 
 impl MailDispatch for SMimeMail {
-    fn send_mail<'a, 's, 'f>(
+    fn open_mail_body<'a, 's, 'f>(
         &'a self,
-        _session: &'s SessionInfo,
-        mut transaction: Transaction,
+        session: &'s mut SmtpSession,
     ) -> S1Fut<'f, DispatchResult>
     where
         'a: 'f,
@@ -39,23 +38,23 @@ impl MailDispatch for SMimeMail {
             let my_key = match self.private_key_file.to_str() {
                 None => {
                     error!("Server private key is not a string");
-                    return Err(DispatchError::FailedTemporarily);
+                    return Err(DispatchError::Temporary);
                 }
                 Some(key) => key,
             };
             let my_cert = match self.certificate_file.to_str() {
                 None => {
                     error!("Server certificate is not a string");
-                    return Err(DispatchError::FailedTemporarily);
+                    return Err(DispatchError::Temporary);
                 }
                 Some(cert) => cert,
             };
             let mut certs = VecDeque::new();
-            for rcpt in transaction.rcpts.iter() {
+            for rcpt in session.transaction.rcpts.iter() {
                 match rcpt.certificate {
                     None => {
                         error!("Recipient certificate is missing");
-                        return Err(DispatchError::FailedTemporarily);
+                        return Err(DispatchError::Temporary);
                     }
                     Some(Certificate::Bytes(_)) => {
                         unimplemented!("Only files are supported for now")
@@ -66,22 +65,22 @@ impl MailDispatch for SMimeMail {
             let her_cert = match certs.pop_front() {
                 None => {
                     error!("No recipients");
-                    return Err(DispatchError::FailedTemporarily);
+                    return Err(DispatchError::Temporary);
                 }
                 Some(file) => file,
             };
-            let sink = match transaction.sink.take() {
+            let sink = match session.transaction.sink.take() {
                 None => {
                     error!("Mail sink is not in transaction");
-                    return Err(DispatchError::FailedTemporarily);
+                    return Err(DispatchError::Temporary);
                 }
                 Some(sink) => sink,
             };
-            transaction.sink = Some(Box::pin(
+            session.transaction.sink = Some(Box::pin(
                 SMime::sign_and_encrypt(sink, my_key, my_cert, her_cert, certs.into())
                     .expect("todo"),
             ));
-            Ok(transaction)
+            Ok(())
         })
     }
 }

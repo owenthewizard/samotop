@@ -11,7 +11,9 @@ mod unknown;
 
 pub(crate) use self::body::apply_mail_body;
 pub(crate) use self::helo::apply_helo;
-use crate::common::{ready, S1Fut};
+use crate::common::*;
+use crate::io::tls::MayBeTls;
+use crate::mail::{AcceptsInterpretter, AcceptsSessionService, MailSetup};
 use crate::smtp::command::*;
 use crate::smtp::*;
 
@@ -23,50 +25,66 @@ pub struct Esmtp;
 pub type Rfc5321 = Esmtp;
 
 impl Esmtp {
-    pub fn with<P>(&self, parser: P) -> Interpretter
+    pub fn with<P>(&self, parser: P) -> EsmtpConfigured<P>
     where
-        P: Send + Sync + 'static,
-        P: Clone,
         P: Parser<SmtpCommand>,
         P: Parser<MailBody<Vec<u8>>>,
+        P: Send + Sync + 'static,
     {
-        Interpretter::default()
-            .call(Banner)
-            .parse::<SmtpCommand>()
-            .with(parser.clone())
-            .and_apply(Esmtp)
-            .parse::<MailBody<Vec<u8>>>()
-            .with(parser)
-            .and_apply(Esmtp)
+        EsmtpConfigured {
+            parser: Arc::new(parser),
+        }
+    }
+}
+impl<P, T> MailSetup<T> for EsmtpConfigured<P>
+where
+    T: AcceptsSessionService + AcceptsInterpretter,
+    P: Parser<SmtpCommand>,
+    P: Parser<MailBody<Vec<u8>>>,
+    P: fmt::Debug + Sync + Send + 'static,
+{
+    fn setup(self, config: &mut T) {
+        config.add_last_interpretter(
+            Interpretter::default()
+                .parse::<SmtpCommand>()
+                .with(self.parser.clone())
+                .and_apply(Esmtp)
+                .parse::<MailBody<Vec<u8>>>()
+                .with(self.parser.clone())
+                .and_apply(Esmtp),
+        );
+        config.add_last_session_service(self);
     }
 }
 
 #[derive(Debug)]
-pub struct Banner;
+pub struct EsmtpConfigured<P> {
+    parser: Arc<P>,
+}
 
-impl Interpret for Banner {
-    fn interpret<'a, 'i, 's, 'f>(
+impl<P> SessionService for EsmtpConfigured<P>
+where
+    P: Parser<SmtpCommand>,
+    P: Parser<MailBody<Vec<u8>>>,
+    P: fmt::Debug + Sync + Send + 'static,
+{
+    fn prepare_session<'a, 'i, 's, 'f>(
         &'a self,
-        _input: &'i [u8],
-        state: &'s mut SmtpState,
-    ) -> S1Fut<'f, InterpretResult>
+        _io: &'i mut Box<dyn MayBeTls>,
+        state: &'s mut SmtpContext,
+    ) -> S1Fut<'f, ()>
     where
         'a: 'f,
         'i: 'f,
         's: 'f,
     {
-        Box::pin(ready(if !state.session.banner_sent {
-            state.say_service_ready();
-            state.session.banner_sent = true;
-            Ok(None)
-        } else {
-            Err(ParseError::Mismatch("Banner has already been sent".into()))
-        }))
+        state.session.say_service_ready();
+        Box::pin(ready(()))
     }
 }
 
 impl Action<SmtpCommand> for Esmtp {
-    fn apply<'a, 's, 'f>(&'a self, cmd: SmtpCommand, state: &'s mut SmtpState) -> S1Fut<'f, ()>
+    fn apply<'a, 's, 'f>(&'a self, cmd: SmtpCommand, state: &'s mut SmtpContext) -> S1Fut<'f, ()>
     where
         'a: 'f,
         's: 'f,
