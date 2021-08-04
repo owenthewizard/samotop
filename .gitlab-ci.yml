@@ -191,7 +191,6 @@ publish-crates:
 
 publish-crates-trigger:
   stage: release
-  interruptible: true
   trigger:
     include:
       - artifact: target/publish-pipeline.yml
