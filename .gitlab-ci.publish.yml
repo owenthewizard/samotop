@@ -1,17 +1,6 @@
 include:
   - "/.gitlab-ci.config.yml"
 
-check:
-  extends: .publish-crate
-  when: always
-  script:
-    - |
-      cargo metadata --format-version 1 |
-      jq -r '.workspace_members | .[]' |
-      cut -d ' ' -f1 |
-      xargs -I {} curl -sSLf https://crates.io/api/v1/crates/{} |
-      jq -r ' .crate.name  + " " + .versions[].num '
-
 .publish-crate:
   extends: .test-crate
   stage: release

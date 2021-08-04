@@ -154,6 +154,16 @@ example-cmd:
     - find tmp/samotop/spool/new/ -type f -print -exec cat {} \;
     - test -z "$OUTPUT" || diff tmp/samotop/spool/new/* "$OUTPUT"
 
+check-crates:
+  stage: release
+  script:
+    - |
+      cargo metadata --format-version 1 |
+      jq -r '.workspace_members | .[]' |
+      cut -d ' ' -f1 |
+      xargs -I {} curl -sSLf https://crates.io/api/v1/crates/{} |
+      jq -r '.crate.name  + " " + .versions[].num'
+
 publish-crates:
   stage: build
   artifacts:
