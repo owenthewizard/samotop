@@ -14,7 +14,7 @@ include:
   #   - when: never
   script:
     - echo "Releasing component ${COMPONENT:?cannot be empty} v ${VERSION:?cannot be empty}"
-    - cargo publish --manifest-path "$COMPONENT/Cargo.toml" --token "$CRATES_KEY" --color always
+    - cargo publish --manifest-path "$COMPONENT/Cargo.toml" --no-verify --token "$CRATES_KEY" --color always
 
 .test-crate:
   variables:
