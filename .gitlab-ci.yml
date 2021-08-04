@@ -156,6 +156,7 @@ example-cmd:
 
 check-crates:
   stage: release
+  interruptible: true
   script:
     - |
       cargo metadata --format-version 1 |
@@ -169,6 +170,7 @@ publish-crates:
   artifacts:
     paths:
       - target/publish-pipeline.yml
+  interruptible: true
   before_script:
     - rustc --version --verbose
     - cargo --version --verbose
@@ -189,6 +191,7 @@ publish-crates:
 
 publish-crates-trigger:
   stage: release
+  interruptible: true
   trigger:
     include:
       - artifact: target/publish-pipeline.yml
