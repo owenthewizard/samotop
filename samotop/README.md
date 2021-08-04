@@ -1,7 +1,7 @@
 [![Build Status](https://gitlab.com/BrightOpen/Samotop/badges/develop/pipeline.svg)](https://gitlab.com/BrightOpen/Samotop/commits/master)
 ![Maintenance](https://img.shields.io/badge/maintenance-activly--developed-brightgreen.svg)
 
-# samotop 0.13.0-samotop-dev
+# samotop 0.13.0
 
 This is an SMTP server library with focus on privacy.
 There is also an actual SMTP server - see

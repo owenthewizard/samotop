@@ -41,7 +41,7 @@ debug-build:
     paths:
       - target/debug/samotop-server
       - Cargo.lock
-  cache: 
+  cache:
     <<: *cache
     policy: pull-push
   script:
@@ -154,46 +154,52 @@ example-cmd:
     - find tmp/samotop/spool/new/ -type f -print -exec cat {} \;
     - test -z "$OUTPUT" || diff tmp/samotop/spool/new/* "$OUTPUT"
 
-check-crates:
-  stage: release
-  interruptible: true
-  script:
-    - |
-      cargo metadata --format-version 1 |
-      jq -r '.workspace_members | .[]' |
-      cut -d ' ' -f1 |
-      xargs -I {} curl -sSLf https://crates.io/api/v1/crates/{} |
-      jq -r '.crate.name  + " " + .versions[].num'
-
 publish-crates:
   stage: build
   artifacts:
     paths:
-      - target/publish-pipeline.yml
+      - tmp/publish-pipeline.yml
   interruptible: true
   before_script:
     - rustc --version --verbose
     - cargo --version --verbose
+    - mkdir -p tmp
   script:
-    - cp .gitlab-ci.publish.yml target/publish-pipeline.yml
     - |
-      cargo metadata --format-version 1 | 
-        jq -r '.workspace_members | .[]' | 
-        cut -d ' ' -f-2 | tr ' ' '/' | 
+      # =====  List crates in publishing order ===================
+      truncate --size 0 tmp/crates
+      (cargo tree -p samotop-server --all-features && cargo tree -p samotop --all-features) | 
+      tac | grep -o 'samotop.*' | cut -d ' ' -f1-2 | sed 's/ v/ /g' |
+      xargs -I {} sh -c 'egrep "^{}$" tmp/crates >/dev/null || echo "{}" >> tmp/crates'
+      cat tmp/crates
+    - |
+      # ===== List published crates ==============================
+      cat tmp/crates |
+      cut -d ' ' -f1 |
+      xargs -I {} curl -sSLf https://crates.io/api/v1/crates/{} |
+      jq -r '.crate.name  + " " + .versions[].num' | tee tmp/crates-released
+    - |
+      # ===== Crates that need to be released in order ===========
+      (diff -d  --changed-group-format='%<' --unchanged-group-format='' tmp/crates tmp/crates-released || true) | 
+      tee tmp/crates-unreleased
+
+    - cp .gitlab-ci.publish.yml tmp/publish-pipeline.yml
+    - |
+      # ===== Create publish jobs ================================
+      cat tmp/crates-unreleased | tr ' ' '/' | 
         sed -r 's/(.*)\/(.*)/\0: \n  extends: .publish-crate\n  needs: ["\0 test"]\n  dependencies: ["\0 test"]\n  environment: crate\/\1\n/g' |
-        tee -a target/publish-pipeline.yml
+        tee -a tmp/publish-pipeline.yml
     - |
-      cargo metadata --format-version 1 | 
-        jq -r '.workspace_members | .[]' | 
-        cut -d ' ' -f-2 | tr ' ' '/' | 
+      # ===== Create test jobs ===================================
+      cat tmp/crates | tr ' ' '/' | 
         sed 's/.*/\0 test: \n  extends: .test-crate\n/g' |
-        tee -a target/publish-pipeline.yml
+        tee -a tmp/publish-pipeline.yml
 
 publish-crates-trigger:
   stage: release
   trigger:
     include:
-      - artifact: target/publish-pipeline.yml
+      - artifact: tmp/publish-pipeline.yml
         job: publish-crates
 
 server-version:
