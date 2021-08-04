@@ -168,7 +168,7 @@ publish-crates:
       cargo metadata --format-version 1 | 
         jq -r '.workspace_members | .[]' | 
         cut -d ' ' -f-2 | tr ' ' '/' | 
-        sed 's/.*/\0: \n  extends: .publish-crate\n  needs: ["\0 test"]\n  dependencies: ["\0 test"]\n/g' |
+        sed -r 's/(.*)\/(.*)/\0: \n  extends: .publish-crate\n  needs: ["\0 test"]\n  dependencies: ["\0 test"]\n  environment: crate\/\1\n/g' |
         tee -a target/publish-pipeline.yml
     - |
       cargo metadata --format-version 1 | 
@@ -176,7 +176,6 @@ publish-crates:
         cut -d ' ' -f-2 | tr ' ' '/' | 
         sed 's/.*/\0 test: \n  extends: .test-crate\n/g' |
         tee -a target/publish-pipeline.yml
-    
 
 publish-crates-trigger:
   stage: release
