@@ -1,5 +1,4 @@
-
-#[cfg(all(feature="default"))]
+#[cfg(all(feature = "default"))]
 mod int_tests {
 
     use async_std::channel::unbounded;

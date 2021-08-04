@@ -41,7 +41,7 @@ async fn main() -> Result<()> {
         read: Pin<Box<R>>,
         write: Pin<Box<W>>,
     }
-    
+
     impl<R: Read, W> Read for MyIo<R, W> {
         fn poll_read(
             mut self: Pin<&mut Self>,
@@ -51,7 +51,7 @@ async fn main() -> Result<()> {
             self.read.as_mut().poll_read(cx, buf)
         }
     }
-    
+
     impl<R, W: Write> Write for MyIo<R, W> {
         fn poll_write(
             mut self: Pin<&mut Self>,
@@ -60,14 +60,14 @@ async fn main() -> Result<()> {
         ) -> task::Poll<std::io::Result<usize>> {
             self.write.as_mut().poll_write(cx, buf)
         }
-    
+
         fn poll_flush(
             mut self: Pin<&mut Self>,
             cx: &mut task::Context<'_>,
         ) -> task::Poll<std::io::Result<()>> {
             self.write.as_mut().poll_flush(cx)
         }
-    
+
         fn poll_close(
             mut self: Pin<&mut Self>,
             cx: &mut task::Context<'_>,
@@ -77,7 +77,7 @@ async fn main() -> Result<()> {
     }
 
     env_logger::init();
-    
+
     let service = Builder + Journal::new("tmp/journal/") + Lmtp.with(SmtpParser);
 
     let stream = MyIo {

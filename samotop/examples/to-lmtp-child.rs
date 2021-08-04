@@ -53,7 +53,6 @@ async fn main() -> Result<()> {
     TcpServer::on("localhost:2525").serve(service.build()).await
 }
 
-
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
 #[cfg(not(feature = "delivery"))]
