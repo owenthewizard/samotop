@@ -56,8 +56,10 @@ mod store_tests {
 
     #[test]
     pub fn display_connection_info() {
-        let mut sut = ConnectionInfo::default();
-        sut.established = SystemTime::UNIX_EPOCH;
+        let sut = ConnectionInfo {
+            established: SystemTime::UNIX_EPOCH,
+            ..Default::default()
+        };
         let dump = sut.to_string();
         let dump = Regex::new("[0-9]+")
             .expect("regex")

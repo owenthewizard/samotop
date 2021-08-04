@@ -6,6 +6,16 @@ variables:
 
 image: $BUILDER_IMAGE
 
+cache:
+  key:
+    files:
+      - Cargo.lock
+  paths:
+    - target/
+    - $CARGO_HOME
+  policy: pull
+
 stages:
   - build
+  - test
   - release

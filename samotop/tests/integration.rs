@@ -118,7 +118,7 @@ async fn prudent_blocks_bad_client() {
         String::from_utf8_lossy(writes.recv().await.expect("response").as_slice()),
         @r###""451 Requested action aborted: error in processing.\r\n""###);
 
-    assert_eq!(writes.recv().await.is_err(), true, "Should have no more");
+    assert!(writes.recv().await.is_err(), "Should have no more");
 }
 
 #[async_std::test]
