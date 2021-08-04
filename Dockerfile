@@ -22,8 +22,7 @@ RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-reco
     git \
     curl \
     libssl-dev \
-    pkg-config \
-    diffutils
+    pkg-config
     # would break apt-get source
     #rm -rf /var/lib/apt/lists/*
 
