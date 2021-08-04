@@ -166,7 +166,7 @@ check-crates:
     #   xargs -I {} curl -sSLf https://crates.io/api/v1/crates/{} |
     #   jq -r '.crate.name  + " " + .versions[].num'
 
-    - :: List crates in publishing order
+    - ':: =====  List crates in publishing order ==================='
     - |
       mkdir -p tmp
       truncate --size 0 tmp/crates
@@ -175,14 +175,14 @@ check-crates:
       xargs -I {} sh -c 'egrep "^{}$" tmp/crates >/dev/null || echo "{}" >> tmp/crates'
       cat tmp/crates
 
-    - :: List published crates
+    - ':: ===== List published crates =============================='
     - |
       cat tmp/crates |
       cut -d ' ' -f1 |
       xargs -I {} curl -sSLf https://crates.io/api/v1/crates/{} |
       jq -r '.crate.name  + " v" + .versions[].num' | tee tmp/crates-released
 
-    - :: Crates that need to be released in order
+    - ':: ===== Crates that need to be released in order ==========='
     - diff -d  --changed-group-format='%<' --unchanged-group-format='' tmp/crates tmp/crates-released
 
 publish-crates:
