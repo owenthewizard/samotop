@@ -14,6 +14,14 @@ release-build:
     paths:
       - target/release/samotop-server
       - Cargo.lock
+  cache: &cache
+    key:
+      files:
+        - Cargo.lock
+    paths:
+      - target/
+      - $CARGO_HOME
+    policy: pull
   before_script:
     - rustc --version --verbose
     - cargo --version --verbose
@@ -33,7 +41,8 @@ debug-build:
     paths:
       - target/debug/samotop-server
       - Cargo.lock
-  cache:
+  cache: 
+    <<: *cache
     policy: pull-push
   script:
     - cargo build --all-targets --all-features --color always
@@ -64,6 +73,7 @@ nightly-test:
   only:
     - branches
   cache:
+    <<: *cache
     key:
       prefix: nightly
       files:
