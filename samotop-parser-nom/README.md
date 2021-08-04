@@ -1,7 +1,7 @@
 [![Build Status](https://gitlab.com/BrightOpen/Samotop/badges/develop/pipeline.svg)](https://gitlab.com/BrightOpen/Samotop/commits/master)
 ![Maintenance](https://img.shields.io/badge/maintenance-activly--developed-brightgreen.svg)
 
-# samotop-parser-nom 0.13.0-samotop-dev
+# samotop-parser-nom 0.13.0
 
 Aim: wrap rustyknife nom parser for samotop
 

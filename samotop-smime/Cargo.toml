@@ -1,6 +1,6 @@
 [package]
 name = "samotop-smime"
-version = "0.13.0-samotop-dev"
+version = "0.13.0"
 authors = ["Robert Cutajar <robert.cutajar@robajz.info>"]
 edition = "2018"
 license = "MIT OR Apache-2.0"
@@ -22,7 +22,7 @@ pin-project = "1.0"
 log = "0.4"
 
 [dependencies.samotop-core]
-version = "0.13.0-samotop-dev"
+version = "0.13.0"
 path = "../samotop-core"
 
 [dev-dependencies]

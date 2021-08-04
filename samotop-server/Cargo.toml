@@ -1,6 +1,6 @@
 [package]
 name = "samotop-server"
-version = "1.2.0-samotop-dev"
+version = "1.2.0"
 authors = ["jocutajar <tellnoone@robajz.info>"]
 license = "MIT OR Apache-2.0"
 description = "SMTP server with focus on privacy"
@@ -18,7 +18,7 @@ categories = ["email", "asynchronous"]
 gitlab = { repository = "BrightOpen/Samotop", branch = "develop" }
 
 [dependencies.samotop]
-version = "0.13.0-samotop-dev"
+version = "0.13.0"
 path = "../samotop"
 features = ["spf", "rust-tls", "delivery", "parser-peg", "smime"]
 default-features = false

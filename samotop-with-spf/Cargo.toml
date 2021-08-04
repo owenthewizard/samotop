@@ -1,6 +1,6 @@
 [package]
 name = "samotop-with-spf"
-version = "0.13.0-samotop-dev"
+version = "0.13.0"
 authors = ["jocutajar <tellnoone@robajz.info>"]
 license = "MIT OR Apache-2.0"
 description = "Integration of SPF checks into Samotop - SMTP server and library built on async-std"
@@ -18,7 +18,7 @@ gitlab = { repository = "BrightOpen/Samotop", branch = "develop" }
 maintenance = { status = "actively-developed" }
 
 [dependencies.samotop-core]
-version = "0.13.0-samotop-dev"
+version = "0.13.0"
 path = "../samotop-core"
 
 [dependencies]
