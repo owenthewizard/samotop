@@ -42,3 +42,4 @@ check:
     - cargo test --manifest-path "$COMPONENT/Cargo.toml" --release --no-default-features --color always
     - cargo test --manifest-path "$COMPONENT/Cargo.toml" --release --all-features --color always
     - test "$VERSION" == "$(cargo pkgid --manifest-path "$COMPONENT/Cargo.toml" | cut -d '#' -f2- | tr -d '\n')"
+    - cargo publish --dry-run --manifest-path "$COMPONENT/Cargo.toml" --color always
