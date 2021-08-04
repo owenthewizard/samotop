@@ -66,6 +66,8 @@ nightly-test:
   cache:
     key:
       prefix: nightly
+      files:
+        - Cargo.lock
     policy: pull-push
   before_script:
     - rustup default nightly
