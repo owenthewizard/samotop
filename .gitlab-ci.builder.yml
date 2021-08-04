@@ -18,6 +18,7 @@ builder-test:
     - cargo tree --version
     - toml --version
     - jq --version
+    - diff --version
 
 builder-build:
   extends: .kaniko-build-template
