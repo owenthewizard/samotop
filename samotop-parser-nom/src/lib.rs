@@ -22,11 +22,11 @@ use std::net::IpAddr;
 pub struct SmtpParserNom;
 
 impl Parser<SmtpCommand> for SmtpParserNom {
-    fn parse(&self, input: &[u8], state: &SmtpState) -> ParseResult<SmtpCommand> {
+    fn parse(&self, input: &[u8], state: &SmtpContext) -> ParseResult<SmtpCommand> {
         if input.is_empty() {
             return Err(ParseError::Incomplete);
         }
-        if let Some(mode) = state.transaction.mode {
+        if let Some(mode) = state.session.mode {
             return Err(ParseError::Mismatch(format!(
                 "NOM - not parsing cmd in {:?} mode",
                 mode

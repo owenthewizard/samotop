@@ -1,6 +1,6 @@
 [![Build Status](https://gitlab.com/BrightOpen/Samotop/badges/develop/pipeline.svg)](https://gitlab.com/BrightOpen/Samotop/commits/master)
 
-# samotop-server 1.1.1-samotop-dev.2
+# samotop-server 1.2.0-samotop-dev
 
 You can run your own privacy focussed, resource efficient mail server. [Samotop docker image](https://hub.docker.com/r/brightopen/samotop) is available for your convenience.
 
@@ -51,7 +51,7 @@ You can run your own privacy focussed, resource efficient mail server. [Samotop 
 
 Both should produce a usage information not too different from this:
 
-    samotop 1.0.1
+    samotop 1.2.0
 
     USAGE:
         samotop-server [FLAGS] [OPTIONS] --cert-file <cert file path> --identity-file <identity file path>
@@ -64,15 +64,17 @@ Both should produce a usage information not too different from this:
     OPTIONS:
         -n, --name <SMTP service name>              Use the given name in SMTP greetings, or if absent, use hostname
         -b, --base-dir <base dir path>              What is the base dir for other relative paths? [default: .]
-        -c, --cert-file <cert file path>            Use this cert file for TLS. If a relative path is given, it will be
-                                                    relative to base-dir
-        -i, --identity-file <identity file path>    Use this identity file for TLS. If a relative path is given, it will be
-                                                    relative to base-dir
+        -c, --cert-file <cert file path>            Use this cert file for TLS. Disabled with --no-tls. If a relative path
+                                                    is given, it will be relative to base-dir
+            --banner_delay <delay>                  Should we enforce prudent banner deleay? Delay is in miliseconds
+        -i, --identity-file <identity file path>    Use this identity file for TLS. Disabled with --no-tls. If a relative
+                                                    path is given, it will be relative to base-dir
         -m, --mail-dir <mail dir path>              Where to store incoming mail? If a relative path is given, it will be
                                                     relative to base-dir [default: inmail]
         -p, --port <port>...                        SMTP server address:port, such as 127.0.0.1:25 or localhost:12345. The
                                                     option can be set multiple times and the server will start on all given
                                                     ports. If no ports are given, the default is to start on localhost:25
+            --command_timeout <timeout>             Should we enforce prudent command timeout? Timeout is in miliseconds
 
 ## TLS
 

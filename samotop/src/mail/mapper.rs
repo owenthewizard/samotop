@@ -1,8 +1,12 @@
 //! Reference implementation of a mail guard
 //! converting recipient addresses according to a regex map.
 
-use crate::mail::*;
-use crate::{common::*, smtp::SmtpParser};
+use crate::{
+    common::*,
+    mail::*,
+    smtp::{SmtpParser, SmtpSession},
+};
+use log::*;
 use regex::Regex;
 
 /// A mail guard that converts recipient addresses according to a regex map.
@@ -17,45 +21,46 @@ impl Mapper {
     }
 }
 
-impl MailSetup for Mapper {
-    fn setup(self, config: &mut Configuration) {
-        config.guard.insert(0, Box::new(self))
+impl<T: AcceptsGuard> MailSetup<T> for Mapper {
+    fn setup(self, config: &mut T) {
+        config.add_last_guard(self)
     }
 }
 
 impl MailGuard for Mapper {
-    fn add_recipient<'a, 'f>(
+    fn add_recipient<'a, 's, 'f>(
         &'a self,
-        mut request: AddRecipientRequest,
+        _session: &'s mut SmtpSession,
+        mut rcpt: Recipient,
     ) -> S2Fut<'f, AddRecipientResult>
     where
         'a: 'f,
+        's: 'f,
     {
-        let mut rcpt = request.rcpt.address.address();
+        let mut addr = rcpt.address.address();
         for conversion in self.map.iter() {
-            rcpt = conversion
+            addr = conversion
                 .0
-                .replace(rcpt.as_ref(), conversion.1.as_str())
+                .replace(addr.as_ref(), conversion.1.as_str())
                 .into();
         }
-        let rcpt = format!("<{}>", rcpt);
+        let addr = format!("<{}>", addr);
 
-        match SmtpParser.forward_path(rcpt.as_bytes()) {
+        match SmtpParser.forward_path(addr.as_bytes()) {
             Ok((i, new_path)) => {
-                trace!("Converted {} into {}", request.rcpt.address, rcpt);
-                assert_eq!(i, rcpt.len());
-                request.rcpt.address = new_path;
-                Box::pin(ready(AddRecipientResult::Inconclusive(request)))
+                trace!("Converted {} into {}", rcpt.address, addr);
+                assert_eq!(i, addr.len());
+                rcpt.address = new_path;
+                Box::pin(ready(AddRecipientResult::Inconclusive(rcpt)))
             }
             Err(e) => {
                 let err = format!(
                     "Map conversions of {:?} produced invalid forward path {:?}. Error: {}",
-                    request.rcpt.address.to_string(),
-                    rcpt,
+                    rcpt.address.to_string(),
+                    addr,
                     e
                 );
                 Box::pin(ready(AddRecipientResult::Failed(
-                    request.transaction,
                     AddRecipientFailure::FailedTemporarily,
                     err,
                 )))
@@ -63,16 +68,12 @@ impl MailGuard for Mapper {
         }
     }
 
-    fn start_mail<'a, 's, 'f>(
-        &'a self,
-        _session: &'s SessionInfo,
-        request: StartMailRequest,
-    ) -> S2Fut<'f, StartMailResult>
+    fn start_mail<'a, 's, 'f>(&'a self, _session: &'s mut SmtpSession) -> S2Fut<'f, StartMailResult>
     where
         'a: 'f,
         's: 'f,
     {
-        Box::pin(ready(StartMailResult::Accepted(request)))
+        Box::pin(ready(StartMailResult::Accepted))
     }
 }
 
@@ -91,19 +92,17 @@ mod tests {
             (Regex::new(".*@(.*)")?, "$1@localhost".to_owned()),
             (Regex::new("[^@a-zA-Z0-9]")?, "-".to_owned()),
         ]);
-        let req = AddRecipientRequest {
-            transaction: Transaction::default(),
-            rcpt: Recipient::new(SmtpPath::Mailbox {
-                name: "user".to_owned(),
-                host: SmtpHost::Domain("example.org".to_owned()),
-                relays: vec![],
-            }),
-        };
+        let mut sess = SmtpSession::default();
+        let rcpt = Recipient::new(SmtpPath::Mailbox {
+            name: "user".to_owned(),
+            host: SmtpHost::Domain("example.org".to_owned()),
+            relays: vec![],
+        });
 
-        let res = sut.add_recipient(req).await;
+        let res = sut.add_recipient(&mut sess, rcpt).await;
         match res {
-            AddRecipientResult::Inconclusive(request) => {
-                assert_eq!(request.rcpt.address.address(), "example-org@localhost")
+            AddRecipientResult::Inconclusive(rcpt) => {
+                assert_eq!(rcpt.address.address(), "example-org@localhost")
             }
             other => panic!("Unexpected {:?}", other),
         }

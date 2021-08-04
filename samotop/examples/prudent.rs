@@ -30,12 +30,9 @@ fn main() -> Result<()> {
 }
 
 async fn main_fut() -> Result<()> {
-    let mail_service = Builder::default()
-        .using(Name::new("prudent-dummy"))
-        .using(Prudence {
-            wait_for_banner_delay: Some(Duration::from_millis(3210)),
-        })
-        .build();
+    let service = Builder
+        + Name::new("prudent-dummy")
+        + Prudence::default().with_banner_delay(Duration::from_millis(3210));
 
-    TcpServer::on("localhost:2525").serve(mail_service).await
+    TcpServer::on("localhost:2525").serve(service.build()).await
 }

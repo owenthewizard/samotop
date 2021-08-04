@@ -145,10 +145,10 @@ mod extension_set {
     fn check_extension() {
         let mut sut = ExtensionSet::new();
         // extension is disabled so gives None
-        assert_eq!(sut.is_enabled(&STARTTLS), false);
+        assert!(!sut.is_enabled(&STARTTLS));
         sut.enable(&STARTTLS);
         // extension is enabled so gives Some
-        assert_eq!(sut.is_enabled(&STARTTLS), true);
+        assert!(sut.is_enabled(&STARTTLS));
     }
 }
 

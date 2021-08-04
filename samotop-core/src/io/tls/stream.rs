@@ -115,7 +115,7 @@ impl TlsCapable {
     }
 }
 
-impl Read for TlsCapable {
+impl io::Read for TlsCapable {
     fn poll_read(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
@@ -137,7 +137,7 @@ impl Read for TlsCapable {
     }
 }
 
-impl Write for TlsCapable {
+impl io::Write for TlsCapable {
     fn poll_write(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,

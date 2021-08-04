@@ -1,9 +1,9 @@
 use crate::common::*;
-use std::ops::DerefMut;
+use std::ops::{Deref, DerefMut};
 
 /// A stream implementing this trait may be able to upgrade to TLS
 /// But maybe not...
-pub trait MayBeTls: Unpin + Read + Write + Sync + Send {
+pub trait MayBeTls: Unpin + io::Read + io::Write + Sync + Send {
     fn enable_encryption(&mut self, upgrade: Box<dyn super::TlsUpgrade>, name: String);
     /// Initiates the TLS negotiations.
     /// The stream must then block all reads/writes until the
@@ -20,7 +20,7 @@ pub trait MayBeTls: Unpin + Read + Write + Sync + Send {
 
 impl<TLSIO, T: DerefMut<Target = TLSIO>> MayBeTls for T
 where
-    T: Unpin + Read + Write + Sync + Send,
+    T: Unpin + io::Read + io::Write + Sync + Send,
     TLSIO: MayBeTls + Unpin + ?Sized,
 {
     fn encrypt(self: Pin<&mut Self>) {
@@ -38,8 +38,8 @@ where
     }
 }
 
-pub trait Io: Read + Write + Sync + Send + Unpin {}
-impl<T> Io for T where T: Read + Write + Sync + Send + Unpin {}
+pub trait Io: io::Read + io::Write + Sync + Send + Unpin {}
+impl<T> Io for T where T: io::Read + io::Write + Sync + Send + Unpin {}
 
 pub trait TlsProvider: std::fmt::Debug {
     fn get_tls_upgrade(&self) -> Option<Box<dyn TlsUpgrade>>;
@@ -51,4 +51,14 @@ pub trait TlsUpgrade: Sync + Send {
         stream: Box<dyn Io>,
         name: String,
     ) -> S3Fut<std::io::Result<Box<dyn Io>>>;
+}
+
+impl<S: TlsProvider + ?Sized, T: Deref<Target = S>> TlsProvider for T
+where
+    T: fmt::Debug + Send + Sync,
+    S: Sync,
+{
+    fn get_tls_upgrade(&self) -> Option<Box<dyn crate::io::tls::TlsUpgrade>> {
+        S::get_tls_upgrade(Deref::deref(self))
+    }
 }

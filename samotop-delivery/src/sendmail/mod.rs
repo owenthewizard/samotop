@@ -95,7 +95,7 @@ impl MailDataStream for ProcStream {
 }
 
 /// Todo: async when available
-impl Write for ProcStream {
+impl io::Write for ProcStream {
     fn poll_write(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,

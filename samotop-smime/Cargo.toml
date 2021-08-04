@@ -16,7 +16,7 @@ categories = ["email", "asynchronous", "network-programming", "cryptography"]
 
 [dependencies]
 async-process = "1.0"
-async-std = { version="1.9", default-features=false, features=["attributes"] }
+async-std = { version = "1.9", features = ["attributes"] }
 async-macros = "2.0"
 pin-project = "1.0"
 log = "0.4"

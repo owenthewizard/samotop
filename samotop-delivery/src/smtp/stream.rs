@@ -3,7 +3,7 @@ use crate::smtp::transport::SmtpConnection;
 use crate::smtp::util::SmtpDataCodec;
 use crate::smtp::util::SmtpProto;
 use crate::MailDataStream;
-use async_std::io::Read;
+use async_std::io::prelude::WriteExt;
 use potential::Lease;
 use samotop_core::common::*;
 use std::fmt;
@@ -81,7 +81,7 @@ impl<S> SmtpDataStream<S> {
 
 impl<S> MailDataStream for SmtpDataStream<S>
 where
-    S: Read + Write + Unpin + Sync + Send + 'static,
+    S: io::Read + io::Write + Unpin + Sync + Send + 'static,
 {
     fn is_done(&self) -> bool {
         match self.state {
@@ -91,9 +91,9 @@ where
     }
 }
 
-impl<S> Write for SmtpDataStream<S>
+impl<S> io::Write for SmtpDataStream<S>
 where
-    S: Read + Write + Unpin + Sync + Send + 'static,
+    S: io::Read + io::Write + Unpin + Sync + Send + 'static,
 {
     fn poll_write(
         mut self: Pin<&mut Self>,

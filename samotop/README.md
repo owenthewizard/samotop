@@ -99,7 +99,7 @@ You can also implement your own `TlsProvider` and plug it in.
 
 You can easily run a plaintext SMTP service without support for STARTTLS.
 Replace `Builder` with your own implementation or compose
-a mail service with `Builder::using()` and provided features.
+a mail service with `Builder + mailsetup` and provided features.
 
 Look at samotop-server for a working example with TLS and other features.
 
@@ -107,12 +107,19 @@ Look at samotop-server for a working example with TLS and other features.
 extern crate async_std;
 extern crate env_logger;
 extern crate samotop;
-fn main() {
+#[async_std::main]
+async fn main() {
+    use samotop::mail::*;
+    use samotop::smtp::*;
+    use samotop::server::*;
     env_logger::init();
-    let interpretter = samotop::mail::Esmtp.with(samotop::smtp::SmtpParser);
-    let mail = samotop::mail::Builder::default().using(interpretter).build();
-    let srv = samotop::server::TcpServer::on("localhost:25").serve(mail);
-    async_std::task::block_on(srv).unwrap()
+
+    let mail = Builder
+                + Esmtp.with(SmtpParser);
+
+    let srv = TcpServer::on("localhost:25").serve(mail.build());
+
+    srv.await.expect("success")
 }
 ```
 

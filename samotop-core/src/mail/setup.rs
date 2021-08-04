@@ -1,4 +1,7 @@
-use crate::mail::Configuration;
+use crate::{
+    mail::{MailDispatch, MailGuard},
+    smtp::{Interpret, SessionService},
+};
 
 /**
 Can set up the given mail services.
@@ -9,53 +12,73 @@ Can set up the given mail services.
 #[derive(Clone, Debug)]
 struct NoDispatch;
 
-impl MailSetup for NoDispatch
+impl<T: AcceptsDispatch> MailSetup<T> for NoDispatch
 {
-    fn setup(self, config: &mut Configuration) {
-        config.dispatch.clear();
-        config.dispatch.insert(0, Box::new(NullDispatch))
+    fn setup(self, config: &mut T) {
+        config.wrap_dispatches(|_| NullDispatch)
     }
 }
 
-let mail_svc = Builder::default().using(NoDispatch);
+let mail_svc = Builder + NoDispatch;
 
 ```
 */
-pub trait MailSetup: std::fmt::Debug {
-    fn setup(self, config: &mut Configuration);
+pub trait MailSetup<T>: std::fmt::Debug {
+    fn setup(self, config: &mut T);
+}
+
+pub trait AcceptsSessionService {
+    fn add_first_session_service<T: SessionService + Send + Sync + 'static>(&mut self, item: T);
+    fn add_last_session_service<T: SessionService + Send + Sync + 'static>(&mut self, item: T);
+    fn wrap_session_service<T, F>(&mut self, wrap: F)
+    where
+        T: SessionService + Send + Sync + 'static,
+        F: FnOnce(Box<dyn SessionService + Send + Sync>) -> T;
+}
+pub trait AcceptsInterpretter {
+    fn add_first_interpretter<T: Interpret + Send + Sync + 'static>(&mut self, item: T);
+    fn add_last_interpretter<T: Interpret + Send + Sync + 'static>(&mut self, item: T);
+    fn wrap_interpretter<T, F>(&mut self, wrap: F)
+    where
+        T: Interpret + Send + Sync + 'static,
+        F: FnOnce(Box<dyn Interpret + Send + Sync>) -> T;
+}
+pub trait AcceptsGuard {
+    fn add_first_guard<T: MailGuard + Send + Sync + 'static>(&mut self, item: T);
+    fn add_last_guard<T: MailGuard + Send + Sync + 'static>(&mut self, item: T);
+    fn wrap_guards<T, F>(&mut self, wrap: F)
+    where
+        T: MailGuard + Send + Sync + 'static,
+        F: FnOnce(Box<dyn MailGuard + Send + Sync>) -> T;
+}
+pub trait AcceptsDispatch {
+    fn add_first_dispatch<T: MailDispatch + Send + Sync + 'static>(&mut self, item: T);
+    fn add_last_dispatch<T: MailDispatch + Send + Sync + 'static>(&mut self, item: T);
+    fn wrap_dispatches<T, F>(&mut self, wrap: F)
+    where
+        T: MailDispatch + Send + Sync + 'static,
+        F: FnOnce(Box<dyn MailDispatch + Send + Sync>) -> T;
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mail::{Builder, DebugMailService, MailService, Service};
+    use crate::mail::*;
 
     #[derive(Debug)]
     struct TestSetup;
 
-    impl MailSetup for TestSetup {
-        fn setup(self, config: &mut Configuration) {
-            config
-                .dispatch
-                .insert(0, Box::new(DebugMailService::default()))
+    impl<T: AcceptsDispatch> MailSetup<T> for TestSetup {
+        fn setup(self, config: &mut T) {
+            config.add_last_dispatch(DebugService::default())
         }
     }
 
+    #[cfg(feature = "driver")]
     #[test]
-    fn test_setup() {
-        let setup = TestSetup;
-        let mut config = Configuration::default();
-        setup.setup(&mut config);
-        hungry(Service::new(config));
+    fn test_composition() {
+        fn hungry(_svc: impl MailService + Send + Sync + 'static) {}
+        let composite = Builder + TestSetup;
+        hungry(composite.build());
     }
-
-    #[test]
-    fn test_using() {
-        let setup = TestSetup;
-        let builder = Builder::default();
-        let composite = builder.using(setup).build();
-        hungry(composite);
-    }
-
-    fn hungry(_svc: impl MailService + Send + Sync + 'static) {}
 }

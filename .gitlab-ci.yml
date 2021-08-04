@@ -1,92 +1,66 @@
 include:
   - "/.gitlab-ci.builder.yml"
 
-variables:
-  CARGO_HOME: "$CI_PROJECT_DIR/.cargo"
-
-stages:
-  - build
-  - test
-  - release
-
-debug-build:
-  stage: build
-  only:
-    - branches
-  interruptible: true
-  cache:
-    key: &cache-key
-      files:
-        - Cargo.lock
-    paths: &cache-paths
-      - target/
-      - $CARGO_HOME
-  artifacts:
-    paths:
-      - target/debug/samotop-server
-      - Cargo.lock
-  before_script:
-    - rustc --version --verbose
-    - cargo --version --verbose
-  script:
-    - mkdir -p target
-    - mkdir -p "$CARGO_HOME"
-    - du -shx target
-    - du -shx "$CARGO_HOME"
-    - cargo build --all-features --color always
-    # cleanup target folder
-    - ./clean.sh
-
 release-build:
   stage: build
+  interruptible: true
   only:
     - /^release\/*/
     - /^hotfix\/*/
+    - develop
     - master
-  interruptible: true
-  cache:
-    key: *cache-key
-    paths: *cache-paths
-    policy: pull
+    - tags
   artifacts:
     paths:
       - target/release/samotop-server
       - Cargo.lock
-  before_script:
-    - rustc --version --verbose
-    - cargo --version --verbose
-  script:
-    - cargo build --all-features --release --color always
-    - cargo test --all-features --release --color always
-
-stable-test:
-  stage: build
-  only:
-    - branches
-  interruptible: true
-  cache:
-    key: *cache-key
-    paths: *cache-paths
+  cache: &cache
+    key:
+      files:
+        - Cargo.lock
+    paths:
+      - target/
+      - $CARGO_HOME
     policy: pull
   before_script:
     - rustc --version --verbose
     - cargo --version --verbose
+    - mkdir -p target
+    - mkdir -p "$CARGO_HOME"
+    - du -shx target
+    - du -shx "$CARGO_HOME"
   script:
-    - cargo test --all-targets --all-features --color always
+    - cargo build --all-features --release --color always
+    - cargo test --all-features --release --color always
 
-clippy-test:
-  extends: stable-test
+debug-build:
+  extends: release-build
+  only:
+    - branches
+  artifacts:
+    paths:
+      - target/debug/samotop-server
+      - Cargo.lock
+  cache: 
+    <<: *cache
+    policy: pull-push
   script:
-    - cargo clippy --all-features --color always -- -Dclippy::all
+    - cargo build --all-targets --all-features --color always
+    - cargo test --all-targets --all-features --color always
+    # cleanup target folder
+    - ./clean.sh
 
 check-test:
-  extends: stable-test
+  extends: release-build
+  only:
+    - branches
   script:
     - cargo check --all-targets --all-features --bins --tests --benches --examples --color always
+    - cargo clippy --all-targets --all-features --color always -- -Dclippy::all
     - ./fix.sh
 
 audit-test:
-  extends: stable-test
+  extends: check-test
   script:
     - cargo audit --deny warnings --color always
 
@@ -99,11 +73,12 @@ nightly-test:
   only:
     - branches
   cache:
+    <<: *cache
     key:
       prefix: nightly
       files:
         - Cargo.lock
-    paths: *cache-paths
+    policy: pull-push
   before_script:
     - rustup default nightly
     - rustc --version --verbose
@@ -120,10 +95,6 @@ nightly-test:
   only:
     - branches
   interruptible: true
-  cache:
-    key: *cache-key
-    paths: *cache-paths
-    policy: pull
   before_script:
     - rustc --version --verbose
     - cargo --version --verbose
@@ -183,29 +154,47 @@ example-cmd:
     - find tmp/samotop/spool/new/ -type f -print -exec cat {} \;
     - test -z "$OUTPUT" || diff tmp/samotop/spool/new/* "$OUTPUT"
 
-publish-crate:
-  variables:
-    COMPVER: $CI_COMMIT_TAG
+check-crates:
   stage: release
-  only:
-    - tags
-  cache:
-    key: *cache-key
-    paths: *cache-paths
-    policy: pull
+  interruptible: true
+  script:
+    - |
+      cargo metadata --format-version 1 |
+      jq -r '.workspace_members | .[]' |
+      cut -d ' ' -f1 |
+      xargs -I {} curl -sSLf https://crates.io/api/v1/crates/{} |
+      jq -r '.crate.name  + " " + .versions[].num'
+
+publish-crates:
+  stage: build
   artifacts:
     paths:
-      - Cargo.lock
+      - target/publish-pipeline.yml
+  interruptible: true
   before_script:
     - rustc --version --verbose
     - cargo --version --verbose
   script:
-    - COMPONENT="$(dirname "$COMPVER")"
-    - VERSION="${COMPVER##$COMPONENT/}"
-    - echo "Releasing component ${COMPONENT:?cannot be empty} v ${VERSION:?cannot be empty}"
-    - cargo test --manifest-path "$COMPONENT/Cargo.toml" --release --color always
-    - test "$VERSION" == "$(cargo pkgid --manifest-path "$COMPONENT/Cargo.toml" | cut -d '#' -f2- | tr -d '\n')"
-    - cargo publish --manifest-path "$COMPONENT/Cargo.toml" --token "$CRATES_KEY" --color always
+    - cp .gitlab-ci.publish.yml target/publish-pipeline.yml
+    - |
+      cargo metadata --format-version 1 | 
+        jq -r '.workspace_members | .[]' | 
+        cut -d ' ' -f-2 | tr ' ' '/' | 
+        sed -r 's/(.*)\/(.*)/\0: \n  extends: .publish-crate\n  needs: ["\0 test"]\n  dependencies: ["\0 test"]\n  environment: crate\/\1\n/g' |
+        tee -a target/publish-pipeline.yml
+    - |
+      cargo metadata --format-version 1 | 
+        jq -r '.workspace_members | .[]' | 
+        cut -d ' ' -f-2 | tr ' ' '/' | 
+        sed 's/.*/\0 test: \n  extends: .test-crate\n/g' |
+        tee -a target/publish-pipeline.yml
+
+publish-crates-trigger:
+  stage: release
+  trigger:
+    include:
+      - artifact: target/publish-pipeline.yml
+        job: publish-crates
 
 server-version:
   stage: build
@@ -215,10 +204,6 @@ server-version:
     - echo "SAMOTOP_IMAGE=$CI_REGISTRY_IMAGE/samotop:$SAMOTOP_VERSION" >> vars.env
     - cat vars.env
   interruptible: true
-  cache:
-    key: *cache-key
-    paths: *cache-paths
-    policy: pull
   artifacts:
     reports:
       dotenv: vars.env

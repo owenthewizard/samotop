@@ -3,6 +3,7 @@ use crate::smtp::commands::*;
 use crate::smtp::extension::{ClientId, ServerInfo};
 use crate::smtp::response::parse_response;
 use crate::smtp::response::Response;
+use async_std::io::prelude::{ReadExt, WriteExt};
 use bytes::{Buf, BufMut, BytesMut};
 use samotop_core::common::*;
 use std::fmt::Display;
@@ -49,7 +50,7 @@ impl<'s, S> SmtpProto<'s, S> {
     //     self.stream
     // }
 }
-impl<'s, S: Read + Write> SmtpProto<'s, S> {
+impl<'s, S: io::Read + io::Write> SmtpProto<'s, S> {
     /// Gets the server banner after connection.
     pub async fn read_banner(&mut self, timeout: Duration) -> SmtpResult {
         let banner_response = self.read_response(timeout).await?;

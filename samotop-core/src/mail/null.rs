@@ -1,38 +1,40 @@
-use super::{DispatchResult, MailDispatch, MailSetup};
-use crate::common::*;
+use crate::{
+    common::*,
+    mail::{AcceptsDispatch, DispatchResult, MailDispatch, MailSetup},
+    smtp::SmtpSession,
+};
 
 #[derive(Debug)]
 pub struct NullDispatch;
 
 impl MailDispatch for NullDispatch {
-    fn send_mail<'a, 's, 'f>(
+    fn open_mail_body<'a, 's, 'f>(
         &'a self,
-        _session: &'s super::SessionInfo,
-        mut transaction: super::Transaction,
-    ) -> crate::common::S1Fut<'f, DispatchResult>
+        session: &'s mut SmtpSession,
+    ) -> S1Fut<'f, DispatchResult>
     where
         'a: 'f,
         's: 'f,
     {
-        if transaction.sink.is_none() {
-            transaction.sink = Some(Box::pin(NullSink))
+        if session.transaction.sink.is_none() {
+            session.transaction.sink = Some(Box::pin(NullSink))
         }
-        Box::pin(ready(Ok(transaction)))
+        Box::pin(ready(Ok(())))
     }
 }
-impl MailSetup for NullDispatch {
-    fn setup(self, config: &mut super::Configuration) {
-        config.dispatch.insert(0, Box::new(self))
+impl<T: AcceptsDispatch> MailSetup<T> for NullDispatch {
+    fn setup(self, config: &mut T) {
+        config.add_last_dispatch(self)
     }
 }
 
 struct NullSink;
 
-impl Write for NullSink {
-    fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+impl io::Write for NullSink {
+    fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         Poll::Ready(Ok(()))
     }
-    fn poll_close(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+    fn poll_close(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         Poll::Ready(Ok(()))
     }
     fn poll_write(

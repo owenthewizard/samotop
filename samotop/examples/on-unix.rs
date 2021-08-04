@@ -22,32 +22,25 @@ find tmp/samotop/spool/
 ```
  */
 
-use async_std::task;
-use samotop::{
-    mail::{Builder, Dir, Esmtp},
-    smtp::SmtpParser,
-};
+#[cfg(all(unix, feature = "delivery"))]
+#[async_std::main]
+async fn main() -> Result<()> {
+    use samotop::server::UnixServer;
+    use samotop::{
+        mail::{Builder, MailDir},
+        smtp::{Esmtp, SmtpParser},
+    };
+    env_logger::init();
+
+    let service = Builder + MailDir::new("tmp/samotop/spool/".into())? + Esmtp.with(SmtpParser);
+
+    UnixServer::on("local.socket").serve(service.build()).await
+}
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
-fn main() -> Result<()> {
-    env_logger::init();
-    task::block_on(main_fut())
-}
-
-#[cfg(not(unix))]
-async fn main_fut() -> Result<()> {
-    println!("This will only work on a unix-like system")
-}
-
-#[cfg(unix)]
-async fn main_fut() -> Result<()> {
-    use samotop::server::UnixServer;
-
-    let mail_service = Builder::default()
-        .using(Dir::new("tmp/samotop/spool/".into())?)
-        .using(Esmtp.with(SmtpParser))
-        .build();
-
-    UnixServer::on("local.socket").serve(mail_service).await
+#[cfg(not(all(unix, feature = "delivery")))]
+#[async_std::main]
+async fn main() -> Result<()> {
+    panic!("This will only work on a unix-like system and with the delivery feature enabled.")
 }
