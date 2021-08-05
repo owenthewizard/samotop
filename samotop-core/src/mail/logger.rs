@@ -7,25 +7,16 @@ use crate::{
     smtp::{SessionService, SmtpContext, SmtpSession},
 };
 use std::fmt;
-//use uuid::Uuid;
 
-#[derive(Clone, Debug)]
-pub struct DebugService {
-    id: String,
-}
-impl DebugService {
-    pub fn new(id: String) -> Self {
-        Self { id }
-    }
-}
-impl Default for DebugService {
-    fn default() -> Self {
-        Self {
-            id: time_based_id(),
-        }
-    }
-}
-impl<T> MailSetup<T> for DebugService
+/// Produce info logs on important e-mail and SMTP events.
+///
+/// The logger will use session service name to mark the logs.
+#[derive(Clone, Debug, Default)]
+pub struct SessionLogger;
+
+pub use SessionLogger as DebugService;
+
+impl<T> MailSetup<T> for SessionLogger
 where
     T: AcceptsSessionService + AcceptsGuard + AcceptsDispatch,
 {
@@ -35,7 +26,7 @@ where
         config.add_last_dispatch(self);
     }
 }
-impl SessionService for DebugService {
+impl SessionService for SessionLogger {
     fn prepare_session<'a, 'i, 's, 'f>(
         &'a self,
         _io: &'i mut Box<dyn MayBeTls>,
@@ -47,14 +38,14 @@ impl SessionService for DebugService {
         's: 'f,
     {
         info!(
-            "{}: I am {}! Preparing {}",
-            self.id, state.session.service_name, state.session.connection
+            "{}: Preparing {}",
+            state.session.service_name, state.session.connection
         );
         Box::pin(ready(()))
     }
 }
 
-impl MailGuard for DebugService {
+impl MailGuard for SessionLogger {
     fn add_recipient<'a, 's, 'f>(
         &'a self,
         session: &'s mut SmtpSession,
@@ -66,7 +57,7 @@ impl MailGuard for DebugService {
     {
         info!(
             "{}: RCPT {} from {:?} (mailid: {:?}).",
-            self.id, rcpt.address, session.transaction.mail, session.transaction.id
+            session.service_name, rcpt.address, session.transaction.mail, session.transaction.id
         );
         Box::pin(ready(AddRecipientResult::Inconclusive(rcpt)))
     }
@@ -77,13 +68,13 @@ impl MailGuard for DebugService {
     {
         info!(
             "{}: MAIL from {:?} (mailid: {:?}). {}",
-            self.id, session.transaction.mail, session.transaction.id, session
+            session.service_name, session.transaction.mail, session.transaction.id, session
         );
         Box::pin(ready(StartMailResult::Accepted))
     }
 }
 
-impl MailDispatch for DebugService {
+impl MailDispatch for SessionLogger {
     fn open_mail_body<'a, 's, 'f>(
         &'a self,
         session: &'s mut SmtpSession,
@@ -99,7 +90,8 @@ impl MailDispatch for DebugService {
             ..
         } = session.transaction;
         info!(
-            "Mail from {:?} for {} (mailid: {:?}). {}",
+            "{}: Mail from {:?} for {} (mailid: {:?}). {}",
+            session.service_name,
             mail.as_ref()
                 .map(|m| m.sender().to_string())
                 .unwrap_or_else(|| "nobody".to_owned()),
@@ -113,7 +105,7 @@ impl MailDispatch for DebugService {
         );
         session.transaction.sink = session.transaction.sink.take().map(|inner| {
             Box::pin(DebugSink {
-                id: id.clone(),
+                id: format!("{}: {}", session.service_name, id.clone()),
                 inner,
             }) as Pin<Box<dyn MailDataSink>>
         });
@@ -121,7 +113,7 @@ impl MailDispatch for DebugService {
     }
 }
 
-pub struct DebugSink {
+struct DebugSink {
     id: String,
     inner: Pin<Box<dyn MailDataSink>>,
 }
@@ -184,7 +176,7 @@ mod tests {
     fn test_setup() {
         async_std::task::block_on(async move {
             let mut sess = SmtpSession::default();
-            let sut = DebugService::default();
+            let sut = SessionLogger;
             let tran = sut.start_mail(&mut sess).await;
             assert_eq!(tran, StartMailResult::Accepted)
         })

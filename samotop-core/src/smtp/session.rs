@@ -2,7 +2,7 @@ use crate::io::ConnectionInfo;
 use crate::mail::{AddRecipientFailure, StartMailFailure, Transaction};
 use crate::smtp::*;
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct SmtpSession {
     /// Description of the underlying connection
     pub connection: ConnectionInfo,
@@ -20,6 +20,21 @@ pub struct SmtpSession {
     pub mode: Option<&'static str>,
     /// Current e-mail transaction
     pub transaction: Transaction,
+}
+
+impl Default for SmtpSession {
+    fn default() -> Self {
+        Self {
+            connection: Default::default(),
+            extensions: Default::default(),
+            service_name: "samotop".to_string(),
+            peer_name: Default::default(),
+            output: Default::default(),
+            input: Default::default(),
+            mode: Default::default(),
+            transaction: Default::default(),
+        }
+    }
 }
 
 impl SmtpSession {

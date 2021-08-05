@@ -1,4 +1,4 @@
-use crate::common::time_based_id;
+use crate::common::Identify;
 use std::time::{Duration, SystemTime};
 
 /// Carries connection infromation (TCP, unix socket, ...) so that remaining code can abstract away from it as Io
@@ -13,7 +13,7 @@ pub struct ConnectionInfo {
 impl ConnectionInfo {
     pub fn new(local_addr: String, peer_addr: String) -> Self {
         ConnectionInfo {
-            id: time_based_id(),
+            id: Identify::now().to_string(),
             local_addr,
             peer_addr,
             established: SystemTime::now(),

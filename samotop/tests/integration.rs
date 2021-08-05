@@ -53,7 +53,7 @@ mod int_tests {
         insta::assert_debug_snapshot!(
         Regex::new("[0-9]{9}[0-9]*")?.replace(
         String::from_utf8_lossy(writes.recv().await?.as_slice()).to_string().as_str(),"--redacted--"),
-        @r###""250 Ok! Transaction --redacted-- started.\r\n""###);
+        @r###""250 Ok! Transaction --redacted--@testik started.\r\n""###);
         insta::assert_debug_snapshot!(
         String::from_utf8_lossy(writes.recv().await?.as_slice()).to_string().as_str(),
         @r###""250 Ok\r\n""###);
@@ -63,7 +63,7 @@ mod int_tests {
         insta::assert_debug_snapshot!(
         Regex::new("[0-9]{9}[0-9]*")?.replace(
         String::from_utf8_lossy(writes.recv().await?.as_slice()).to_string().as_str(),"--redacted--"),
-        @r###""250 Queued as --redacted--\r\n""###);
+        @r###""250 Queued as --redacted--@testik\r\n""###);
         insta::assert_debug_snapshot!(
         String::from_utf8_lossy(writes.recv().await?.as_slice()).to_string().as_str(),
         @r###""500 Syntax error, command unrecognized\r\n""###);

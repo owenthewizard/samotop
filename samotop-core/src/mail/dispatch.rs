@@ -3,10 +3,17 @@ use std::ops::Deref;
 
 /**
 A mail dispatch allows us to dispatch an e-mail.
-For a given mail transacton it produces a Write sink that can receive mail data.
+For a given mail transacton it puts a Write sink for receiving mail data into the Transaction.
 Once the sink is closed successfully, the mail is dispatched.
 */
 pub trait MailDispatch: fmt::Debug {
+    /// Add a mail data sink to mail transaction.
+    ///
+    /// This call may fail for various reasons, resulting in
+    /// permanent or temporary refusal to send the mail after
+    /// the DATA command.
+    ///
+    /// Finishing the mail transaction is marked by sucessfully closing the mail data sink.
     fn open_mail_body<'a, 's, 'f>(
         &'a self,
         session: &'s mut SmtpSession,

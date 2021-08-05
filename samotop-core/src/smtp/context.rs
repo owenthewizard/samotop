@@ -106,13 +106,13 @@ impl std::fmt::Debug for DriverControl {
 #[cfg(test)]
 mod store_tests {
     use super::*;
-    use crate::mail::DebugService;
+    use crate::mail::SessionLogger;
     use regex::Regex;
 
     #[test]
     pub fn same_service() {
         let mut sut = SmtpContext::default();
-        let svc = Box::new(DebugService::default());
+        let svc = Box::new(SessionLogger);
         let dump0 = format!("{:#?}", svc);
         sut.set_service(Dummy);
         sut.set_service(svc);
@@ -120,22 +120,14 @@ mod store_tests {
         let dump1 = format!("{:#?}", sut.service());
         assert_eq!(dump1, dump0);
 
-        let dump = Regex::new("[0-9]+")
-            .expect("regex")
-            .replace_all(&dump0, "--redaced--");
-
-        insta::assert_display_snapshot!(dump, @r###"
-        DebugService {
-            id: "--redaced--",
-        }
-        "###);
+        insta::assert_display_snapshot!(dump0, @r###"SessionLogger"###);
     }
 
     #[test]
     pub fn set_one_service() {
         let mut sut = SmtpContext::default();
         sut.set_service(Box::new(Dummy));
-        sut.set_service(DebugService::default());
+        sut.set_service(SessionLogger);
 
         let dump = format!("{:#?}", sut);
         let dump = Regex::new("[0-9]+")
@@ -162,7 +154,7 @@ mod store_tests {
                 extensions: ExtensionSet {
                     map: {},
                 },
-                service_name: "",
+                service_name: "samotop",
                 peer_name: None,
                 output: [],
                 input: [],

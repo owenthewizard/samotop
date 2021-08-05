@@ -611,9 +611,9 @@ dependencies = [
 
 [[package]]
 name = "env_logger"
-version = "0.8.4"
+version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a19187fea3ac7e84da7dacf48de0c45d63c6a76f9490dae389aead16c243fce3"
+checksum = "0b2cf0344971ee6c64c31be0d530793fba457d322dfec2810c453d0ef228f9c3"
 dependencies = [
  "atty",
  "humantime",
@@ -1504,25 +1504,54 @@ dependencies = [
 [[package]]
 name = "samotop"
 version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "eda7ec316f7c78c8a8300794f10e333808fba89f515761a18b9518855d4f4114"
+dependencies = [
+ "log",
+ "samotop-core 0.13.0",
+ "samotop-delivery 0.13.0",
+ "samotop-parser 0.13.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "samotop-smime 0.13.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "samotop-with-rustls 0.13.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "samotop-with-spf 0.13.0 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "samotop"
+version = "0.13.1+smtp"
 dependencies = [
  "async-std",
  "env_logger",
  "insta",
  "log",
  "regex",
- "samotop-core",
- "samotop-delivery",
- "samotop-parser",
+ "samotop-core 0.13.1+smtp",
+ "samotop-delivery 0.13.1",
+ "samotop-parser 0.13.0",
  "samotop-parser-nom",
- "samotop-smime",
+ "samotop-smime 0.13.0",
  "samotop-with-native-tls",
- "samotop-with-rustls",
- "samotop-with-spf",
+ "samotop-with-rustls 0.13.0",
+ "samotop-with-spf 0.13.0",
 ]
 
 [[package]]
 name = "samotop-core"
 version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "86fb063a380ade11125c2cb8b74498f03f2b12ba47592dc1aecb6deb681f3aba"
+dependencies = [
+ "async-std",
+ "futures-core",
+ "futures-io",
+ "futures-util",
+ "log",
+ "smol-timeout",
+]
+
+[[package]]
+name = "samotop-core"
+version = "0.13.1+smtp"
 dependencies = [
  "async-std",
  "futures-core",
@@ -1537,6 +1566,32 @@ dependencies = [
 [[package]]
 name = "samotop-delivery"
 version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b41a724670aa86598f14aaf18b1a9b3fb341748e15313dbde7c4d5c87e6fff52"
+dependencies = [
+ "async-std",
+ "base64",
+ "bytes",
+ "fast_chemail",
+ "hostname",
+ "log",
+ "lozizol",
+ "memchr",
+ "nom",
+ "pin-project",
+ "pin-utils",
+ "potential",
+ "samotop-core 0.13.0",
+ "serde",
+ "serde_derive",
+ "serde_json",
+ "thiserror",
+ "uuid",
+]
+
+[[package]]
+name = "samotop-delivery"
+version = "0.13.1"
 dependencies = [
  "async-attributes",
  "async-std",
@@ -1554,7 +1609,7 @@ dependencies = [
  "pin-project",
  "pin-utils",
  "potential",
- "samotop-core",
+ "samotop-core 0.13.1+smtp",
  "serde",
  "serde_derive",
  "serde_json",
@@ -1569,7 +1624,18 @@ version = "0.13.0"
 dependencies = [
  "log",
  "peg",
- "samotop-core",
+ "samotop-core 0.13.1+smtp",
+]
+
+[[package]]
+name = "samotop-parser"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cdf2e91d7da63ae0e700a75c2e40b0d837cd9fe404a5b5fca39c5be7a4a918c1"
+dependencies = [
+ "log",
+ "peg",
+ "samotop-core 0.13.0",
 ]
 
 [[package]]
@@ -1578,12 +1644,12 @@ version = "0.13.0"
 dependencies = [
  "nom",
  "rustyknife",
- "samotop-core",
+ "samotop-core 0.13.1+smtp",
 ]
 
 [[package]]
 name = "samotop-server"
-version = "1.2.0"
+version = "1.2.1-dev"
 dependencies = [
  "async-std",
  "async-tls",
@@ -1592,7 +1658,7 @@ dependencies = [
  "log",
  "regex",
  "rustls",
- "samotop",
+ "samotop 0.13.0",
  "structopt",
 ]
 
@@ -1606,7 +1672,21 @@ dependencies = [
  "futures-lite",
  "log",
  "pin-project",
- "samotop-core",
+ "samotop-core 0.13.1+smtp",
+]
+
+[[package]]
+name = "samotop-smime"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "830db3c1b86e8ecfab352ef13ad0eeaf65089707b5866287436a3d3ab0e39f86"
+dependencies = [
+ "async-macros",
+ "async-process",
+ "async-std",
+ "log",
+ "pin-project",
+ "samotop-core 0.13.0",
 ]
 
 [[package]]
@@ -1614,7 +1694,7 @@ name = "samotop-with-native-tls"
 version = "0.13.0"
 dependencies = [
  "async-native-tls",
- "samotop-core",
+ "samotop-core 0.13.1+smtp",
 ]
 
 [[package]]
@@ -1622,7 +1702,17 @@ name = "samotop-with-rustls"
 version = "0.13.0"
 dependencies = [
  "async-tls",
- "samotop-core",
+ "samotop-core 0.13.1+smtp",
+]
+
+[[package]]
+name = "samotop-with-rustls"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d6572fd468ee5c46643949ee418ba25d4f8886b59fa5fb2423f47bf0981c20e2"
+dependencies = [
+ "async-tls",
+ "samotop-core 0.13.0",
 ]
 
 [[package]]
@@ -1633,7 +1723,22 @@ dependencies = [
  "async-std-resolver",
  "log",
  "pin-project",
- "samotop-core",
+ "samotop-core 0.13.1+smtp",
+ "trust-dns-resolver",
+ "viaspf",
+]
+
+[[package]]
+name = "samotop-with-spf"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b0b2d870b75817aac32f91397b155ad1d44afcace5926984f5613d0f1d0d0103"
+dependencies = [
+ "async-std",
+ "async-std-resolver",
+ "log",
+ "pin-project",
+ "samotop-core 0.13.0",
  "trust-dns-resolver",
  "viaspf",
 ]

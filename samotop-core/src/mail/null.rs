@@ -4,10 +4,20 @@ use crate::{
     smtp::SmtpSession,
 };
 
+/// Accept all calls, but do nothing.
+/// Combine this with the `SessionLogger` for a light-weight debugging server.
 #[derive(Debug)]
 pub struct NullDispatch;
 
+impl<T: AcceptsDispatch> MailSetup<T> for NullDispatch {
+    /// Add a null dispatch
+    fn setup(self, config: &mut T) {
+        config.add_last_dispatch(self)
+    }
+}
+
 impl MailDispatch for NullDispatch {
+    /// If no sink is present, add null sink, accepting all data, doing nothing
     fn open_mail_body<'a, 's, 'f>(
         &'a self,
         session: &'s mut SmtpSession,
@@ -20,11 +30,6 @@ impl MailDispatch for NullDispatch {
             session.transaction.sink = Some(Box::pin(NullSink))
         }
         Box::pin(ready(Ok(())))
-    }
-}
-impl<T: AcceptsDispatch> MailSetup<T> for NullDispatch {
-    fn setup(self, config: &mut T) {
-        config.add_last_dispatch(self)
     }
 }
 

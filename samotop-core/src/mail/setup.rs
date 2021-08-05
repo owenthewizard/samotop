@@ -27,6 +27,10 @@ pub trait MailSetup<T>: std::fmt::Debug {
     fn setup(self, config: &mut T);
 }
 
+pub trait HasId {
+    fn id(&self) -> &str;
+}
+
 pub trait AcceptsSessionService {
     fn add_first_session_service<T: SessionService + Send + Sync + 'static>(&mut self, item: T);
     fn add_last_session_service<T: SessionService + Send + Sync + 'static>(&mut self, item: T);
@@ -70,7 +74,7 @@ mod tests {
 
     impl<T: AcceptsDispatch> MailSetup<T> for TestSetup {
         fn setup(self, config: &mut T) {
-            config.add_last_dispatch(DebugService::default())
+            config.add_last_dispatch(NullDispatch)
         }
     }
 

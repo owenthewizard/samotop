@@ -1,5 +1,5 @@
 use crate::{
-    common::{time_based_id, S1Fut},
+    common::{Identify, S1Fut},
     mail::{MailGuard, StartMailResult},
     smtp::{command::SmtpMail, Action, Esmtp, SmtpContext},
 };
@@ -25,7 +25,7 @@ impl Action<SmtpMail> for Esmtp {
                 }
                 R::Accepted => {
                     if state.session.transaction.id.is_empty() {
-                        let id = time_based_id();
+                        let id = format!("{}@{}", Identify::now(), state.session.service_name);
                         warn!(
                             "Mail transaction ID is empty. Will use time based ID {}",
                             id
