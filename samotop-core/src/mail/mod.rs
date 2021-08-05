@@ -1,8 +1,8 @@
 mod builder;
-mod debug;
+mod configuration;
 mod dispatch;
 mod guard;
-mod mail_service;
+mod logger;
 mod name;
 mod null;
 mod recipient;
@@ -11,10 +11,10 @@ mod setup;
 mod transaction;
 
 pub use self::builder::*;
-pub use self::debug::*;
+pub use self::configuration::*;
 pub use self::dispatch::*;
 pub use self::guard::*;
-pub use self::mail_service::*;
+pub use self::logger::*;
 pub use self::name::*;
 pub use self::null::*;
 pub use self::recipient::*;

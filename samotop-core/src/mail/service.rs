@@ -7,6 +7,14 @@ use crate::{
     smtp::{Drive, Interpret, SessionService, SmtpContext, SmtpSession},
 };
 
+/// A short hand for all the mandatory mail services
+pub trait MailService: SessionService + MailGuard + MailDispatch {}
+impl<T> MailService for T where T: SessionService + MailGuard + MailDispatch {}
+
+/// Service implements all the mandatory mail services
+/// + IoService so it can be used with `TcpServer` or `UnixServer`.
+///
+/// Build it using the `Builder`
 #[derive(Debug, Clone)]
 pub struct Service {
     session: Arc<dyn SessionService + Sync + Send>,
@@ -17,6 +25,7 @@ pub struct Service {
 }
 
 impl Service {
+    /// Compose the service from parts
     pub fn new<T, I, E, G, D>(drive: T, interpret: I, session: E, guard: G, dispatch: D) -> Self
     where
         T: Drive + Sync + Send + 'static,

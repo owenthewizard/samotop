@@ -16,6 +16,7 @@ pub struct TcpServer<'a> {
 }
 
 impl<'a> TcpServer<'a> {
+    /// Listen on this port - usually addres:port. You can call this multiple times to listen on multiple ports.
     pub fn on<N>(ports: N) -> Self
     where
         N: ToSocketAddrs + 'a,
@@ -23,6 +24,16 @@ impl<'a> TcpServer<'a> {
     {
         Self::default().and(ports)
     }
+    /// Listen on this port - usually addres:port. You can call this multiple times to listen on multiple ports.
+    pub fn and<N>(mut self, ports: N) -> Self
+    where
+        N: ToSocketAddrs + 'a,
+        N::Iter: Send,
+    {
+        self.ports.push(Box::pin(Self::map_ports(ports)));
+        self
+    }
+    /// Listen on multiple ports - usually a list of address:port items
     pub fn on_all<I, N>(ports: I) -> Self
     where
         I: IntoIterator<Item = N>,
@@ -31,6 +42,7 @@ impl<'a> TcpServer<'a> {
     {
         Self::default().and_all(ports)
     }
+    /// Listen on multiple ports - usually a list of address:port items
     pub fn and_all<I, N>(mut self, ports: I) -> Self
     where
         I: IntoIterator<Item = N>,
@@ -42,21 +54,13 @@ impl<'a> TcpServer<'a> {
         }
         self
     }
-    pub fn and<N>(mut self, ports: N) -> Self
-    where
-        N: ToSocketAddrs + 'a,
-        N::Iter: Send,
-    {
-        self.ports.push(Box::pin(Self::map_ports(ports)));
-        self
-    }
     fn map_ports(addrs: impl ToSocketAddrs) -> impl Future<Output = Result<Vec<SocketAddr>>> {
         addrs
             .to_socket_addrs()
             .map_ok(|i| i.into_iter().collect())
             .map_err(|e| e.into())
     }
-    pub async fn resolve_ports(&mut self) -> Result<Vec<SocketAddr>> {
+    async fn resolve_ports(&mut self) -> Result<Vec<SocketAddr>> {
         let mut result = vec![];
         for port in self.ports.iter_mut() {
             let port = port.await?;
@@ -64,6 +68,7 @@ impl<'a> TcpServer<'a> {
         }
         Ok(result)
     }
+    /// Serve the given IoService on configured ports
     pub async fn serve<S>(mut self, service: S) -> Result<()>
     where
         S: IoService + Send + Sync,

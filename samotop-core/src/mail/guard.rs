@@ -6,18 +6,25 @@ use crate::{
 use std::ops::Deref;
 
 /**
-A mail guard can be queried whether a recepient is accepted on which address.
+A mail guard opens the mail transaction after a MAIL command - `start_mail`.
+It will then be queried whether each individual recepient (RCPT command) is accepted on which address.
+It can also modify the recipient address with an optional notification back to the client.
 */
 pub trait MailGuard: fmt::Debug {
+    /// Open the mail transaction. Here we have the opportunity to check the sender, adjust transaction ID...
+    fn start_mail<'a, 's, 'f>(&'a self, session: &'s mut SmtpSession) -> S2Fut<'f, StartMailResult>
+    where
+        'a: 'f,
+        's: 'f;
+    /// Add given RCPT to the list. Here we can immediately add and further processing will stop with success.
+    /// Or we can refuse and stop further processing with a failure.
+    /// Last option is to return `Inconclusive` in which case other MailGuards will have a chance.
+    /// If all MailGuards return `Inconclusive`, the caller should assume success and add the RCPT to the list.
     fn add_recipient<'a, 's, 'f>(
         &'a self,
         session: &'s mut SmtpSession,
         rcpt: Recipient,
     ) -> S2Fut<'f, AddRecipientResult>
-    where
-        'a: 'f,
-        's: 'f;
-    fn start_mail<'a, 's, 'f>(&'a self, session: &'s mut SmtpSession) -> S2Fut<'f, StartMailResult>
     where
         'a: 'f,
         's: 'f;
@@ -49,6 +56,7 @@ where
 }
 
 impl MailGuard for Dummy {
+    /// Always inconclusive
     fn add_recipient<'a, 's, 'f>(
         &'a self,
         _session: &'s mut SmtpSession,
@@ -60,7 +68,7 @@ impl MailGuard for Dummy {
     {
         Box::pin(ready(AddRecipientResult::Inconclusive(rcpt)))
     }
-    /// Accept
+    /// Always accept
     fn start_mail<'a, 's, 'f>(&'a self, _session: &'s mut SmtpSession) -> S2Fut<'f, StartMailResult>
     where
         'a: 'f,

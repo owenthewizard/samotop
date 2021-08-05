@@ -1,4 +1,4 @@
-# samotop-delivery 0.13.0
+# samotop-delivery 0.13.1
 
 
 ## Mail dispatch abstraction

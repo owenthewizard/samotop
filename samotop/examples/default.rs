@@ -21,11 +21,19 @@ EOF
 #[cfg(any(feature = "parser-nom", feature = "parser-peg"))]
 async fn main_fut() -> Result<()> {
     use samotop::mail::Builder;
+    use samotop::mail::Name;
     use samotop::mail::NullDispatch;
+    use samotop::mail::SessionLogger;
     use samotop::server::TcpServer;
     use samotop::smtp::{Esmtp, SmtpParser};
 
-    let service = Builder + NullDispatch + Esmtp.with(SmtpParser);
+    let service = Builder
+        + Name::new("samotop")
+            .identify_instance(true)
+            .identify_session(true)
+        + SessionLogger
+        + NullDispatch
+        + Esmtp.with(SmtpParser);
     TcpServer::on("localhost:2525").serve(service.build()).await
 }
 

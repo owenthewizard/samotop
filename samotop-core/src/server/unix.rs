@@ -14,12 +14,22 @@ pub struct UnixServer<'a> {
 }
 
 impl<'a> UnixServer<'a> {
+    /// Listen on this socket - usually a path to socket file. You can call this multiple times to listen on multiple sockets.
     pub fn on<N>(ports: N) -> Self
     where
         N: Into<SocketAddr> + 'a,
     {
         Self::default().and(ports)
     }
+    /// Listen on this socket - usually a path to a socket file. You can call this multiple times to listen on multiple sockets.
+    pub fn and<N>(mut self, ports: N) -> Self
+    where
+        N: Into<SocketAddr> + 'a,
+    {
+        self.ports.push(Box::pin(Self::map_ports(ports)));
+        self
+    }
+    /// Listen on multiple sockets - usually a list of path items
     pub fn on_all<I, N>(ports: I) -> Self
     where
         I: IntoIterator<Item = N>,
@@ -27,6 +37,7 @@ impl<'a> UnixServer<'a> {
     {
         Self::default().and_all(ports)
     }
+    /// Listen on multiple sockets - usually a list of path items
     pub fn and_all<I, N>(mut self, ports: I) -> Self
     where
         I: IntoIterator<Item = N>,
@@ -37,18 +48,11 @@ impl<'a> UnixServer<'a> {
         }
         self
     }
-    pub fn and<N>(mut self, ports: N) -> Self
-    where
-        N: Into<SocketAddr> + 'a,
-    {
-        self.ports.push(Box::pin(Self::map_ports(ports)));
-        self
-    }
     fn map_ports(addrs: impl Into<SocketAddr>) -> impl Future<Output = Result<Vec<SocketAddr>>> {
         // todo: check if file exists and is a socket here?
         ready(Ok(vec![addrs.into()]))
     }
-    pub async fn resolve_ports(&mut self) -> Result<Vec<SocketAddr>> {
+    async fn resolve_ports(&mut self) -> Result<Vec<SocketAddr>> {
         let mut result = vec![];
         for port in self.ports.iter_mut() {
             let port = port.await?;
@@ -56,6 +60,7 @@ impl<'a> UnixServer<'a> {
         }
         Ok(result)
     }
+    /// Serve the given IoService on configured sockets
     pub async fn serve<S>(mut self, service: S) -> Result<()>
     where
         S: IoService + Send + Sync,

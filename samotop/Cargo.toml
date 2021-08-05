@@ -1,6 +1,6 @@
 [package]
 name = "samotop"
-version = "0.13.0"
+version = "0.13.1+smtp"
 authors = ["jocutajar <tellnoone@robajz.info>"]
 license = "MIT OR Apache-2.0"
 description = "SMTP server and library built on async-std"
@@ -39,7 +39,7 @@ log = "0.4"
 regex = { version = "1.5", optional = true, default-features = false }
 
 [dependencies.samotop-core]
-version = "0.13.0"
+version = "0.13.1"
 path = "../samotop-core"
 features = ["server", "driver", "prudence"]
 
@@ -49,36 +49,36 @@ path = "../samotop-parser"
 optional = true
 
 [dependencies.samotop-parser-nom]
-version = "0.13.0"
+version = "0.13"
 path = "../samotop-parser-nom"
 optional = true
 
 [dependencies.samotop-with-spf]
-version = "0.13.0"
+version = "0.13"
 path = "../samotop-with-spf"
 optional = true
 
 [dependencies.samotop-with-rustls]
-version = "0.13.0"
+version = "0.13"
 path = "../samotop-with-rustls"
 optional = true
 
 [dependencies.samotop-with-native-tls]
-version = "0.13.0"
+version = "0.13"
 path = "../samotop-with-native-tls"
 optional = true
 
 [dependencies.samotop-smime]
-version = "0.13.0"
+version = "0.13"
 path = "../samotop-smime"
 optional = true
 
 [dependencies.samotop-delivery]
-version = "0.13.0"
+version = "0.13"
 path = "../samotop-delivery"
 optional = true
 
 [dev-dependencies]
-env_logger = "0.8"
+env_logger = "0.9"
 insta = { version = "1.7" }
 async-std = { version = "1.9", features = ["attributes"] }
