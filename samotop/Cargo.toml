@@ -1,6 +1,6 @@
 [package]
 name = "samotop"
-version = "0.13.1+smtp"
+version = "0.13.2"
 authors = ["jocutajar <tellnoone@robajz.info>"]
 license = "MIT OR Apache-2.0"
 description = "SMTP server and library built on async-std"
@@ -54,7 +54,7 @@ path = "../samotop-parser-nom"
 optional = true
 
 [dependencies.samotop-with-spf]
-version = "0.13"
+version = "0.13.1"
 path = "../samotop-with-spf"
 optional = true
 
@@ -64,7 +64,7 @@ path = "../samotop-with-rustls"
 optional = true
 
 [dependencies.samotop-with-native-tls]
-version = "0.13"
+version = "0.13.1"
 path = "../samotop-with-native-tls"
 optional = true
 

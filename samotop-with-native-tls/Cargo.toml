@@ -1,6 +1,6 @@
 [package]
 name = "samotop-with-native-tls"
-version = "0.13.0"
+version = "0.13.1"
 authors = ["jocutajar <tellnoone@robajz.info>"]
 license = "MIT OR Apache-2.0"
 description = "Native TLS support for Samotop"
@@ -22,4 +22,4 @@ version = "0.13.0"
 path = "../samotop-core"
 
 [dependencies]
-async-native-tls = { version = "0.3", features = ["vendored"] }
+async-native-tls = { version = "0.4", features = ["vendored"] }
