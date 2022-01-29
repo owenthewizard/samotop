@@ -131,6 +131,7 @@ example-dir:
 
 example-prudence:
   extends: .example-template
+  allow_failure: true
   variables:
     EXAMPLE: prudent
   script:

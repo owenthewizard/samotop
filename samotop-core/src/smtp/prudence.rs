@@ -67,6 +67,7 @@ impl SessionService for PrudentService {
                 match io.read(&mut buf[..]).timeout(delay).await {
                     Some(Ok(0)) => {
                         // this just looks like the client gave up and left
+                        warn!("{} touch and go!", state.session.connection.peer_addr)
                     }
                     Some(Ok(_)) => {
                         state.session.input.push(buf[0]);
