@@ -64,7 +64,7 @@ path = "../samotop-with-rustls"
 optional = true
 
 [dependencies.samotop-with-native-tls]
-version = "0.13"
+version = "0.13.1"
 path = "../samotop-with-native-tls"
 optional = true
 
