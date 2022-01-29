@@ -9,7 +9,6 @@ use std::{path::PathBuf, sync::Arc};
 pub struct JournalTransport {
     dir: PathBuf,
     bucket: Arc<Potential<Bucket>>,
-    max_size: usize,
 }
 
 impl Default for JournalTransport {
@@ -25,7 +24,6 @@ impl JournalTransport {
         JournalTransport {
             dir: dir.into(),
             bucket: Arc::new(Potential::empty()),
-            max_size: 2_000_000_000,
         }
     }
 }

@@ -10,7 +10,7 @@ use samotop_core::{
     smtp::{SmtpPath, SmtpSession},
 };
 pub use viaspf::Config;
-use viaspf::{evaluate_spf, SpfResult};
+use viaspf::{evaluate_sender, SpfResult};
 
 /// enables checking for SPF records
 #[derive(Clone, Debug)]
@@ -68,15 +68,21 @@ impl MailDispatch for SpfWithConfig {
                 }
                 Ok(resolver) => resolver,
             };
-            let evaluation = evaluate_spf(
+            let evaluation = evaluate_sender(
                 &resolver,
                 &self.config,
                 peer_addr,
-                sender.as_str(),
-                peer_name.as_str(),
+                &sender.parse().map_err(|e| {
+                    error!("Could not parse sender {:?}, {}", sender, e);
+                    DispatchError::Temporary
+                })?,
+                Some(&peer_name.parse().map_err(|e| {
+                    error!("Could not parse peer domain {:?}, {}", peer_name, e);
+                    DispatchError::Temporary
+                })?),
             )
             .await;
-            match evaluation.result {
+            match evaluation.spf_result {
                 SpfResult::Fail(explanation) => {
                     info!("mail rejected due to SPF fail: {}", explanation);
                     Err(DispatchError::Permanent)

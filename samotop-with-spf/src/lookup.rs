@@ -7,7 +7,7 @@ use std::{
     time::Duration,
 };
 use trust_dns_resolver::error::ResolveErrorKind;
-use viaspf::{Lookup, LookupError, LookupResult, Name};
+use viaspf::lookup::{Lookup, LookupError, LookupResult, Name};
 
 pub struct TrustDnsResolver {
     inner: AsyncStdResolver,

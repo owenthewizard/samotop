@@ -223,9 +223,9 @@ dependencies = [
 
 [[package]]
 name = "async-trait"
-version = "0.1.51"
+version = "0.1.52"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "44318e776df68115a881de9a8fd1b9e53368d7a4a5ce4cc48517da3393233a5e"
+checksum = "061a7acccaa286c011ddc30970520b98fa40e00c9d644633fb26b5fc63a265e3"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1503,50 +1503,21 @@ dependencies = [
 
 [[package]]
 name = "samotop"
-version = "0.13.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eda7ec316f7c78c8a8300794f10e333808fba89f515761a18b9518855d4f4114"
-dependencies = [
- "log",
- "samotop-core 0.13.0",
- "samotop-delivery 0.13.0",
- "samotop-parser 0.13.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "samotop-smime 0.13.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "samotop-with-rustls 0.13.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "samotop-with-spf 0.13.0 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
-name = "samotop"
-version = "0.13.1+smtp"
+version = "0.13.2"
 dependencies = [
  "async-std",
  "env_logger",
  "insta",
  "log",
  "regex",
- "samotop-core 0.13.1+smtp",
- "samotop-delivery 0.13.1",
- "samotop-parser 0.13.0",
+ "samotop-core",
+ "samotop-delivery",
+ "samotop-parser",
  "samotop-parser-nom",
- "samotop-smime 0.13.0",
+ "samotop-smime",
  "samotop-with-native-tls",
- "samotop-with-rustls 0.13.0",
- "samotop-with-spf 0.13.0",
-]
-
-[[package]]
-name = "samotop-core"
-version = "0.13.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "86fb063a380ade11125c2cb8b74498f03f2b12ba47592dc1aecb6deb681f3aba"
-dependencies = [
- "async-std",
- "futures-core",
- "futures-io",
- "futures-util",
- "log",
- "smol-timeout",
+ "samotop-with-rustls",
+ "samotop-with-spf",
 ]
 
 [[package]]
@@ -1561,32 +1532,6 @@ dependencies = [
  "log",
  "regex",
  "smol-timeout",
-]
-
-[[package]]
-name = "samotop-delivery"
-version = "0.13.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b41a724670aa86598f14aaf18b1a9b3fb341748e15313dbde7c4d5c87e6fff52"
-dependencies = [
- "async-std",
- "base64",
- "bytes",
- "fast_chemail",
- "hostname",
- "log",
- "lozizol",
- "memchr",
- "nom",
- "pin-project",
- "pin-utils",
- "potential",
- "samotop-core 0.13.0",
- "serde",
- "serde_derive",
- "serde_json",
- "thiserror",
- "uuid",
 ]
 
 [[package]]
@@ -1609,7 +1554,7 @@ dependencies = [
  "pin-project",
  "pin-utils",
  "potential",
- "samotop-core 0.13.1+smtp",
+ "samotop-core",
  "serde",
  "serde_derive",
  "serde_json",
@@ -1624,18 +1569,7 @@ version = "0.13.0"
 dependencies = [
  "log",
  "peg",
- "samotop-core 0.13.1+smtp",
-]
-
-[[package]]
-name = "samotop-parser"
-version = "0.13.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cdf2e91d7da63ae0e700a75c2e40b0d837cd9fe404a5b5fca39c5be7a4a918c1"
-dependencies = [
- "log",
- "peg",
- "samotop-core 0.13.0",
+ "samotop-core",
 ]
 
 [[package]]
@@ -1644,12 +1578,12 @@ version = "0.13.0"
 dependencies = [
  "nom",
  "rustyknife",
- "samotop-core 0.13.1+smtp",
+ "samotop-core",
 ]
 
 [[package]]
 name = "samotop-server"
-version = "1.2.1-dev"
+version = "1.2.2-dev"
 dependencies = [
  "async-std",
  "async-tls",
@@ -1658,7 +1592,7 @@ dependencies = [
  "log",
  "regex",
  "rustls",
- "samotop 0.13.0",
+ "samotop",
  "structopt",
 ]
 
@@ -1672,21 +1606,7 @@ dependencies = [
  "futures-lite",
  "log",
  "pin-project",
- "samotop-core 0.13.1+smtp",
-]
-
-[[package]]
-name = "samotop-smime"
-version = "0.13.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "830db3c1b86e8ecfab352ef13ad0eeaf65089707b5866287436a3d3ab0e39f86"
-dependencies = [
- "async-macros",
- "async-process",
- "async-std",
- "log",
- "pin-project",
- "samotop-core 0.13.0",
+ "samotop-core",
 ]
 
 [[package]]
@@ -1694,7 +1614,7 @@ name = "samotop-with-native-tls"
 version = "0.13.0"
 dependencies = [
  "async-native-tls",
- "samotop-core 0.13.1+smtp",
+ "samotop-core",
 ]
 
 [[package]]
@@ -1702,43 +1622,18 @@ name = "samotop-with-rustls"
 version = "0.13.0"
 dependencies = [
  "async-tls",
- "samotop-core 0.13.1+smtp",
-]
-
-[[package]]
-name = "samotop-with-rustls"
-version = "0.13.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d6572fd468ee5c46643949ee418ba25d4f8886b59fa5fb2423f47bf0981c20e2"
-dependencies = [
- "async-tls",
- "samotop-core 0.13.0",
+ "samotop-core",
 ]
 
 [[package]]
 name = "samotop-with-spf"
-version = "0.13.0"
+version = "0.13.1"
 dependencies = [
  "async-std",
  "async-std-resolver",
  "log",
  "pin-project",
- "samotop-core 0.13.1+smtp",
- "trust-dns-resolver",
- "viaspf",
-]
-
-[[package]]
-name = "samotop-with-spf"
-version = "0.13.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b0b2d870b75817aac32f91397b155ad1d44afcace5926984f5613d0f1d0d0103"
-dependencies = [
- "async-std",
- "async-std-resolver",
- "log",
- "pin-project",
- "samotop-core 0.13.0",
+ "samotop-core",
  "trust-dns-resolver",
  "viaspf",
 ]
@@ -2066,6 +1961,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cda74da7e1a664f795bb1f8a87ec406fb89a02522cf6e50620d016add6dbbf5c"
 
 [[package]]
+name = "tokio"
+version = "1.16.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0c27a64b625de6d309e8c57716ba93021dccf1b3b5c97edd6d3dd2d2135afc0a"
+dependencies = [
+ "pin-project-lite 0.2.7",
+]
+
+[[package]]
 name = "trust-dns-proto"
 version = "0.20.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2201,13 +2105,21 @@ checksum = "5fecdca9a5291cc2b8dcf7dc02453fee791a280f3743cb0905f8822ae463b3fe"
 
 [[package]]
 name = "viaspf"
-version = "0.4.0-alpha.1"
+version = "0.4.0-alpha.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5c753a9c887629ca9d607b0e70cded6a94e295ee19e758b827f984f74923a328"
+checksum = "6ab69a2b80d246c4a99be844ac0ec0efa4dab0ed6307617b78ae5140545c3013"
 dependencies = [
  "async-trait",
  "idna",
+ "tokio",
+ "viaspf-record",
 ]
+
+[[package]]
+name = "viaspf-record"
+version = "0.4.0-alpha.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1893bd78e0e95fd75e7e94b97280cd1487a20a46a6bc7de0bc60b3e679c0cdf6"
 
 [[package]]
 name = "waker-fn"
