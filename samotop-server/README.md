@@ -1,6 +1,6 @@
 [![Build Status](https://gitlab.com/BrightOpen/Samotop/badges/develop/pipeline.svg)](https://gitlab.com/BrightOpen/Samotop/commits/master)
 
-# samotop-server 1.2.2-dev
+# samotop-server 1.2.2
 
 You can run your own privacy focussed, resource efficient mail server. [Samotop docker image](https://hub.docker.com/r/brightopen/samotop) is available for your convenience.
 
