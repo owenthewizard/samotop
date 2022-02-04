@@ -1,17 +1,20 @@
 use crate::{
     common::*,
-    mail::{AcceptsDispatch, DispatchResult, MailDispatch, MailSetup},
+    mail::{DispatchResult, MailDispatch, MailSetup},
     smtp::SmtpSession,
 };
+
+use super::Configuration;
 
 /// Accept all calls, but do nothing.
 /// Combine this with the `SessionLogger` for a light-weight debugging server.
 #[derive(Debug)]
+#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub struct NullDispatch;
 
-impl<T: AcceptsDispatch> MailSetup<T> for NullDispatch {
+impl MailSetup for NullDispatch {
     /// Add a null dispatch
-    fn setup(self, config: &mut T) {
+    fn setup(self, config: &mut Configuration) {
         config.add_last_dispatch(self)
     }
 }

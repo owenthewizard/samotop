@@ -12,15 +12,13 @@ use std::fmt;
 ///
 /// The logger will use session service name to mark the logs.
 #[derive(Clone, Debug, Default)]
+#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub struct SessionLogger;
 
 pub use SessionLogger as DebugService;
 
-impl<T> MailSetup<T> for SessionLogger
-where
-    T: AcceptsSessionService + AcceptsGuard + AcceptsDispatch,
-{
-    fn setup(self, config: &mut T) {
+impl MailSetup for SessionLogger {
+    fn setup(self, config: &mut Configuration) {
         config.add_last_session_service(self.clone());
         config.add_last_guard(self.clone());
         config.add_last_dispatch(self);

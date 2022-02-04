@@ -23,6 +23,10 @@ categories = [
 gitlab = { repository = "BrightOpen/Samotop", branch = "develop" }
 maintenance = { status = "actively-developed" }
 
+[[bin]]
+name = "samotop"
+required-features = ["cli"]
+
 [features]
 default = ["rust-tls", "spf", "parser-peg", "smime", "delivery", "mapper"]
 delivery = ["samotop-delivery"]
@@ -33,24 +37,42 @@ native-tls = ["samotop-with-native-tls", "samotop-with-native-tls"]
 parser-peg = ["samotop-parser"]
 parser-nom = ["samotop-parser-nom"]
 mapper = ["regex"]
+cli = [
+    "async-std/attributes",
+    "structopt",
+    "tracing/default",
+    "tracing-subscriber/env-filter",
+    "tracing-subscriber/json",
+    "tracing-log/default",
+    "strum_macros",
+    "strum",
+]
 
 [dependencies]
 log = "0.4"
 regex = { version = "1.5", optional = true, default-features = false }
+# tool deps
+async-std = { version = "1.9", optional = true, default-features = false }
+structopt = { version = "0.3", optional = true, default-features = false }
+tracing = { version = "0.1", optional = true, default-features = false }
+tracing-subscriber = { version = "0.3", optional = true }
+tracing-log = { version = "0.1", optional = true }
+strum_macros = { version = "0.23", optional = true }
+strum = { version = "0.23", optional = true }
 
 [dependencies.samotop-core]
 version = "0.13.1"
-path = "../samotop-core"
+#path = "../samotop-core"
 features = ["server", "driver", "prudence"]
 
 [dependencies.samotop-parser]
 version = "0.13.0"
-path = "../samotop-parser"
+#path = "../samotop-parser"
 optional = true
 
 [dependencies.samotop-parser-nom]
 version = "0.13"
-path = "../samotop-parser-nom"
+#path = "../samotop-parser-nom"
 optional = true
 
 [dependencies.samotop-with-spf]

@@ -16,10 +16,40 @@ use rustyknife::{
 };
 use samotop_core::smtp::{command::*, *};
 pub use samotop_core::smtp::{ParseError, ParseResult, Parser};
+use samotop_core::{
+    common::S1Fut,
+    io::tls::MayBeTls,
+    mail::{Configuration, MailSetup},
+    smtp::{command::SmtpCommand, ParserService, SessionService, SmtpContext},
+};
+use serde::{Deserialize, Serialize};
+use std::future::ready;
 use std::net::IpAddr;
 
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize)]
 pub struct SmtpParserNom;
+
+impl MailSetup for SmtpParserNom {
+    fn setup(self, config: &mut Configuration) {
+        config.add_last_session_service(SmtpParserNom)
+    }
+}
+
+impl SessionService for SmtpParserNom {
+    fn prepare_session<'a, 'i, 's, 'f>(
+        &'a self,
+        _io: &'i mut Box<dyn MayBeTls>,
+        state: &'s mut SmtpContext,
+    ) -> S1Fut<'f, ()>
+    where
+        'a: 'f,
+        'i: 'f,
+        's: 'f,
+    {
+        state.set::<ParserService<SmtpCommand>>(Box::new(SmtpParserNom));
+        Box::pin(ready(()))
+    }
+}
 
 impl Parser<SmtpCommand> for SmtpParserNom {
     fn parse(&self, input: &[u8], state: &SmtpContext) -> ParseResult<SmtpCommand> {

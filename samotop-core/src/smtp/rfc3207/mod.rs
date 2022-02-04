@@ -1,55 +1,27 @@
 use crate::common::{ready, S1Fut};
 use crate::io::tls::{MayBeTls, TlsProvider};
-use crate::mail::{AcceptsInterpretter, AcceptsSessionService, MailSetup};
-use crate::smtp::{extension, Interpretter, Parser, SessionService, SmtpContext};
-use std::sync::Arc;
+use crate::mail::{Configuration, MailSetup};
+use crate::smtp::{extension, Interpretter, SessionService, SmtpContext};
 
 mod starttls;
 
 /// An implementation of ESMTP STARTTLS - RFC 3207 - SMTP Service Extension for Secure SMTP over Transport Layer Security
-#[derive(Debug)]
-pub struct EsmtpStartTls;
-
-pub type Rfc3207 = EsmtpStartTls;
-
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub struct StartTls;
 
-#[derive(Debug)]
-pub struct EsmtpStartTlsConfigured {
-    tls: Box<dyn TlsProvider + Sync + Send + 'static>,
-    interpret: Arc<Interpretter>,
-}
+pub type Rfc3207 = StartTls;
 
-impl EsmtpStartTls {
-    pub fn with<
-        P: Parser<StartTls> + Send + Sync + 'static,
-        TLS: TlsProvider + Sync + Send + 'static,
-    >(
-        &self,
-        parser: P,
-        provider: TLS,
-    ) -> EsmtpStartTlsConfigured {
-        EsmtpStartTlsConfigured {
-            tls: Box::new(provider),
-            interpret: Arc::new(
-                Interpretter::default()
-                    .parse::<StartTls>()
-                    .with(parser)
-                    .and_apply(StartTls),
-            ),
-        }
-    }
-}
-
-impl<T: AcceptsSessionService + AcceptsInterpretter> MailSetup<T> for EsmtpStartTlsConfigured {
-    fn setup(self, config: &mut T) {
-        config.add_last_interpretter(self.interpret.clone());
+impl MailSetup for StartTls {
+    fn setup(self, config: &mut Configuration) {
+        config.add_last_interpretter(Interpretter::apply(StartTls).to::<StartTls>().build());
         config.add_last_session_service(self);
     }
 }
 
-impl SessionService for EsmtpStartTlsConfigured {
+pub type TlsService = Box<dyn TlsProvider + Send + Sync>;
+
+impl SessionService for StartTls {
     fn prepare_session<'a, 'i, 's, 'f>(
         &'a self,
         io: &'i mut Box<dyn MayBeTls>,
@@ -63,8 +35,12 @@ impl SessionService for EsmtpStartTlsConfigured {
         if !io.is_encrypted() {
             // Add tls if needed and available
             if !io.can_encrypt() {
-                if let Some(upgrade) = self.tls.get_tls_upgrade() {
-                    io.enable_encryption(upgrade, String::default());
+                if let Some(tls) = state.get::<TlsService>() {
+                    if let Some(upgrade) = tls.get_tls_upgrade() {
+                        io.enable_encryption(upgrade, String::default());
+                    }
+                } else {
+                    warn!("No TLS provider")
                 }
             }
             // enable STARTTLS extension if it can be used

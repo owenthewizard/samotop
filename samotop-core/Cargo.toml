@@ -1,6 +1,6 @@
 [package]
 name = "samotop-core"
-version = "0.13.1+smtp"
+version = "0.14.0"
 authors = ["jocutajar <tellnoone@robajz.info>"]
 license = "MIT OR Apache-2.0"
 description = "The domain model of Samotop and core functionality - SMTP server and library built on async-std. A base crate for samotop extensions."
@@ -20,16 +20,18 @@ maintenance = { status = "actively-developed" }
 server = ["futures-util/alloc", "async-std/default"]
 driver = ["async-std/std"]
 prudence = ["smol-timeout"]
+serialize = ["serde"]
 
 [dependencies]
 futures-io = "0.3"
 futures-core = "0.3"
 futures-util = { version = "0.3", default-features = false, optional = true }
 async-std = { version = "1.9", default-features = false, optional = true }
+serde = { version = "1", default-features = false, optional = true }
 smol-timeout = { version = "0.6", optional = true }
-log = "0.4"
+tracing = { version = "0.1", default-features = false }
 
 [dev-dependencies]
 insta = { version = "1.7" }
 regex = "1.5"
-async-std = "1.9"
+async-std = { version = "1.9", features = ["attributes"] }

@@ -13,61 +13,31 @@ pub(crate) use self::body::apply_mail_body;
 pub(crate) use self::helo::apply_helo;
 use crate::common::*;
 use crate::io::tls::MayBeTls;
-use crate::mail::{AcceptsInterpretter, AcceptsSessionService, MailSetup};
+use crate::mail::{Configuration, MailSetup};
 use crate::smtp::command::*;
 use crate::smtp::*;
 
 /// An implementation of ESMTP - RFC 5321 - Simple Mail Transfer Protocol
 
 #[derive(Eq, PartialEq, Debug, Clone)]
+#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub struct Esmtp;
 
 pub type Rfc5321 = Esmtp;
 
-impl Esmtp {
-    pub fn with<P>(&self, parser: P) -> EsmtpConfigured<P>
-    where
-        P: Parser<SmtpCommand>,
-        P: Parser<MailBody<Vec<u8>>>,
-        P: Send + Sync + 'static,
-    {
-        EsmtpConfigured {
-            parser: Arc::new(parser),
-        }
-    }
-}
-impl<P, T> MailSetup<T> for EsmtpConfigured<P>
-where
-    T: AcceptsSessionService + AcceptsInterpretter,
-    P: Parser<SmtpCommand>,
-    P: Parser<MailBody<Vec<u8>>>,
-    P: fmt::Debug + Sync + Send + 'static,
-{
-    fn setup(self, config: &mut T) {
+impl MailSetup for Esmtp {
+    fn setup(self, config: &mut Configuration) {
         config.add_last_interpretter(
-            Interpretter::default()
-                .parse::<SmtpCommand>()
-                .with(self.parser.clone())
-                .and_apply(Esmtp)
-                .parse::<MailBody<Vec<u8>>>()
-                .with(self.parser.clone())
-                .and_apply(Esmtp),
+            Interpretter::apply(Esmtp)
+                .to::<SmtpCommand>()
+                .to::<MailBody<Vec<u8>>>()
+                .build(),
         );
         config.add_last_session_service(self);
     }
 }
 
-#[derive(Debug)]
-pub struct EsmtpConfigured<P> {
-    parser: Arc<P>,
-}
-
-impl<P> SessionService for EsmtpConfigured<P>
-where
-    P: Parser<SmtpCommand>,
-    P: Parser<MailBody<Vec<u8>>>,
-    P: fmt::Debug + Sync + Send + 'static,
-{
+impl SessionService for Esmtp {
     fn prepare_session<'a, 'i, 's, 'f>(
         &'a self,
         _io: &'i mut Box<dyn MayBeTls>,

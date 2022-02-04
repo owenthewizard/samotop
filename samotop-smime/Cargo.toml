@@ -23,7 +23,7 @@ log = "0.4"
 
 [dependencies.samotop-core]
 version = "0.13.0"
-path = "../samotop-core"
+#path = "../samotop-core"
 
 [dev-dependencies]
 futures-lite = "1.11"

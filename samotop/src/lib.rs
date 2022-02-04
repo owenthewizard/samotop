@@ -196,6 +196,8 @@ In Rust world I have so far found mostly SMTP clients.
 * [new-tokio-smtp](https://crates.io/crates/new-tokio-smtp) is na SMTP client by **Philipp Korber**, now only pasively maintained
 */
 
+#[cfg(feature = "cli")]
+pub mod cli;
 pub mod io;
 pub mod mail;
 pub mod server;

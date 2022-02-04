@@ -1,6 +1,6 @@
 use crate::{
     common::Dummy,
-    smtp::{command::SmtpUnknownCommand, SmtpContext},
+    smtp::{command::SmtpInvalidCommand, SmtpContext},
 };
 use std::{
     fmt::{self, Debug},
@@ -36,10 +36,23 @@ impl<CMD, S: Parser<CMD>, T: Deref<Target = S> + Debug> Parser<CMD> for T {
     }
 }
 
-impl Parser<SmtpUnknownCommand> for Dummy {
-    fn parse(&self, input: &[u8], _state: &SmtpContext) -> ParseResult<SmtpUnknownCommand> {
+// impl Parser<SmtpUnknownCommand> for Dummy {
+//     fn parse(&self, input: &[u8], _state: &SmtpContext) -> ParseResult<SmtpUnknownCommand> {
+//         if let Some(line) = input.split(|b| *b == b'\n').next() {
+//             Ok((line.len() + 1, Default::default()))
+//         } else {
+//             Err(ParseError::Incomplete)
+//         }
+//     }
+// }
+
+impl Parser<SmtpInvalidCommand> for Dummy {
+    fn parse(&self, input: &[u8], _state: &SmtpContext) -> ParseResult<SmtpInvalidCommand> {
         if let Some(line) = input.split(|b| *b == b'\n').next() {
-            Ok((line.len(), Default::default()))
+            Ok((
+                line.len() + 1,
+                SmtpInvalidCommand::new(line[0..line.len()].to_vec()),
+            ))
         } else {
             Err(ParseError::Incomplete)
         }

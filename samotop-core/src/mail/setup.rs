@@ -1,7 +1,4 @@
-use crate::{
-    mail::{MailDispatch, MailGuard},
-    smtp::{Interpret, SessionService},
-};
+use crate::mail::Configuration;
 
 /**
 Can set up the given mail services.
@@ -10,11 +7,12 @@ Can set up the given mail services.
 # use samotop_core::mail::*;
 /// This mail setup replaces dispatch service with default. No mail will be sent.
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 struct NoDispatch;
 
-impl<T: AcceptsDispatch> MailSetup<T> for NoDispatch
+impl MailSetup for NoDispatch
 {
-    fn setup(self, config: &mut T) {
+    fn setup(self, config: &mut Configuration) {
         config.wrap_dispatches(|_| NullDispatch)
     }
 }
@@ -23,45 +21,15 @@ let mail_svc = Builder + NoDispatch;
 
 ```
 */
-pub trait MailSetup<T>: std::fmt::Debug {
-    fn setup(self, config: &mut T);
+
+#[cfg(feature = "serialize")]
+pub trait MailSetup: std::fmt::Debug + serde::Serialize + serde::Deserialize<'static> {
+    fn setup(self, config: &mut Configuration);
 }
 
-pub trait HasId {
-    fn id(&self) -> &str;
-}
-
-pub trait AcceptsSessionService {
-    fn add_first_session_service<T: SessionService + Send + Sync + 'static>(&mut self, item: T);
-    fn add_last_session_service<T: SessionService + Send + Sync + 'static>(&mut self, item: T);
-    fn wrap_session_service<T, F>(&mut self, wrap: F)
-    where
-        T: SessionService + Send + Sync + 'static,
-        F: FnOnce(Box<dyn SessionService + Send + Sync>) -> T;
-}
-pub trait AcceptsInterpretter {
-    fn add_first_interpretter<T: Interpret + Send + Sync + 'static>(&mut self, item: T);
-    fn add_last_interpretter<T: Interpret + Send + Sync + 'static>(&mut self, item: T);
-    fn wrap_interpretter<T, F>(&mut self, wrap: F)
-    where
-        T: Interpret + Send + Sync + 'static,
-        F: FnOnce(Box<dyn Interpret + Send + Sync>) -> T;
-}
-pub trait AcceptsGuard {
-    fn add_first_guard<T: MailGuard + Send + Sync + 'static>(&mut self, item: T);
-    fn add_last_guard<T: MailGuard + Send + Sync + 'static>(&mut self, item: T);
-    fn wrap_guards<T, F>(&mut self, wrap: F)
-    where
-        T: MailGuard + Send + Sync + 'static,
-        F: FnOnce(Box<dyn MailGuard + Send + Sync>) -> T;
-}
-pub trait AcceptsDispatch {
-    fn add_first_dispatch<T: MailDispatch + Send + Sync + 'static>(&mut self, item: T);
-    fn add_last_dispatch<T: MailDispatch + Send + Sync + 'static>(&mut self, item: T);
-    fn wrap_dispatches<T, F>(&mut self, wrap: F)
-    where
-        T: MailDispatch + Send + Sync + 'static,
-        F: FnOnce(Box<dyn MailDispatch + Send + Sync>) -> T;
+#[cfg(not(feature = "serialize"))]
+pub trait MailSetup: std::fmt::Debug {
+    fn setup(self, config: &mut Configuration);
 }
 
 #[cfg(test)]
@@ -70,10 +38,11 @@ mod tests {
     use crate::mail::*;
 
     #[derive(Debug)]
+    #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
     struct TestSetup;
 
-    impl<T: AcceptsDispatch> MailSetup<T> for TestSetup {
-        fn setup(self, config: &mut T) {
+    impl MailSetup for TestSetup {
+        fn setup(self, config: &mut Configuration) {
             config.add_last_dispatch(NullDispatch)
         }
     }

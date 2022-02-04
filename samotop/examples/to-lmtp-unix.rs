@@ -18,7 +18,7 @@ EOF
 ```
  */
 
-#[cfg(all(unix, feature = "delivery"))]
+#[cfg(all(unix, feature = "delivery", feature = "mapper"))]
 #[async_std::main]
 async fn main() -> Result<()> {
     use regex::Regex;
@@ -46,7 +46,7 @@ async fn main() -> Result<()> {
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
-#[cfg(not(all(unix, feature = "delivery")))]
+#[cfg(not(all(unix, feature = "delivery", feature = "mapper")))]
 #[async_std::main]
 async fn main() -> Result<()> {
     panic!("This will only work on a unix-like system and with delivery feature")

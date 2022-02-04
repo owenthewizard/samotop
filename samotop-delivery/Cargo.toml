@@ -39,7 +39,7 @@ memchr = "2.3"
 
 [dependencies.samotop-core]
 version = "0.13.0"
-path = "../samotop-core"
+#path = "../samotop-core"
 
 [dev-dependencies]
 env_logger = "0.9"

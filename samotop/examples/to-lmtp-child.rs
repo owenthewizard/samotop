@@ -22,7 +22,7 @@ EOF
 ```
  */
 
-#[cfg(feature = "delivery")]
+#[cfg(all(feature = "delivery", feature = "mapper"))]
 #[async_std::main]
 async fn main() -> Result<()> {
     use regex::Regex;
@@ -55,7 +55,7 @@ async fn main() -> Result<()> {
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
-#[cfg(not(feature = "delivery"))]
+#[cfg(not(all(feature = "delivery", feature = "mapper")))]
 #[async_std::main]
 async fn main() -> Result<()> {
     panic!("This will only work with the delivery feature enabled.")

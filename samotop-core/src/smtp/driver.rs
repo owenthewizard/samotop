@@ -62,6 +62,7 @@ impl Drive for SmtpDriver {
                             }
                         }
                         DriverControl::Shutdown => {
+                            // CHECKME: why?
                             state.session.input.extend_from_slice(io.buffer());
                             // TODO: replace with close() after https://github.com/async-rs/async-std/issues/977
                             match poll_fn(move |cx| Pin::new(io.get_mut()).poll_close(cx)).await {

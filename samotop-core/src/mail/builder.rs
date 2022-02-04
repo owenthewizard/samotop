@@ -10,7 +10,7 @@ use std::ops::{Add, AddAssign};
 pub struct Builder;
 
 /// Composing a mail service with +
-impl<T: MailSetup<Configuration>> Add<T> for Builder {
+impl<T: MailSetup> Add<T> for Builder {
     type Output = BuilderWithConfig;
     /// Add given mail setup to the service configuration
     fn add(self, setup: T) -> Self::Output {
@@ -26,7 +26,7 @@ impl Builder {
     /// Use a given MailSetup to build a MailService.
     ///
     /// See MailSetup for examples. Prefer to build with the + sign.
-    pub fn using(self, setup: impl MailSetup<Configuration>) -> BuilderWithConfig {
+    pub fn using(self, setup: impl MailSetup) -> BuilderWithConfig {
         BuilderWithConfig::default() + setup
     }
     #[cfg(feature = "driver")]
@@ -43,7 +43,7 @@ pub struct BuilderWithConfig {
 }
 
 /// Composing a mail service with +
-impl<T: MailSetup<Configuration>> Add<T> for BuilderWithConfig {
+impl<T: MailSetup> Add<T> for BuilderWithConfig {
     type Output = Self;
     /// Add given mail setup to the service configuration
     fn add(mut self, setup: T) -> Self::Output {
@@ -52,7 +52,7 @@ impl<T: MailSetup<Configuration>> Add<T> for BuilderWithConfig {
     }
 }
 /// Composing a mail service with +=
-impl<T: MailSetup<Configuration>> AddAssign<T> for BuilderWithConfig {
+impl<T: MailSetup> AddAssign<T> for BuilderWithConfig {
     fn add_assign(&mut self, setup: T) {
         trace!(
             "Service builder {} using setup {:?}",
@@ -67,7 +67,7 @@ impl BuilderWithConfig {
     /// Use a given MailSetup to build a MailService.
     ///
     /// See MailSetup for examples. Prefer to build with the + sign.
-    pub fn using(self, setup: impl MailSetup<Configuration>) -> Self {
+    pub fn using(self, setup: impl MailSetup) -> Self {
         self + setup
     }
 

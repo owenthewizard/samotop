@@ -19,7 +19,7 @@ maintenance = { status = "actively-developed" }
 
 [dependencies.samotop-core]
 version = "0.13.0"
-path = "../samotop-core"
+#path = "../samotop-core"
 
 [dependencies]
 async-native-tls = { version = "0.4", features = ["vendored"] }

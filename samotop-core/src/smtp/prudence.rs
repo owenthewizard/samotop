@@ -1,12 +1,13 @@
 use crate::common::*;
 use crate::io::tls::MayBeTls;
-use crate::mail::{AcceptsInterpretter, AcceptsSessionService, MailSetup};
+use crate::mail::{Configuration, MailSetup};
 use crate::smtp::{Interpret, InterpretResult, ParseError, SessionService, SmtpContext};
+use serde::{Deserialize, Serialize};
 use smol_timeout::TimeoutExt;
 use std::time::{Duration, Instant};
 
 /// Prevent bad SMTP behavior
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct Prudence {
     /// Monitor bad behavior of clients not waiting for a banner given time
     wait_for_banner_delay: Option<Duration>,
@@ -27,11 +28,8 @@ impl Prudence {
     }
 }
 
-impl<T> MailSetup<T> for Prudence
-where
-    T: AcceptsSessionService + AcceptsInterpretter,
-{
-    fn setup(self, config: &mut T) {
+impl MailSetup for Prudence {
+    fn setup(self, config: &mut Configuration) {
         config.wrap_interpretter(|inner| PrudentInterpretter {
             inner,
             timeout: self.read_timeout,

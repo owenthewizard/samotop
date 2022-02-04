@@ -1,7 +1,6 @@
-use super::MailSetup;
+use super::{Configuration, MailSetup};
 use crate::common::{ready, Identify, S1Fut};
 use crate::io::tls::MayBeTls;
-use crate::mail::{AcceptsSessionService, HasId};
 use crate::smtp::{SessionService, SmtpContext};
 
 /// MailSetup that uses the given service name for a session.
@@ -9,6 +8,7 @@ use crate::smtp::{SessionService, SmtpContext};
 ///
 /// Using the default instance or setting name to empty string will reuse the incoming service name already set.
 #[derive(Debug, Default)]
+#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub struct Name {
     name: String,
     identify_session: bool,
@@ -88,9 +88,9 @@ impl SessionService for Name {
         Box::pin(ready(()))
     }
 }
-impl<T: AcceptsSessionService + HasId> MailSetup<T> for Name {
+impl MailSetup for Name {
     /// Add self as an ESMTP service so it can configure service name for each session
-    fn setup(mut self, config: &mut T) {
+    fn setup(mut self, config: &mut Configuration) {
         self.instance_identity = config.id().to_string();
         config.add_first_session_service(self)
     }

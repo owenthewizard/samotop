@@ -863,6 +863,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ffbee8634e0d45d258acb448e7eaab3fce7a0a467395d4d9f228e3c1f01fb2e4"
 
 [[package]]
+name = "matchers"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8263075bb86c5a1b1427b5ae862e8889656f126e9f77c484496e8b47cf5c5558"
+dependencies = [
+ "regex-automata",
+]
+
+[[package]]
 name = "matches"
 version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1226,6 +1235,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "regex-automata"
+version = "0.1.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6c230d73fb8d8c1b9c0b3135c5142a8acee3a0558fb8db5cf1cb65f8d7862132"
+dependencies = [
+ "regex-syntax",
+]
+
+[[package]]
 name = "regex-syntax"
 version = "0.6.25"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1279,6 +1297,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "rustversion"
+version = "1.0.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f2cc38e8fa666e2de3c4aba7edeb5ffc5246c1c2ed0e3d17e560aeeba736b23f"
+
+[[package]]
 name = "rustyknife"
 version = "0.2.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1305,28 +1329,49 @@ dependencies = [
  "insta",
  "log",
  "regex",
- "samotop-core",
+ "samotop-core 0.13.1+smtp",
  "samotop-delivery",
- "samotop-parser",
- "samotop-parser-nom",
+ "samotop-parser 0.13.0",
+ "samotop-parser-nom 0.13.0",
  "samotop-smime",
  "samotop-with-native-tls",
  "samotop-with-rustls",
  "samotop-with-spf",
+ "structopt",
+ "strum",
+ "strum_macros",
+ "tracing",
+ "tracing-log",
+ "tracing-subscriber",
 ]
 
 [[package]]
 name = "samotop-core"
 version = "0.13.1+smtp"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "30fbe4107fd9f80333f487d3adc417e9aabe9cbee488e1e4d528e7eadc251bcd"
+dependencies = [
+ "async-std",
+ "futures-core",
+ "futures-io",
+ "futures-util",
+ "log",
+ "smol-timeout",
+]
+
+[[package]]
+name = "samotop-core"
+version = "0.14.0"
 dependencies = [
  "async-std",
  "futures-core",
  "futures-io",
  "futures-util",
  "insta",
- "log",
  "regex",
+ "serde",
  "smol-timeout",
+ "tracing",
 ]
 
 [[package]]
@@ -1348,7 +1393,7 @@ dependencies = [
  "pin-project",
  "pin-utils",
  "potential",
- "samotop-core",
+ "samotop-core 0.13.1+smtp",
  "serde",
  "serde_derive",
  "serde_json",
@@ -1360,19 +1405,43 @@ dependencies = [
 [[package]]
 name = "samotop-parser"
 version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cdf2e91d7da63ae0e700a75c2e40b0d837cd9fe404a5b5fca39c5be7a4a918c1"
 dependencies = [
  "log",
  "peg",
- "samotop-core",
+ "samotop-core 0.13.1+smtp",
+]
+
+[[package]]
+name = "samotop-parser"
+version = "0.14.0"
+dependencies = [
+ "log",
+ "peg",
+ "samotop-core 0.14.0",
+ "serde",
 ]
 
 [[package]]
 name = "samotop-parser-nom"
 version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ee02a16a293301f82b85f0dd4557ab7c7e7c09b5a4b312a4aa9b0706fa6f230b"
 dependencies = [
  "nom",
  "rustyknife",
- "samotop-core",
+ "samotop-core 0.13.1+smtp",
+]
+
+[[package]]
+name = "samotop-parser-nom"
+version = "0.14.0"
+dependencies = [
+ "nom",
+ "rustyknife",
+ "samotop-core 0.14.0",
+ "serde",
 ]
 
 [[package]]
@@ -1400,7 +1469,7 @@ dependencies = [
  "futures-lite",
  "log",
  "pin-project",
- "samotop-core",
+ "samotop-core 0.13.1+smtp",
 ]
 
 [[package]]
@@ -1408,7 +1477,7 @@ name = "samotop-with-native-tls"
 version = "0.13.1"
 dependencies = [
  "async-native-tls",
- "samotop-core",
+ "samotop-core 0.13.1+smtp",
 ]
 
 [[package]]
@@ -1416,7 +1485,7 @@ name = "samotop-with-rustls"
 version = "0.13.0"
 dependencies = [
  "async-tls",
- "samotop-core",
+ "samotop-core 0.13.1+smtp",
 ]
 
 [[package]]
@@ -1427,7 +1496,7 @@ dependencies = [
  "async-std-resolver",
  "log",
  "pin-project",
- "samotop-core",
+ "samotop-core 0.13.1+smtp",
  "trust-dns-resolver",
  "viaspf",
 ]
@@ -1522,6 +1591,15 @@ dependencies = [
  "ryu",
  "serde",
  "yaml-rust",
+]
+
+[[package]]
+name = "sharded-slab"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "900fba806f70c630b0a382d0d825e17a0f19fcd059a2ade1ff237bcddf446b31"
+dependencies = [
+ "lazy_static",
 ]
 
 [[package]]
@@ -1635,6 +1713,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "strum"
+version = "0.23.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cae14b91c7d11c9a851d3fbc80a963198998c2a64eec840477fa92d8ce9b70bb"
+
+[[package]]
+name = "strum_macros"
+version = "0.23.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5bb0dc7ee9c15cea6199cde9a127fa16a4c5819af85395457ad72d68edc85a38"
+dependencies = [
+ "heck",
+ "proc-macro2",
+ "quote",
+ "rustversion",
+ "syn",
+]
+
+[[package]]
 name = "syn"
 version = "1.0.86"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1714,6 +1811,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "thread_local"
+version = "1.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5516c27b78311c50bf42c071425c560ac799b11c30b31f87e3081965fe5e0180"
+dependencies = [
+ "once_cell",
+]
+
+[[package]]
 name = "tinyvec"
 version = "1.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1735,6 +1841,80 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0c27a64b625de6d309e8c57716ba93021dccf1b3b5c97edd6d3dd2d2135afc0a"
 dependencies = [
  "pin-project-lite 0.2.8",
+]
+
+[[package]]
+name = "tracing"
+version = "0.1.29"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "375a639232caf30edfc78e8d89b2d4c375515393e7af7e16f01cd96917fb2105"
+dependencies = [
+ "cfg-if",
+ "pin-project-lite 0.2.8",
+ "tracing-attributes",
+ "tracing-core",
+]
+
+[[package]]
+name = "tracing-attributes"
+version = "0.1.18"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f4f480b8f81512e825f337ad51e94c1eb5d3bbdf2b363dcd01e2b19a9ffe3f8e"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "tracing-core"
+version = "0.1.21"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1f4ed65637b8390770814083d20756f87bfa2c21bf2f110babdc5438351746e4"
+dependencies = [
+ "lazy_static",
+]
+
+[[package]]
+name = "tracing-log"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a6923477a48e41c1951f1999ef8bb5a3023eb723ceadafe78ffb65dc366761e3"
+dependencies = [
+ "lazy_static",
+ "log",
+ "tracing-core",
+]
+
+[[package]]
+name = "tracing-serde"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fb65ea441fbb84f9f6748fd496cf7f63ec9af5bca94dd86456978d055e8eb28b"
+dependencies = [
+ "serde",
+ "tracing-core",
+]
+
+[[package]]
+name = "tracing-subscriber"
+version = "0.3.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5312f325fe3588e277415f5a6cca1f4ccad0f248c4cd5a4bd33032d7286abc22"
+dependencies = [
+ "ansi_term",
+ "lazy_static",
+ "matchers",
+ "regex",
+ "serde",
+ "serde_json",
+ "sharded-slab",
+ "smallvec",
+ "thread_local",
+ "tracing",
+ "tracing-core",
+ "tracing-log",
+ "tracing-serde",
 ]
 
 [[package]]

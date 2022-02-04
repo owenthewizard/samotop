@@ -47,23 +47,26 @@ impl Configuration {
             },
         )
     }
-}
-impl HasId for Configuration {
-    fn id(&self) -> &str {
+
+    pub fn id(&self) -> &str {
         self.id.as_str()
     }
-}
 
-impl AcceptsSessionService for Configuration {
-    fn add_first_session_service<T: SessionService + Send + Sync + 'static>(&mut self, session: T) {
+    pub fn add_first_session_service<T: SessionService + Send + Sync + 'static>(
+        &mut self,
+        session: T,
+    ) {
         self.session.insert(0, Box::new(session));
     }
 
-    fn add_last_session_service<T: SessionService + Send + Sync + 'static>(&mut self, session: T) {
+    pub fn add_last_session_service<T: SessionService + Send + Sync + 'static>(
+        &mut self,
+        session: T,
+    ) {
         self.session.push(Box::new(session))
     }
 
-    fn wrap_session_service<
+    pub fn wrap_session_service<
         T: SessionService + Send + Sync + 'static,
         F: FnOnce(Box<dyn SessionService + Send + Sync>) -> T,
     >(
@@ -79,18 +82,16 @@ impl AcceptsSessionService for Configuration {
         ));
         self.session.push(Box::new(session))
     }
-}
 
-impl AcceptsGuard for Configuration {
-    fn add_first_guard<T: MailGuard + Send + Sync + 'static>(&mut self, guard: T) {
+    pub fn add_first_guard<T: MailGuard + Send + Sync + 'static>(&mut self, guard: T) {
         self.guard.insert(0, Box::new(guard));
     }
 
-    fn add_last_guard<T: MailGuard + Send + Sync + 'static>(&mut self, guard: T) {
+    pub fn add_last_guard<T: MailGuard + Send + Sync + 'static>(&mut self, guard: T) {
         self.guard.push(Box::new(guard))
     }
 
-    fn wrap_guards<
+    pub fn wrap_guards<
         T: MailGuard + Send + Sync + 'static,
         F: FnOnce(Box<dyn MailGuard + Send + Sync>) -> T,
     >(
@@ -104,18 +105,16 @@ impl AcceptsGuard for Configuration {
         }));
         self.guard.push(Box::new(guard))
     }
-}
 
-impl AcceptsDispatch for Configuration {
-    fn add_first_dispatch<T: MailDispatch + Send + Sync + 'static>(&mut self, dispatch: T) {
+    pub fn add_first_dispatch<T: MailDispatch + Send + Sync + 'static>(&mut self, dispatch: T) {
         self.dispatch.insert(0, Box::new(dispatch));
     }
 
-    fn add_last_dispatch<T: MailDispatch + Send + Sync + 'static>(&mut self, dispatch: T) {
+    pub fn add_last_dispatch<T: MailDispatch + Send + Sync + 'static>(&mut self, dispatch: T) {
         self.dispatch.push(Box::new(dispatch))
     }
 
-    fn wrap_dispatches<
+    pub fn wrap_dispatches<
         T: MailDispatch + Send + Sync + 'static,
         F: FnOnce(Box<dyn MailDispatch + Send + Sync>) -> T,
     >(
@@ -129,18 +128,16 @@ impl AcceptsDispatch for Configuration {
         }) as Box<dyn MailDispatch + Sync + Send>);
         self.dispatch.push(Box::new(dispatch))
     }
-}
 
-impl AcceptsInterpretter for Configuration {
-    fn add_first_interpretter<T: Interpret + Send + Sync + 'static>(&mut self, item: T) {
+    pub fn add_first_interpretter<T: Interpret + Send + Sync + 'static>(&mut self, item: T) {
         self.interpret.insert(0, Box::new(item));
     }
 
-    fn add_last_interpretter<T: Interpret + Send + Sync + 'static>(&mut self, item: T) {
+    pub fn add_last_interpretter<T: Interpret + Send + Sync + 'static>(&mut self, item: T) {
         self.interpret.push(Box::new(item))
     }
 
-    fn wrap_interpretter<
+    pub fn wrap_interpretter<
         T: Interpret + Send + Sync + 'static,
         F: FnOnce(Box<dyn Interpret + Send + Sync>) -> T,
     >(
