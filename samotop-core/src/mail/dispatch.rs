@@ -32,12 +32,12 @@ impl Component for MailDispatchService {
 }
 impl MultiComponent for MailDispatchService {}
 impl ComposableComponent for MailDispatchService {
-    fn compose<'a, I>(options: I) -> Self::Target
-    where
-        I: Iterator<Item = &'a Self::Target> + 'a,
-        Self::Target: Clone + 'a,
-    {
-        Arc::new(options.cloned().collect::<Vec<_>>())
+    fn from_none() -> Self::Target {
+        Self::from_many(vec![])
+    }
+
+    fn from_many(options: Vec<Self::Target>) -> Self::Target {
+        Arc::new(options)
     }
 }
 

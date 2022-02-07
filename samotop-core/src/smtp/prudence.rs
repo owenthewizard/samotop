@@ -33,7 +33,7 @@ impl Prudence {
 
 impl Setup for Prudence {
     fn setup(&self, builder: &mut ServerContext) {
-        let others = builder.store.get_or_compose::<HandlerService>();
+        let others = builder.store.get_or_compose::<HandlerService>().clone();
         builder
             .store
             .add::<HandlerService>(Arc::new(PrudentHandler {
@@ -118,7 +118,7 @@ impl Handler for PrudentHandler {
     {
         Box::pin(async move {
             if let Some(timeout) = self.config.read_timeout {
-                let others = session.store.get_or_compose::<InterptetService>();
+                let others = session.store.get_or_compose::<InterptetService>().clone();
                 let prin = PrudentInterpretter { others, timeout };
                 // wrap interpretters
                 session.store.set::<InterptetService>(Arc::new(prin));

@@ -62,10 +62,9 @@ mod tests {
     #[test]
     fn sink_gets_set() {
         async_std::task::block_on(async move {
-            
-        let mut store = Store::default();
-        let mut smtp = SmtpSession::default();
-        let mut set = SmtpContext::new(&mut store, &mut smtp);
+            let mut store = Store::default();
+            let mut smtp = SmtpSession::default();
+            let mut set = SmtpContext::new(&mut store, &mut smtp);
 
             set.session.peer_name = Some("xx.io".to_owned());
             set.session.transaction.id = "someid".to_owned();
@@ -91,10 +90,9 @@ mod tests {
     #[test]
     fn command_sequence_is_assured_missing_helo() {
         async_std::task::block_on(async move {
-            
-        let mut store = Store::default();
-        let mut smtp = SmtpSession::default();
-        let mut set = SmtpContext::new(&mut store, &mut smtp);
+            let mut store = Store::default();
+            let mut smtp = SmtpSession::default();
+            let mut set = SmtpContext::new(&mut store, &mut smtp);
 
             Esmtp.apply(SmtpData, &mut set).await;
             match set.session.pop_control() {
@@ -108,10 +106,9 @@ mod tests {
     #[test]
     fn command_sequence_is_assured_missing_mail() {
         async_std::task::block_on(async move {
-            
-        let mut store = Store::default();
-        let mut smtp = SmtpSession::default();
-        let mut set = SmtpContext::new(&mut store, &mut smtp);
+            let mut store = Store::default();
+            let mut smtp = SmtpSession::default();
+            let mut set = SmtpContext::new(&mut store, &mut smtp);
 
             set.session.peer_name = Some("xx.iu".to_owned());
 
@@ -126,10 +123,9 @@ mod tests {
     #[test]
     fn command_sequence_is_assured_missing_rcpt() {
         async_std::task::block_on(async move {
-            
-        let mut store = Store::default();
-        let mut smtp = SmtpSession::default();
-        let mut set = SmtpContext::new(&mut store, &mut smtp);
+            let mut store = Store::default();
+            let mut smtp = SmtpSession::default();
+            let mut set = SmtpContext::new(&mut store, &mut smtp);
 
             set.session.peer_name = Some("xx.iu".to_owned());
             set.session.transaction.mail = Some(SmtpMail::Mail(SmtpPath::Null, vec![]));

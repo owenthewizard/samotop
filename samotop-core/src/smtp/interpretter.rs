@@ -19,12 +19,12 @@ impl Component for InterptetService {
 }
 impl MultiComponent for InterptetService {}
 impl ComposableComponent for InterptetService {
-    fn compose<'a, I>(options: I) -> Self::Target
-    where
-        I: Iterator<Item = &'a Self::Target> + 'a,
-        Self::Target: Clone + 'a,
-    {
-        Arc::new(Interpretter::new(options.cloned().collect()))
+    fn from_none() -> Self::Target {
+        Self::from_many(vec![])
+    }
+
+    fn from_many(options: Vec<Self::Target>) -> Self::Target {
+        Arc::new(Interpretter::new(options))
     }
 }
 

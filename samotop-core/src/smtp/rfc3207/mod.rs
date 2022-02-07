@@ -7,7 +7,7 @@ use crate::io::{ConnectionInfo, Handler, HandlerService};
 use crate::smtp::{extension, Interpretter};
 use crate::store::{Component, SingleComponent};
 
-use super::{ExtensionSet, InterptetService};
+use super::{InterptetService, SmtpSession};
 
 mod starttls;
 
@@ -26,7 +26,7 @@ impl Setup for StartTls {
 
 pub struct TlsService {}
 impl Component for TlsService {
-    type Target = Box<dyn TlsProvider + Send + Sync>;
+    type Target = Arc<dyn TlsProvider + Send + Sync>;
 }
 impl SingleComponent for TlsService {}
 
@@ -54,7 +54,8 @@ impl Handler for StartTls {
             if session.store.get_ref::<TlsService>().is_some() {
                 session
                     .store
-                    .get_or_insert::<ExtensionSet, _>(|| ExtensionSet::new())
+                    .get_or_compose::<SmtpSession>()
+                    .extensions
                     .enable(&extension::STARTTLS);
             } else {
                 warn!("No TLS provider")

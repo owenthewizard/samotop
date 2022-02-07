@@ -59,10 +59,9 @@ mod tests {
     #[test]
     fn transaction_gets_reset() {
         async_std::task::block_on(async move {
-            
-        let mut store = Store::default();
-        let mut smtp = SmtpSession::default();
-        let mut set = SmtpContext::new(&mut store, &mut smtp);
+            let mut store = Store::default();
+            let mut smtp = SmtpSession::default();
+            let mut set = SmtpContext::new(&mut store, &mut smtp);
 
             set.session.peer_name = Some("xx.io".to_owned());
             set.session.transaction.id = "someid".to_owned();
@@ -89,10 +88,9 @@ mod tests {
     #[test]
     fn mail_is_set() {
         async_std::task::block_on(async move {
-            
-        let mut store = Store::default();
-        let mut smtp = SmtpSession::default();
-        let mut set = SmtpContext::new(&mut store, &mut smtp);
+            let mut store = Store::default();
+            let mut smtp = SmtpSession::default();
+            let mut set = SmtpContext::new(&mut store, &mut smtp);
 
             set.session.peer_name = Some("xx.io".to_owned());
 
@@ -114,10 +112,10 @@ mod tests {
     fn command_sequence_is_enforced() {
         async_std::task::block_on(async move {
             // MAIL command requires HELO/EHLO
-            
-        let mut store = Store::default();
-        let mut smtp = SmtpSession::default();
-        let mut set = SmtpContext::new(&mut store, &mut smtp);
+
+            let mut store = Store::default();
+            let mut smtp = SmtpSession::default();
+            let mut set = SmtpContext::new(&mut store, &mut smtp);
 
             Esmtp
                 .apply(SmtpMail::Mail(SmtpPath::Postmaster, vec![]), &mut set)

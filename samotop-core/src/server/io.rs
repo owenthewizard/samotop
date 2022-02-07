@@ -7,7 +7,7 @@ pub struct StdIo;
 
 impl Server for StdIo {
     fn sessions<'s, 'f>(
-        &'s  self,
+        &'s self,
     ) -> S1Fut<'f, Result<Pin<Box<dyn Stream<Item = Result<Session>> + Send + Sync>>>>
     where
         's: 'f,

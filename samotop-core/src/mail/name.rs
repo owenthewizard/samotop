@@ -1,6 +1,7 @@
 use crate::builder::{ServerContext, Setup};
 use crate::common::*;
-use crate::io::{ConnectionInfo, Handler, HandlerService};
+use crate::io::{Handler, HandlerService};
+use crate::smtp::SmtpSession;
 
 /// MailSetup that uses the given service name for a session.
 /// It can also attach the instance ID and session ID for better diagnostics.
@@ -47,12 +48,10 @@ impl Handler for Name {
         's: 'f,
         'a: 'f,
     {
-        let conn = session
-            .store
-            .get_or_insert::<ConnectionInfo, _>(|| ConnectionInfo::default());
+        let sess = session.store.get_or_compose::<SmtpSession>();
 
         let mut name = if self.name.is_empty() {
-            std::mem::take(&mut conn.service_name)
+            std::mem::take(&mut sess.service_name)
         } else {
             self.name.clone()
         };
@@ -71,20 +70,15 @@ impl Handler for Name {
         }
 
         if self.identify_session {
-            let session_id = if conn.id.is_empty() {
-                Identify::now().to_string()
-            } else {
-                std::mem::take(&mut conn.id)
-            };
+            let session_id = Identify::now().to_string();
             name = if name.is_empty() {
                 session_id
             } else {
                 format!("{}.{}", session_id, name)
             };
-            conn.id = name.clone();
         };
 
-        conn.service_name = name;
+        sess.service_name = name;
 
         Box::pin(ready(Ok(())))
     }

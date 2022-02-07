@@ -3,7 +3,6 @@ use std::{
     any::{Any, TypeId},
     collections::HashMap,
     fmt::Debug,
-    iter::{empty, once},
 };
 
 #[derive(Default)]
@@ -13,12 +12,27 @@ pub struct Store {
 }
 
 impl Store {
-    pub fn get_or_compose<T>(&self) -> T::Target
+    pub fn get_or_compose<T>(&mut self) -> &mut T::Target
     where
         T: ComposableComponent + 'static,
-        T::Target: Clone,
+        T::Target: Send + Sync,
     {
-        T::get_or_compose(self.get_all_internal::<T>())
+        let set = self.store.remove(&TypeId::of::<T>()).unwrap_or_default();
+
+        match set.len() {
+            0 => self.set::<T>(T::from_none()),
+            1 => self.set::<T>(
+                *set.into_iter()
+                    .next()
+                    .map(|one| one.downcast::<T::Target>().expect("downcast one"))
+                    .expect("one"),
+            ),
+            _ => self.set::<T>(T::from_many(
+                set.into_iter()
+                    .map(|item| *item.downcast::<T::Target>().expect("downcast item"))
+                    .collect::<Vec<_>>(),
+            )),
+        }
     }
     pub fn get_mut<T>(&mut self) -> Option<&mut T::Target>
     where
@@ -149,33 +163,17 @@ pub trait MultiComponent: Component {
         false
     }
 }
-pub trait ComposableComponent: MultiComponent {
-    /// Get a single instance by value
-    /// This allows us to create a new value or clone existing
-    /// Default behavior:
-    ///     Get a single instance if present.
-    ///     Call `Self::compose(options)`  if more than one instance exists.
-    ///     This is probably good enough, but the default impl of compose will panic.
-    fn get_or_compose<'a, I>(mut options: I) -> Self::Target
-    where
-        I: Iterator<Item = &'a Self::Target> + 'a,
-        Self::Target: Clone + Sized + 'a,
-    {
-        if let Some(first) = options.next() {
-            if let Some(second) = options.next() {
-                Self::compose(once(first).chain(once(second)).chain(options))
-            } else {
-                first.clone()
-            }
-        } else {
-            Self::compose(empty())
-        }
-    }
+/// Get a single instance by mut ref
+/// This allows us to create a new value or clone existing
+/// Default behavior:
+///     Get a single instance if present.
+///     Call `Self::compose(options)`  if more than one instance exists.
+///     This is probably good enough, but the default impl of compose will panic.
+pub trait ComposableComponent: Component {
+    /// Create a default instance
+    fn from_none() -> Self::Target;
     /// Compose a single instance from multiple.
-    fn compose<'a, I>(options: I) -> Self::Target
-    where
-        I: Iterator<Item = &'a Self::Target> + 'a,
-        Self::Target: Clone + 'a;
+    fn from_many(options: Vec<Self::Target>) -> Self::Target;
 }
 pub trait SingleComponent: Component {
     /// Get a single instance by reference.

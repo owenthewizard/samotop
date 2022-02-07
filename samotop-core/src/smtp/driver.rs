@@ -3,8 +3,8 @@ use crate::common::{io::Write, *};
 use crate::io::{ConnectionInfo, Handler, HandlerService};
 use crate::server::Session;
 use crate::smtp::*;
-use async_std::io::WriteExt;
 use async_std::io::BufReader;
+use async_std::io::WriteExt;
 
 #[derive(Debug)]
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
@@ -28,13 +28,15 @@ impl Handler for SmtpDriver {
     {
         Box::pin(async move {
             let Session { io, store } = session;
-            let conn = store.get_ref::<ConnectionInfo>();
-            let mut smtp = SmtpSession::new();
-            smtp.peer_addr = conn.map(|c| c.peer_addr.clone()).unwrap_or_default();
-            smtp.local_addr = conn.map(|c| c.local_addr.clone()).unwrap_or_default();
-            smtp.service_name = conn.map(|c| c.service_name.clone()).unwrap_or_default();
+            let interpretter = store.get_or_compose::<InterptetService>().clone();
+            let tls_provider = store.get_ref::<TlsService>().cloned();
+            let mut smtp = std::mem::take(store.get_or_compose::<SmtpSession>());
+            if let Some(conn) = store.get_ref::<ConnectionInfo>() {
+                if smtp.service_name.is_empty() {
+                    smtp.service_name = conn.local_addr.clone()
+                }
+            }
 
-            let interpretter = store.get_or_compose::<InterptetService>();
             let mut io = BufReader::new(io);
 
             // fetch and apply commands
@@ -58,7 +60,7 @@ impl Handler for SmtpDriver {
                         }
                         DriverControl::StartTls => {
                             use crate::io::tls::TlsProviderExt;
-                            if let Some(tls) = store.get_ref::<TlsService>() {
+                            if let Some(ref tls) = tls_provider {
                                 tls.upgrade_to_tls_in_place(io.get_mut(), String::default());
                             } else {
                                 return Err(format!("no TLS").into());

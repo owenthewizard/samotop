@@ -1,18 +1,15 @@
 use crate::mail::{AddRecipientFailure, StartMailFailure, Transaction};
 use crate::smtp::*;
+use crate::store::{Component, ComposableComponent, SingleComponent};
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct SmtpSession {
-    /// ESMTP extensions enabled for this session
+    /// Enabled etensions
     pub extensions: ExtensionSet,
-    /// The name of the service serving this session
-    pub service_name: String,
     /// The name of the peer as introduced by the HELO command
     pub peer_name: Option<String>,
-    /// The address of the remote peer
-    pub peer_addr: String,
-    /// The address of the local endpoint
-    pub local_addr: String,
+    /// The name of the peer as introduced by the HELO command
+    pub service_name: String,
     /// Output to be processed by a driver - responses and IO controls
     pub output: Vec<DriverControl>,
     /// Input to be interpretted
@@ -22,20 +19,16 @@ pub struct SmtpSession {
     /// Current e-mail transaction
     pub transaction: Transaction,
 }
-
-impl Default for SmtpSession {
-    fn default() -> Self {
-        Self {
-            extensions: Default::default(),
-            service_name: "samotop".to_string(),
-            peer_name: Default::default(),
-            peer_addr: Default::default(),
-            local_addr: Default::default(),
-            output: Default::default(),
-            input: Default::default(),
-            mode: Default::default(),
-            transaction: Default::default(),
-        }
+impl Component for SmtpSession {
+    type Target = Self;
+}
+impl SingleComponent for SmtpSession {}
+impl ComposableComponent for SmtpSession {
+    fn from_none() -> Self::Target {
+        SmtpSession::default()
+    }
+    fn from_many(_options: Vec<Self::Target>) -> Self::Target {
+        panic!("single component")
     }
 }
 
@@ -102,8 +95,9 @@ impl SmtpSession {
         self.say_reply(SmtpReply::CommandSequenceFailure)
     }
     /// Reply "220 @name service ready"
-    pub fn say_service_ready(&mut self) -> SayResult {
+    pub fn say_service_ready(&mut self, name: String) -> SayResult {
         // TODO - indicate ESMTP if available
+        self.service_name = name.into();
         self.say_reply(SmtpReply::ServiceReadyInfo(self.service_name.clone()))
     }
     /// Reply something like "250 @local greets @remote"
@@ -113,7 +107,7 @@ impl SmtpSession {
             remote: self
                 .peer_name
                 .clone()
-                .unwrap_or_else(|| self.peer_addr.clone()),
+                .unwrap_or_else(|| "the other side".to_owned()),
             extensions: vec![],
         })
     }
@@ -124,7 +118,7 @@ impl SmtpSession {
             remote: self
                 .peer_name
                 .clone()
-                .unwrap_or_else(|| self.peer_addr.clone()),
+                .unwrap_or_else(|| "the other side".to_owned()),
             extensions: self.extensions.iter().map(String::from).collect(),
         })
     }
@@ -145,17 +139,21 @@ impl SmtpSession {
         ))
     }
     /// Processing error
-    pub fn say_shutdown_processing_err(&mut self, description: String) -> SayResult {
-        error!("Processing error: {}", description);
+    pub fn say_shutdown_processing_err(&mut self, log_description: String) -> SayResult {
+        error!("Processing error: {}", log_description);
         self.say_shutdown(SmtpReply::ProcesingError)
     }
     /// Normal response to quit command
     pub fn say_shutdown_ok(&mut self) -> SayResult {
         self.say_shutdown(SmtpReply::ClosingConnectionInfo(self.service_name.clone()))
     }
-    pub fn say_mail_failed(&mut self, failure: StartMailFailure, description: String) -> SayResult {
+    pub fn say_mail_failed(
+        &mut self,
+        failure: StartMailFailure,
+        log_description: String,
+    ) -> SayResult {
         use StartMailFailure as F;
-        error!("Sending mail failed: {:?}, {}", failure, description);
+        error!("Sending mail failed: {:?}, {}", failure, log_description);
         match failure {
             F::TerminateSession => self.say_shutdown_service_err(),
             F::Rejected => self.say_reply(SmtpReply::MailboxNotAvailableFailure),
@@ -170,10 +168,10 @@ impl SmtpSession {
     pub fn say_rcpt_failed(
         &mut self,
         failure: AddRecipientFailure,
-        description: String,
+        log_description: String,
     ) -> SayResult {
         use AddRecipientFailure as F;
-        error!("Adding RCPT failed: {:?}, {}", failure, description);
+        error!("Adding RCPT failed: {:?}, {}", failure, log_description);
         match failure {
             F::TerminateSession => self.say_shutdown_service_err(),
             F::Moved(path) => self.say_reply(SmtpReply::UserNotLocalFailure(format!("{}", path))),
@@ -198,7 +196,7 @@ impl SmtpSession {
         self.mode = Some(Self::DATA_MODE);
     }
     pub fn say_start_tls(&mut self) -> SayResult {
-        self.say_service_ready();
+        self.say_service_ready(self.service_name.clone());
         self.say(DriverControl::StartTls);
     }
     pub fn say_mail_queue_failed_temporarily(&mut self) -> SayResult {
@@ -216,14 +214,12 @@ impl std::fmt::Display for SmtpSession {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
         write!(
             f,
-            "Client {:?} ({:?}) using service {} with extensions {} on {:?}. There are {} input bytes and {} output items pending.",
+            "Client {:?} using service {} with extensions {}. There are {} input bytes and {} output items pending.",
             self.peer_name,
-            self.peer_addr,
             self.service_name,
             self.extensions
                 .iter()
                 .fold(String::new(), |s, r| s + format!("{}, ", r).as_ref()),
-            self.local_addr,
             self.input.len(),
             self.output.len()
         )

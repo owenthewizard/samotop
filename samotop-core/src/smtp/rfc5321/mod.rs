@@ -16,7 +16,6 @@ use crate::common::*;
 use crate::io::{ConnectionInfo, Handler, HandlerService};
 use crate::smtp::command::*;
 use crate::smtp::*;
-use async_std::io::WriteExt;
 
 /// An implementation of ESMTP - RFC 5321 - Simple Mail Transfer Protocol
 
@@ -47,19 +46,21 @@ impl Handler for Esmtp {
                 .to::<MailBody<Vec<u8>>>()
                 .build(),
         ));
-        let name = session
+        let mut local_name = session
             .store
             .get_ref::<ConnectionInfo>()
-            .map(|c| c.service_name.clone())
+            .map(|c| c.local_addr.clone())
             .unwrap_or_else(|| "samotop".to_owned());
 
-        Box::pin(async move {
-            session
-                .io
-                .write_all(format!("220 {} service ready\r\n", name).as_bytes())
-                .await?;
-            Ok(())
-        })
+        let smtp = session.store.get_or_compose::<SmtpSession>();
+
+        if !smtp.service_name.is_empty() {
+            local_name = smtp.service_name.clone();
+        }
+
+        smtp.say_service_ready(local_name);
+
+        Box::pin(ready(Ok(())))
     }
 }
 

@@ -28,10 +28,9 @@ mod tests {
     #[test]
     fn transaction_gets_reset() {
         async_std::task::block_on(async move {
-            
-        let mut store = Store::default();
-        let mut smtp = SmtpSession::default();
-        let mut set = SmtpContext::new(&mut store, &mut smtp);
+            let mut store = Store::default();
+            let mut smtp = SmtpSession::default();
+            let mut set = SmtpContext::new(&mut store, &mut smtp);
 
             set.session.transaction.id = "someid".to_owned();
             set.session.transaction.mail = Some(SmtpMail::Mail(SmtpPath::Null, vec![]));
