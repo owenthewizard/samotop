@@ -1,5 +1,8 @@
-use crate::{common::*, smtp::SmtpSession};
-use std::ops::Deref;
+use crate::{
+    common::*,
+    smtp::SmtpSession,
+    store::{Component, ComposableComponent, MultiComponent},
+};
 
 /**
 A mail dispatch allows us to dispatch an e-mail.
@@ -17,26 +20,43 @@ pub trait MailDispatch: fmt::Debug {
     fn open_mail_body<'a, 's, 'f>(
         &'a self,
         session: &'s mut SmtpSession,
-    ) -> S1Fut<'f, DispatchResult>
+    ) -> S2Fut<'f, DispatchResult>
     where
         'a: 'f,
         's: 'f;
 }
 
-impl<S: MailDispatch + ?Sized, T: Deref<Target = S>> MailDispatch for T
-where
-    T: fmt::Debug + Send + Sync,
-    S: Sync,
-{
+pub struct MailDispatchService {}
+impl Component for MailDispatchService {
+    type Target = Arc<dyn MailDispatch + Send + Sync>;
+}
+impl MultiComponent for MailDispatchService {}
+impl ComposableComponent for MailDispatchService {
+    fn compose<'a, I>(options: I) -> Self::Target
+    where
+        I: Iterator<Item = &'a Self::Target> + 'a,
+        Self::Target: Clone + 'a,
+    {
+        Arc::new(options.cloned().collect::<Vec<_>>())
+    }
+}
+
+impl MailDispatch for Vec<<MailDispatchService as Component>::Target> {
     fn open_mail_body<'a, 's, 'f>(
         &'a self,
         session: &'s mut SmtpSession,
-    ) -> S1Fut<'f, DispatchResult>
+    ) -> S2Fut<'f, DispatchResult>
     where
         'a: 'f,
         's: 'f,
     {
-        Box::pin(async move { S::open_mail_body(Deref::deref(self), session).await })
+        Box::pin(async move {
+            for dispatch in self {
+                trace!("open_mail_body calling {:?}", dispatch);
+                dispatch.open_mail_body(session).await?;
+            }
+            FallBack.open_mail_body(session).await
+        })
     }
 }
 
@@ -59,12 +79,12 @@ impl std::fmt::Display for DispatchError {
     }
 }
 
-impl MailDispatch for Dummy {
+impl MailDispatch for FallBack {
     /// Succeeds if the sink is already set, otherwise fails
     fn open_mail_body<'a, 's, 'f>(
         &'a self,
         session: &'s mut SmtpSession,
-    ) -> S1Fut<'f, DispatchResult>
+    ) -> S2Fut<'f, DispatchResult>
     where
         'a: 'f,
         's: 'f,

@@ -2,9 +2,9 @@ mod body;
 mod helo;
 
 use crate::{
+    builder::{ServerContext, Setup},
     common::*,
-    io::tls::MayBeTls,
-    mail::{Configuration, MailSetup},
+    io::{Handler, HandlerService},
     smtp::{
         command::{MailBody, SmtpCommand},
         *,
@@ -18,30 +18,33 @@ pub struct Lmtp;
 
 pub type Rfc2033 = Lmtp;
 
-impl MailSetup for Lmtp {
-    fn setup(self, config: &mut Configuration) {
-        config.add_last_interpretter(
-            Interpretter::apply(Lmtp)
-                .to::<SmtpCommand>()
-                //.parse::<MailBody<Vec<u8>>>()
-                .to::<MailBody<Vec<u8>>>()
-                .build(),
-        );
-        config.add_last_session_service(self);
+impl Setup for Lmtp {
+    fn setup(&self, builder: &mut ServerContext) {
+        builder.store.add::<HandlerService>(Arc::new(self.clone()));
     }
 }
 
-impl SessionService for Lmtp {
-    fn prepare_session<'a, 'i, 's, 'f>(
-        &'a self,
-        io: &'i mut Box<dyn MayBeTls>,
-        state: &'s mut SmtpContext,
-    ) -> S1Fut<'f, ()>
+impl Handler for Lmtp {
+    fn handle<'s, 'a, 'f>(
+        &'s self,
+        session: &'a mut crate::server::Session,
+    ) -> S2Fut<'f, Result<()>>
     where
-        'a: 'f,
-        'i: 'f,
         's: 'f,
+        'a: 'f,
     {
-        Esmtp.prepare_session(io, state)
+        Box::pin(async move {
+            Esmtp.handle(session).await?;
+
+            session.store.add::<InterptetService>(Arc::new(
+                Interpretter::apply(Lmtp)
+                    .to::<SmtpCommand>()
+                    //.parse::<MailBody<Vec<u8>>>()
+                    .to::<MailBody<Vec<u8>>>()
+                    .build(),
+            ));
+
+            Ok(())
+        })
     }
 }

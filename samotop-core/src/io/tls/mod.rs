@@ -10,7 +10,7 @@ pub use traits::*;
 
 use crate::common::*;
 
-impl io::Read for Dummy {
+impl io::Read for FallBack {
     fn poll_read(
         self: Pin<&mut Self>,
         _cx: &mut Context<'_>,
@@ -20,7 +20,7 @@ impl io::Read for Dummy {
     }
 }
 
-impl io::Write for Dummy {
+impl io::Write for FallBack {
     fn poll_write(
         self: Pin<&mut Self>,
         _cx: &mut Context<'_>,
@@ -39,8 +39,8 @@ impl io::Write for Dummy {
     }
 }
 
-impl MayBeTls for Dummy {
-    fn enable_encryption(&mut self, _upgrade: Box<dyn self::TlsUpgrade>, _name: String) {
+impl MayBeTls for FallBack {
+    fn enable_encryption(&mut self, _upgrade: Box<dyn self::Tls>, _name: String) {
         panic!("Cannot enable encryption on dummy IO")
     }
 

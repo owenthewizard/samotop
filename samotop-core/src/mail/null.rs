@@ -1,21 +1,22 @@
 use crate::{
+    builder::{ServerContext, Setup},
     common::*,
-    mail::{DispatchResult, MailDispatch, MailSetup},
+    mail::{DispatchResult, MailDispatch, MailDispatchService},
     smtp::SmtpSession,
 };
 
-use super::Configuration;
-
 /// Accept all calls, but do nothing.
 /// Combine this with the `SessionLogger` for a light-weight debugging server.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub struct NullDispatch;
 
-impl MailSetup for NullDispatch {
+impl Setup for NullDispatch {
     /// Add a null dispatch
-    fn setup(self, config: &mut Configuration) {
-        config.add_last_dispatch(self)
+    fn setup(&self, config: &mut ServerContext) {
+        config
+            .store
+            .add::<MailDispatchService>(Arc::new(self.clone()))
     }
 }
 
@@ -24,7 +25,7 @@ impl MailDispatch for NullDispatch {
     fn open_mail_body<'a, 's, 'f>(
         &'a self,
         session: &'s mut SmtpSession,
-    ) -> S1Fut<'f, DispatchResult>
+    ) -> S2Fut<'f, DispatchResult>
     where
         'a: 'f,
         's: 'f,

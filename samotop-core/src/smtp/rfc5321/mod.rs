@@ -11,11 +11,12 @@ mod unknown;
 
 pub(crate) use self::body::apply_mail_body;
 pub(crate) use self::helo::apply_helo;
+use crate::builder::{ServerContext, Setup};
 use crate::common::*;
-use crate::io::tls::MayBeTls;
-use crate::mail::{Configuration, MailSetup};
+use crate::io::{ConnectionInfo, Handler, HandlerService};
 use crate::smtp::command::*;
 use crate::smtp::*;
+use async_std::io::WriteExt;
 
 /// An implementation of ESMTP - RFC 5321 - Simple Mail Transfer Protocol
 
@@ -25,36 +26,45 @@ pub struct Esmtp;
 
 pub type Rfc5321 = Esmtp;
 
-impl MailSetup for Esmtp {
-    fn setup(self, config: &mut Configuration) {
-        config.add_last_interpretter(
+impl Setup for Esmtp {
+    fn setup(&self, builder: &mut ServerContext) {
+        builder.store.add::<HandlerService>(Arc::new(self.clone()));
+    }
+}
+
+impl Handler for Esmtp {
+    fn handle<'s, 'a, 'f>(
+        &'s self,
+        session: &'a mut crate::server::Session,
+    ) -> S2Fut<'f, Result<()>>
+    where
+        's: 'f,
+        'a: 'f,
+    {
+        session.store.add::<InterptetService>(Arc::new(
             Interpretter::apply(Esmtp)
                 .to::<SmtpCommand>()
                 .to::<MailBody<Vec<u8>>>()
                 .build(),
-        );
-        config.add_last_session_service(self);
-    }
-}
+        ));
+        let name = session
+            .store
+            .get_ref::<ConnectionInfo>()
+            .map(|c| c.service_name.clone())
+            .unwrap_or_else(|| "samotop".to_owned());
 
-impl SessionService for Esmtp {
-    fn prepare_session<'a, 'i, 's, 'f>(
-        &'a self,
-        _io: &'i mut Box<dyn MayBeTls>,
-        state: &'s mut SmtpContext,
-    ) -> S1Fut<'f, ()>
-    where
-        'a: 'f,
-        'i: 'f,
-        's: 'f,
-    {
-        state.session.say_service_ready();
-        Box::pin(ready(()))
+        Box::pin(async move {
+            session
+                .io
+                .write_all(format!("220 {} service ready\r\n", name).as_bytes())
+                .await?;
+            Ok(())
+        })
     }
 }
 
 impl Action<SmtpCommand> for Esmtp {
-    fn apply<'a, 's, 'f>(&'a self, cmd: SmtpCommand, state: &'s mut SmtpContext) -> S1Fut<'f, ()>
+    fn apply<'a, 's, 'f>(&'a self, cmd: SmtpCommand, state: &'s mut SmtpContext) -> S2Fut<'f, ()>
     where
         'a: 'f,
         's: 'f,

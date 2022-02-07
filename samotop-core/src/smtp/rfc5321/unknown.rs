@@ -1,6 +1,6 @@
 use super::Esmtp;
 use crate::{
-    common::S1Fut,
+    common::S2Fut,
     smtp::{command::SmtpUnknownCommand, Action, SmtpContext},
 };
 
@@ -9,7 +9,7 @@ impl Action<SmtpUnknownCommand> for Esmtp {
         &'a self,
         _cmd: SmtpUnknownCommand,
         state: &'s mut SmtpContext,
-    ) -> S1Fut<'f, ()>
+    ) -> S2Fut<'f, ()>
     where
         'a: 'f,
         's: 'f,
@@ -25,13 +25,16 @@ mod tests {
     use super::*;
     use crate::{
         mail::Recipient,
-        smtp::{command::SmtpMail, DriverControl, SmtpContext, SmtpPath},
+        smtp::{command::SmtpMail, DriverControl, SmtpContext, SmtpPath, SmtpSession},
+        store::Store,
     };
 
     #[test]
     fn response_is_not_implemented() {
         async_std::task::block_on(async move {
-            let mut set = SmtpContext::default();
+            let mut store = Store::default();
+            let mut smtp = SmtpSession::default();
+            let mut set = SmtpContext::new(&mut store, &mut smtp);
             set.session.transaction.id = "someid".to_owned();
             set.session.transaction.mail = Some(SmtpMail::Mail(SmtpPath::Null, vec![]));
             set.session.transaction.rcpts.push(Recipient::null());

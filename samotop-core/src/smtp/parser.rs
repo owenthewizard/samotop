@@ -1,5 +1,5 @@
 use crate::{
-    common::Dummy,
+    common::FallBack,
     smtp::{command::SmtpInvalidCommand, SmtpContext},
 };
 use std::{
@@ -46,7 +46,7 @@ impl<CMD, S: Parser<CMD>, T: Deref<Target = S> + Debug> Parser<CMD> for T {
 //     }
 // }
 
-impl Parser<SmtpInvalidCommand> for Dummy {
+impl Parser<SmtpInvalidCommand> for FallBack {
     fn parse(&self, input: &[u8], _state: &SmtpContext) -> ParseResult<SmtpInvalidCommand> {
         if let Some(line) = input.split(|b| *b == b'\n').next() {
             Ok((

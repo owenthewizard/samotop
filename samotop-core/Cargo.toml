@@ -17,9 +17,9 @@ gitlab = { repository = "BrightOpen/Samotop", branch = "develop" }
 maintenance = { status = "actively-developed" }
 
 [features]
-server = ["futures-util/alloc", "async-std/default"]
+server = ["futures-util/alloc", "async-std"]
 driver = ["async-std/std"]
-prudence = ["smol-timeout"]
+prudence = ["smol-timeout","async-std"]
 serialize = ["serde"]
 
 [dependencies]

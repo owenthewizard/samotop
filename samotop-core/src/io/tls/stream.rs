@@ -1,5 +1,5 @@
-use super::{Io, MayBeTls, TlsUpgrade};
-use crate::common::*;
+use super::{MayBeTls, Tls};
+use crate::{common::*, io::Io};
 use core::panic;
 use std::fmt;
 
@@ -12,7 +12,7 @@ enum State {
     /// or is already encrypted
     Done(Box<dyn Io>, bool),
     /// Plain TCP stream with name and potential TLS upgrade
-    Enabled(Box<dyn Io>, Box<dyn TlsUpgrade>, String),
+    Enabled(Box<dyn Io>, Box<dyn Tls>, String),
     /// Pending TLS handshake
     Handshake(S3Fut<std::io::Result<Box<dyn Io>>>),
     /// TLS failed or in transition state
@@ -21,25 +21,26 @@ enum State {
 
 impl MayBeTls for TlsCapable {
     fn encrypt(mut self: Pin<&mut Self>) {
-        match std::mem::replace(&mut self.state, State::Failed) {
-            State::Enabled(io, provider, peer_name) => {
-                trace!("Switching to TLS");
-                // Calling `upgrade_to_tls` will start the TLS handshake
-                // The handshake is a future we can await to get an encrypted
-                // stream back.
-                let newme = State::Handshake(Box::pin(provider.upgrade_to_tls(io, peer_name)));
-                self.state = newme;
-            }
-            State::Done(_, encrypted) => self.fail(
-                format!(
-                    "start_tls: TLS upgrade is not enabled. encrypted: {}",
-                    encrypted,
-                )
-                .as_str(),
-            ),
-            State::Handshake(_) => self.fail("start_tls: TLS handshake already in progress"),
-            State::Failed => self.fail("start_tls: TLS setup failed"),
-        }
+        // match std::mem::replace(&mut self.state, State::Failed) {
+        //     State::Enabled(io, provider, peer_name) => {
+        //         trace!("Switching to TLS");
+        //         // Calling `upgrade_to_tls` will start the TLS handshake
+        //         // The handshake is a future we can await to get an encrypted
+        //         // stream back.
+        //         let newme = State::Handshake(Box::pin(provider.upgrade_to_tls(io, peer_name)));
+        //         self.state = newme;
+        //     }
+        //     State::Done(_, encrypted) => self.fail(
+        //         format!(
+        //             "start_tls: TLS upgrade is not enabled. encrypted: {}",
+        //             encrypted,
+        //         )
+        //         .as_str(),
+        //     ),
+        //     State::Handshake(_) => self.fail("start_tls: TLS handshake already in progress"),
+        //     State::Failed => self.fail("start_tls: TLS setup failed"),
+        // }
+        TlsCapable::encrypt(&mut self)
     }
     fn can_encrypt(&self) -> bool {
         match self.state {
@@ -58,7 +59,7 @@ impl MayBeTls for TlsCapable {
         }
     }
 
-    fn enable_encryption(&mut self, upgrade: Box<dyn super::TlsUpgrade>, name: String) {
+    fn enable_encryption(&mut self, upgrade: Box<dyn super::Tls>, name: String) {
         self.state = match std::mem::replace(&mut self.state, State::Failed) {
             State::Enabled(io, _, _) => State::Enabled(io, upgrade, name),
             State::Done(io, _) => State::Enabled(io, upgrade, name),
@@ -78,10 +79,15 @@ impl TlsCapable {
             state: State::Done(io, true),
         }
     }
-    pub fn enabled(io: Box<dyn Io>, upgrade: Box<dyn TlsUpgrade>, peer_name: String) -> Self {
+    pub fn enabled(io: Box<dyn Io>, upgrade: Box<dyn Tls>, peer_name: String) -> Self {
         TlsCapable {
             state: State::Enabled(io, upgrade, peer_name),
         }
+    }
+    pub fn encrypt_now(io: Box<dyn Io>, upgrade: Box<dyn Tls>, peer_name: String) -> Self {
+        let mut me = TlsCapable::enabled(io, upgrade, peer_name);
+        me.encrypt();
+        me
     }
     fn poll_tls(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
         let this = self.get_mut();
@@ -103,7 +109,7 @@ impl TlsCapable {
             _ => Poll::Ready(Ok(())),
         }
     }
-    fn fail(mut self: Pin<&mut Self>, msg: &str) {
+    fn fail(&mut self, msg: &str) {
         error!("{}", msg);
         self.state = State::Failed;
     }
@@ -112,6 +118,27 @@ impl TlsCapable {
     }
     fn ready_failed<T>() -> Poll<std::io::Result<T>> {
         Poll::Ready(Err(Self::failed()))
+    }
+    fn encrypt(&mut self) {
+        match std::mem::replace(&mut self.state, State::Failed) {
+            State::Enabled(io, provider, peer_name) => {
+                trace!("Switching to TLS");
+                // Calling `upgrade_to_tls` will start the TLS handshake
+                // The handshake is a future we can await to get an encrypted
+                // stream back.
+                let newme = State::Handshake(Box::pin(provider.upgrade_to_tls(io, peer_name)));
+                self.state = newme;
+            }
+            State::Done(_, encrypted) => self.fail(
+                format!(
+                    "start_tls: TLS upgrade is not enabled. encrypted: {}",
+                    encrypted,
+                )
+                .as_str(),
+            ),
+            State::Handshake(_) => self.fail("start_tls: TLS handshake already in progress"),
+            State::Failed => self.fail("start_tls: TLS setup failed"),
+        }
     }
 }
 

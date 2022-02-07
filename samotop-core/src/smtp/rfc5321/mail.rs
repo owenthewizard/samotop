@@ -1,11 +1,11 @@
 use crate::{
-    common::{Identify, S1Fut},
-    mail::{MailGuard, StartMailResult},
+    common::{Identify, S2Fut},
+    mail::{MailGuardService, StartMailResult},
     smtp::{command::SmtpMail, Action, Esmtp, SmtpContext},
 };
 
 impl Action<SmtpMail> for Esmtp {
-    fn apply<'a, 's, 'f>(&'a self, cmd: SmtpMail, state: &'s mut SmtpContext) -> S1Fut<'f, ()>
+    fn apply<'a, 's, 'f>(&'a self, cmd: SmtpMail, state: &'s mut SmtpContext) -> S2Fut<'f, ()>
     where
         'a: 'f,
         's: 'f,
@@ -19,7 +19,12 @@ impl Action<SmtpMail> for Esmtp {
             state.session.transaction.mail = Some(cmd);
 
             use StartMailResult as R;
-            match state.service().start_mail(&mut state.session).await {
+            match state
+                .store
+                .get_or_compose::<MailGuardService>()
+                .start_mail(&mut state.session)
+                .await
+            {
                 R::Failed(failure, description) => {
                     state.session.say_mail_failed(failure, description);
                 }
@@ -47,13 +52,18 @@ mod tests {
     use super::*;
     use crate::{
         mail::Recipient,
-        smtp::{command::SmtpMail, DriverControl, Esmtp, SmtpPath},
+        smtp::{command::SmtpMail, DriverControl, Esmtp, SmtpPath, SmtpSession},
+        store::Store,
     };
 
     #[test]
     fn transaction_gets_reset() {
         async_std::task::block_on(async move {
-            let mut set = SmtpContext::default();
+            
+        let mut store = Store::default();
+        let mut smtp = SmtpSession::default();
+        let mut set = SmtpContext::new(&mut store, &mut smtp);
+
             set.session.peer_name = Some("xx.io".to_owned());
             set.session.transaction.id = "someid".to_owned();
             set.session.transaction.mail = Some(SmtpMail::Mail(SmtpPath::Null, vec![]));
@@ -79,7 +89,11 @@ mod tests {
     #[test]
     fn mail_is_set() {
         async_std::task::block_on(async move {
-            let mut set = SmtpContext::default();
+            
+        let mut store = Store::default();
+        let mut smtp = SmtpSession::default();
+        let mut set = SmtpContext::new(&mut store, &mut smtp);
+
             set.session.peer_name = Some("xx.io".to_owned());
 
             Esmtp
@@ -100,7 +114,10 @@ mod tests {
     fn command_sequence_is_enforced() {
         async_std::task::block_on(async move {
             // MAIL command requires HELO/EHLO
-            let mut set = SmtpContext::default();
+            
+        let mut store = Store::default();
+        let mut smtp = SmtpSession::default();
+        let mut set = SmtpContext::new(&mut store, &mut smtp);
 
             Esmtp
                 .apply(SmtpMail::Mail(SmtpPath::Postmaster, vec![]), &mut set)

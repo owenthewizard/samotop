@@ -1,7 +1,13 @@
-use crate::common::{ready, S1Fut};
-use crate::io::tls::{MayBeTls, TlsProvider};
-use crate::mail::{Configuration, MailSetup};
-use crate::smtp::{extension, Interpretter, SessionService, SmtpContext};
+use std::sync::Arc;
+
+use crate::builder::{ServerContext, Setup};
+use crate::common::ready;
+use crate::io::tls::TlsProvider;
+use crate::io::{ConnectionInfo, Handler, HandlerService};
+use crate::smtp::{extension, Interpretter};
+use crate::store::{Component, SingleComponent};
+
+use super::{ExtensionSet, InterptetService};
 
 mod starttls;
 
@@ -12,42 +18,48 @@ pub struct StartTls;
 
 pub type Rfc3207 = StartTls;
 
-impl MailSetup for StartTls {
-    fn setup(self, config: &mut Configuration) {
-        config.add_last_interpretter(Interpretter::apply(StartTls).to::<StartTls>().build());
-        config.add_last_session_service(self);
+impl Setup for StartTls {
+    fn setup(&self, ctx: &mut ServerContext) {
+        ctx.store.add::<HandlerService>(Arc::new(self.clone()));
     }
 }
 
-pub type TlsService = Box<dyn TlsProvider + Send + Sync>;
+pub struct TlsService {}
+impl Component for TlsService {
+    type Target = Box<dyn TlsProvider + Send + Sync>;
+}
+impl SingleComponent for TlsService {}
 
-impl SessionService for StartTls {
-    fn prepare_session<'a, 'i, 's, 'f>(
-        &'a self,
-        io: &'i mut Box<dyn MayBeTls>,
-        state: &'s mut SmtpContext,
-    ) -> S1Fut<'f, ()>
+impl Handler for StartTls {
+    fn handle<'s, 'a, 'f>(
+        &'s self,
+        session: &'a mut crate::server::Session,
+    ) -> crate::common::S2Fut<'f, crate::common::Result<()>>
     where
-        'a: 'f,
-        'i: 'f,
         's: 'f,
+        'a: 'f,
     {
-        if !io.is_encrypted() {
+        session.store.add::<InterptetService>(Arc::new(
+            Interpretter::apply(StartTls).to::<StartTls>().build(),
+        ));
+
+        let is_encrypted = session
+            .store
+            .get_ref::<ConnectionInfo>()
+            .map(|c| c.encrypted)
+            .unwrap_or_default();
+
+        if !is_encrypted {
             // Add tls if needed and available
-            if !io.can_encrypt() {
-                if let Some(tls) = state.get::<TlsService>() {
-                    if let Some(upgrade) = tls.get_tls_upgrade() {
-                        io.enable_encryption(upgrade, String::default());
-                    }
-                } else {
-                    warn!("No TLS provider")
-                }
-            }
-            // enable STARTTLS extension if it can be used
-            if io.can_encrypt() {
-                state.session.extensions.enable(&extension::STARTTLS);
+            if session.store.get_ref::<TlsService>().is_some() {
+                session
+                    .store
+                    .get_or_insert::<ExtensionSet, _>(|| ExtensionSet::new())
+                    .enable(&extension::STARTTLS);
+            } else {
+                warn!("No TLS provider")
             }
         }
-        Box::pin(ready(()))
+        Box::pin(ready(Ok(())))
     }
 }

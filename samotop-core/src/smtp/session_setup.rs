@@ -1,6 +1,8 @@
 use crate::common::*;
 use crate::io::tls::MayBeTls;
+use crate::mail::SvcBunch;
 use crate::smtp::SmtpContext;
+use crate::store::{Component, ComposableComponent, MultiComponent};
 use std::ops::Deref;
 
 /**
@@ -37,8 +39,8 @@ impl SessionService for EnableEightBit
 }
 ```
 */
-pub trait SessionService: fmt::Debug {
-    fn prepare_session<'a, 'i, 's, 'f>(
+pub trait SessionSetup: fmt::Debug {
+    fn setup_session<'a, 'i, 's, 'f>(
         &'a self,
         io: &'i mut Box<dyn MayBeTls>,
         state: &'s mut SmtpContext,
@@ -48,13 +50,27 @@ pub trait SessionService: fmt::Debug {
         'i: 'f,
         's: 'f;
 }
+pub struct SessionSetupService {}
+impl Component for SessionSetupService {
+    type Target = Arc<dyn SessionSetup + Send + Sync>;
+}
+impl MultiComponent for SessionSetupService {}
+impl ComposableComponent for SessionSetupService {
+    fn compose<'a, I>(options: I) -> Option<Self::Target>
+    where
+        I: Iterator<Item = &'a Self::Target> + 'a,
+        Self::Target: Clone + 'a,
+    {
+        Some(Arc::new(SvcBunch(options.cloned().collect())))
+    }
+}
 
-impl<S: SessionService + ?Sized, T: Deref<Target = S>> SessionService for T
+impl<S: SessionSetup + ?Sized, T: Deref<Target = S>> SessionSetup for T
 where
     T: fmt::Debug + Send + Sync,
     S: Sync,
 {
-    fn prepare_session<'a, 'i, 's, 'f>(
+    fn setup_session<'a, 'i, 's, 'f>(
         &'a self,
         io: &'i mut Box<dyn MayBeTls>,
         state: &'s mut SmtpContext,
@@ -64,12 +80,31 @@ where
         'i: 'f,
         's: 'f,
     {
-        Box::pin(async move { S::prepare_session(Deref::deref(self), io, state).await })
+        Box::pin(async move { S::setup_session(Deref::deref(self), io, state).await })
     }
 }
 
-impl SessionService for Dummy {
-    fn prepare_session<'a, 'i, 's, 'f>(
+impl SessionSetup for SvcBunch<<SessionSetupService as Component>::Target> {
+    fn setup_session<'a, 'i, 's, 'f>(
+        &'a self,
+        io: &'i mut Box<dyn MayBeTls>,
+        state: &'s mut SmtpContext,
+    ) -> S1Fut<'f, ()>
+    where
+        'a: 'f,
+        'i: 'f,
+        's: 'f,
+    {
+        Box::pin(async move {
+            for svc in self.0.iter() {
+                trace!("setup_session calling {:?}", svc);
+                svc.setup_session(io, state).await;
+            }
+        })
+    }
+}
+impl SessionSetup for Dummy {
+    fn setup_session<'a, 'i, 's, 'f>(
         &'a self,
         _io: &'i mut Box<dyn MayBeTls>,
         _state: &'s mut SmtpContext,

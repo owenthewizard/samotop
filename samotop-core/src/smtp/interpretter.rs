@@ -1,29 +1,43 @@
 use crate::{
     common::*,
     smtp::{ParseError, Parser, SmtpContext},
+    store::{Component, ComposableComponent, MultiComponent, SingleComponent},
 };
 use std::{
     fmt::{self, Debug},
     marker::PhantomData,
-    ops::Deref,
 };
 pub trait Interpret: Debug {
-    fn interpret<'a, 's, 'f>(&'a self, state: &'s mut SmtpContext) -> S1Fut<'f, InterpretResult>
+    fn interpret<'a, 's, 'f>(&'a self, context: &'s mut SmtpContext) -> S2Fut<'f, InterpretResult>
     where
         'a: 'f,
         's: 'f;
+}
+pub struct InterptetService {}
+impl Component for InterptetService {
+    type Target = Arc<dyn Interpret + Send + Sync>;
+}
+impl MultiComponent for InterptetService {}
+impl ComposableComponent for InterptetService {
+    fn compose<'a, I>(options: I) -> Self::Target
+    where
+        I: Iterator<Item = &'a Self::Target> + 'a,
+        Self::Target: Clone + 'a,
+    {
+        Arc::new(Interpretter::new(options.cloned().collect()))
+    }
 }
 
 /// An action modifies the SMTP state based on some command
 pub trait Action<CMD> {
-    fn apply<'a, 's, 'f>(&'a self, cmd: CMD, state: &'s mut SmtpContext) -> S1Fut<'f, ()>
+    fn apply<'a, 's, 'f>(&'a self, cmd: CMD, state: &'s mut SmtpContext) -> S2Fut<'f, ()>
     where
         'a: 'f,
         's: 'f;
 }
 
-impl<CMD: Send + 'static> Action<CMD> for Dummy {
-    fn apply<'a, 's, 'f>(&'a self, _cmd: CMD, _state: &'s mut SmtpContext) -> S1Fut<'f, ()>
+impl<CMD: Send + 'static> Action<CMD> for FallBack {
+    fn apply<'a, 's, 'f>(&'a self, _cmd: CMD, _state: &'s mut SmtpContext) -> S2Fut<'f, ()>
     where
         'a: 'f,
         's: 'f,
@@ -32,11 +46,11 @@ impl<CMD: Send + 'static> Action<CMD> for Dummy {
     }
 }
 
-impl Interpret for Dummy {
+impl Interpret for FallBack {
     fn interpret<'a, 'i, 's, 'f>(
         &'a self,
         _state: &'s mut SmtpContext,
-    ) -> S1Fut<'f, InterpretResult>
+    ) -> S2Fut<'f, InterpretResult>
     where
         'a: 'f,
         's: 'f,
@@ -44,29 +58,16 @@ impl Interpret for Dummy {
         Box::pin(ready(Err(ParseError::Mismatch("Dummy".into()))))
     }
 }
-impl<T: Deref> Interpret for T
-where
-    T::Target: Interpret,
-    T: Debug,
-{
-    fn interpret<'a, 'i, 's, 'f>(&'a self, state: &'s mut SmtpContext) -> S1Fut<'f, InterpretResult>
-    where
-        'a: 'f,
-        's: 'f,
-    {
-        Deref::deref(self).interpret(state)
-    }
-}
 
 pub type InterpretResult = std::result::Result<Option<usize>, ParseError>;
 
 #[derive(Default)]
 pub struct Interpretter {
-    calls: Vec<Box<dyn Interpret + Send + Sync>>,
+    calls: Vec<Arc<dyn Interpret + Send + Sync>>,
 }
 
 impl Interpret for Interpretter {
-    fn interpret<'a, 'i, 's, 'f>(&'a self, state: &'s mut SmtpContext) -> S1Fut<'f, InterpretResult>
+    fn interpret<'a, 'i, 's, 'f>(&'a self, state: &'s mut SmtpContext) -> S2Fut<'f, InterpretResult>
     where
         'a: 'f,
         's: 'f,
@@ -81,7 +82,7 @@ impl Interpretter {
             action,
         }
     }
-    pub fn new(calls: Vec<Box<dyn Interpret + Send + Sync>>) -> Self {
+    pub fn new(calls: Vec<Arc<dyn Interpret + Send + Sync>>) -> Self {
         Self { calls }
     }
 }
@@ -116,7 +117,7 @@ impl<A> InterpretterBuilder<A> {
         A: Action<CMD> + Clone + Debug + 'static + Send + Sync,
         CMD: Debug + 'static + Send + Sync,
     {
-        self.inner.calls.push(Box::new(ParserAction {
+        self.inner.calls.push(Arc::new(ParserAction {
             action: self.action.clone(),
             phantom: PhantomData::<CMD>,
         }));
@@ -140,8 +141,8 @@ impl<T> From<InterpretterBuilder<T>> for Interpretter {
 }
 
 pub(crate) async fn interpret_all(
-    calls: &[Box<dyn Interpret + Send + Sync>],
-    state: &mut SmtpContext,
+    calls: &[Arc<dyn Interpret + Send + Sync>],
+    state: &mut SmtpContext<'_>,
 ) -> InterpretResult {
     let mut mismatches = vec![];
     let mut failures = vec![];
@@ -176,7 +177,13 @@ pub(crate) async fn interpret_all(
     }
 }
 
-pub type ParserService<T> = Box<dyn Parser<T> + Sync + Send>;
+pub struct ParserService<T> {
+    phantom: PhantomData<T>,
+}
+impl<T> Component for ParserService<T> {
+    type Target = Box<dyn Parser<T> + Sync + Send>;
+}
+impl<T> SingleComponent for ParserService<T> {}
 
 #[derive(Debug, Clone)]
 struct ParserAction<A, CMD> {
@@ -184,40 +191,36 @@ struct ParserAction<A, CMD> {
     phantom: PhantomData<CMD>,
 }
 
-impl<CMD, A> ParserAction<A, CMD>
-where
-    A: Action<CMD> + 'static + Send + Sync,
-    CMD: 'static + Send + Sync,
-{
-    async fn perform_inner(&self, state: &mut SmtpContext) -> InterpretResult {
-        let parser = state
-            .get::<ParserService<CMD>>()
-            .ok_or_else(|| ParseError::Mismatch("no parser for given CMD".into()))?;
-
-        let (length, cmd) = parser.parse(state.session.input.as_slice(), state)?;
-        self.action.apply(cmd, state).await;
-        Ok(Some(length))
-    }
-}
 impl<CMD, A> Interpret for ParserAction<A, CMD>
 where
     A: Action<CMD> + Debug + 'static + Send + Sync,
     CMD: Debug + 'static + Send + Sync,
 {
-    fn interpret<'a, 's, 'f>(&'a self, state: &'s mut SmtpContext) -> S1Fut<'f, InterpretResult>
+    fn interpret<'a, 's, 'f>(&'a self, state: &'s mut SmtpContext) -> S2Fut<'f, InterpretResult>
     where
         'a: 'f,
         's: 'f,
     {
-        Box::pin(self.perform_inner(state))
+        Box::pin(async move {
+            let parser = state
+                .store
+                .get_ref::<ParserService<CMD>>()
+                .ok_or_else(|| ParseError::Mismatch("no parser for given CMD".into()))?;
+
+            let (length, cmd) = parser.parse(state.session.input.as_slice(), state)?;
+            self.action.apply(cmd, state).await;
+            Ok(Some(length))
+        })
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::common::Dummy;
+    use crate::common::FallBack;
     use crate::smtp::command::{SmtpInvalidCommand, SmtpUnknownCommand};
+    use crate::smtp::SmtpSession;
+    use crate::store::Store;
 
     #[test]
     fn interpretter_session_setup_test() {
@@ -228,25 +231,28 @@ mod tests {
     #[test]
     fn interpretter_handle_test() {
         insta::assert_debug_snapshot!(
-            Interpretter::apply(Dummy).to::<SmtpUnknownCommand>().build(),
+            Interpretter::apply(FallBack).to::<SmtpUnknownCommand>().build(),
             @"Interpretter(1)");
     }
     #[test]
     fn builder_parse_with_apply_test() {
         insta::assert_debug_snapshot!(
-            Interpretter::apply(Dummy)
+            Interpretter::apply(FallBack)
                 .to::<SmtpUnknownCommand>().build(),
             @"Interpretter(1)");
     }
 
     #[async_std::test]
     async fn fail_without_parser() {
-        let interpretter = Interpretter::apply(Dummy)
+        let interpretter = Interpretter::apply(FallBack)
             .to::<SmtpInvalidCommand>()
             .build();
-        let mut state = SmtpContext::default();
-        state.session.input = b"XYZ\r\n".to_vec();
-        let res = interpretter.interpret(&mut state).await;
+
+        let mut store = Store::default();
+        let mut smtp = SmtpSession::default();
+        let mut ctx = SmtpContext::new(&mut store, &mut smtp);
+        ctx.session.input = b"XYZ\r\n".to_vec();
+        let res = interpretter.interpret(&mut ctx).await;
         insta::assert_debug_snapshot!(res, @r###"
         Err(
             Mismatch(
@@ -257,13 +263,17 @@ mod tests {
     }
     #[async_std::test]
     async fn interpret_dummy() {
-        let interpretter = Interpretter::apply(Dummy)
+        let interpretter = Interpretter::apply(FallBack)
             .to::<SmtpInvalidCommand>()
             .build();
-        let mut state = SmtpContext::default();
-        state.set::<ParserService<SmtpInvalidCommand>>(Box::new(Dummy));
-        state.session.input = b"XYZ\r\n".to_vec();
-        let res = interpretter.interpret(&mut state).await;
+
+        let mut store = Store::default();
+        let mut smtp = SmtpSession::default();
+        let mut set = SmtpContext::new(&mut store, &mut smtp);
+        set.store
+            .set::<ParserService<SmtpInvalidCommand>>(Box::new(FallBack));
+        set.session.input = b"XYZ\r\n".to_vec();
+        let res = interpretter.interpret(&mut set).await;
         insta::assert_debug_snapshot!(res, @r###"
         Ok(
             Some(

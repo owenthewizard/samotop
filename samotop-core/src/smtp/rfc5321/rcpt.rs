@@ -1,12 +1,12 @@
 use super::Esmtp;
 use crate::{
-    common::S1Fut,
-    mail::{AddRecipientResult, MailGuard, Recipient},
+    common::S2Fut,
+    mail::{AddRecipientResult, MailGuardService, Recipient},
     smtp::{command::SmtpRcpt, Action, SmtpContext},
 };
 
 impl Action<SmtpRcpt> for Esmtp {
-    fn apply<'a, 's, 'f>(&'a self, cmd: SmtpRcpt, state: &'s mut SmtpContext) -> S1Fut<'f, ()>
+    fn apply<'a, 's, 'f>(&'a self, cmd: SmtpRcpt, state: &'s mut SmtpContext) -> S2Fut<'f, ()>
     where
         'a: 'f,
         's: 'f,
@@ -19,7 +19,8 @@ impl Action<SmtpRcpt> for Esmtp {
             let rcpt = Recipient::new(cmd.0.clone());
 
             match state
-                .service()
+                .store
+                .get_or_compose::<MailGuardService>()
                 .add_recipient(&mut state.session, rcpt)
                 .await
             {
@@ -44,12 +45,19 @@ impl Action<SmtpRcpt> for Esmtp {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::smtp::{command::SmtpMail, SmtpPath};
+    use crate::{
+        smtp::{command::SmtpMail, SmtpPath, SmtpSession},
+        store::Store,
+    };
 
     #[test]
     fn recipient_is_added() {
         async_std::task::block_on(async move {
-            let mut set = SmtpContext::default();
+            
+        let mut store = Store::default();
+        let mut smtp = SmtpSession::default();
+        let mut set = SmtpContext::new(&mut store, &mut smtp);
+
             set.session.transaction.id = "someid".to_owned();
             set.session.transaction.mail = Some(SmtpMail::Mail(SmtpPath::Null, vec![]));
             set.session.transaction.rcpts.push(Recipient::null());

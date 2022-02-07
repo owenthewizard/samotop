@@ -3,13 +3,12 @@
 #[macro_use]
 extern crate tracing;
 
+pub mod builder;
 pub mod io;
 pub mod mail;
-pub mod smtp;
-mod store;
-
-#[cfg(feature = "server")]
 pub mod server;
+pub mod smtp;
+pub mod store;
 
 pub mod common {
     pub type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
@@ -24,6 +23,7 @@ pub mod common {
     //pub use async_std::io::prelude::{ReadExt, WriteExt};
     //pub use async_std::io::{Read, Write};
     pub use futures_core::ready;
+    pub use futures_core::Stream;
     use std::any::TypeId;
     pub use std::future::*;
     pub type S3Fut<T> = Pin<Box<dyn Future<Output = T> + Sync + Send + 'static>>;
@@ -37,7 +37,7 @@ pub mod common {
     pub use std::task::{Context, Poll};
 
     #[derive(Debug, Copy, Clone)]
-    pub struct Dummy;
+    pub struct FallBack;
 
     // pub async fn ready<T>(val: T) -> T {
     //     val
@@ -79,8 +79,10 @@ pub mod common {
         Identify::now().to_string()
     }
 
+    /// Provide identifying IDs based on run time info
     pub struct Identify;
     impl Identify {
+        /// Establish and get static app ID
         pub fn instance() -> u32 {
             static INSTANCE: AtomicU32 = AtomicU32::new(0);
             // CHECKME: what about all these Ordering styles?
@@ -95,6 +97,7 @@ pub mod common {
                 value
             }
         }
+        /// Get a current unique ID
         pub fn now() -> u32 {
             // for the lack of better unique string without extra dependencies
             Self::hash(

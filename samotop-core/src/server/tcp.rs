@@ -1,111 +1,120 @@
+use super::ServerService;
+use super::{Server, Session};
+use crate::builder::{ServerContext, Setup};
 use crate::common::*;
-use crate::io::tls::{Io, MayBeTls, TlsCapable};
 use crate::io::*;
-use async_std::stream::StreamExt;
-use async_std::task;
+use async_std::net::{TcpListener, TcpStream, ToSocketAddrs};
+use futures_core::Stream;
 use futures_util::stream::FuturesUnordered;
-
-use async_std::net::{TcpListener, ToSocketAddrs};
-use futures_util::TryFutureExt;
+use futures_util::{TryFutureExt, TryStreamExt};
 use std::net::SocketAddr;
 
 /// `TcpServer` takes care of accepting TCP connections and passing them to an `IoService` to `handle()`.
-#[derive(Default)]
-pub struct TcpServer<'a> {
-    ports: Vec<S1Fut<'a, Result<Vec<SocketAddr>>>>,
+#[derive(Default, Debug, Clone)]
+#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
+pub struct TcpServer<T = String> {
+    port: T,
 }
 
-impl<'a> TcpServer<'a> {
+impl<T> TcpServer<T> {
     /// Listen on this port - usually addres:port. You can call this multiple times to listen on multiple ports.
-    pub fn on<N>(ports: N) -> Self
-    where
-        N: ToSocketAddrs + 'a,
-        N::Iter: Send,
-    {
-        Self::default().and(ports)
+    pub fn on(port: T) -> Self {
+        Self { port }
     }
-    /// Listen on this port - usually addres:port. You can call this multiple times to listen on multiple ports.
-    pub fn and<N>(mut self, ports: N) -> Self
-    where
-        N: ToSocketAddrs + 'a,
-        N::Iter: Send,
-    {
-        self.ports.push(Box::pin(Self::map_ports(ports)));
-        self
-    }
-    /// Listen on multiple ports - usually a list of address:port items
-    pub fn on_all<I, N>(ports: I) -> Self
-    where
-        I: IntoIterator<Item = N>,
-        N: ToSocketAddrs + 'a,
-        N::Iter: Send,
-    {
-        Self::default().and_all(ports)
-    }
-    /// Listen on multiple ports - usually a list of address:port items
-    pub fn and_all<I, N>(mut self, ports: I) -> Self
-    where
-        I: IntoIterator<Item = N>,
-        N: ToSocketAddrs + 'a,
-        N::Iter: Send,
-    {
-        for port in ports.into_iter() {
-            self = self.and(port);
-        }
-        self
-    }
-    fn map_ports(addrs: impl ToSocketAddrs) -> impl Future<Output = Result<Vec<SocketAddr>>> {
-        addrs
-            .to_socket_addrs()
-            .map_ok(|i| i.into_iter().collect())
-            .map_err(|e| e.into())
-    }
-    async fn resolve_ports(&mut self) -> Result<Vec<SocketAddr>> {
-        let mut result = vec![];
-        for port in self.ports.iter_mut() {
-            let port = port.await?;
-            result.extend_from_slice(&port[..]);
-        }
-        Ok(result)
-    }
-    /// Serve the given IoService on configured ports
-    pub async fn serve<S>(mut self, service: S) -> Result<()>
-    where
-        S: IoService + Send + Sync,
-    {
-        Self::serve_ports(service, self.resolve_ports().await?).await
-    }
-    async fn serve_ports<S>(service: S, addrs: impl IntoIterator<Item = SocketAddr>) -> Result<()>
-    where
-        S: IoService + Send + Sync,
-    {
-        let svc = Arc::new(service);
+}
 
-        addrs
-            .into_iter()
-            .map(|a| Self::serve_port(svc.clone(), a))
-            .collect::<FuturesUnordered<_>>()
-            .skip_while(|r| r.is_ok())
-            .take(1)
-            .fold(Ok(()), |acc, cur| match cur {
-                Err(e) => Err(e),
-                Ok(()) => acc,
-            })
-            .await
+impl<'a, T> Setup for TcpServer<T>
+where
+    T: ToSocketAddrs + Unpin + Clone + Send + Sync + 'static,
+    T::Iter: Send + Sync,
+{
+    fn setup(&self, ctx: &mut ServerContext) {
+        ctx.store.add::<ServerService>(Arc::new(self.clone()))
     }
-    async fn serve_port<S>(service: S, addr: SocketAddr) -> Result<()>
+}
+
+impl<T> Server for TcpServer<T>
+where
+    T: ToSocketAddrs + Unpin + Clone + Send + Sync + 'static,
+    T::Iter: Send + Sync,
+{
+    fn sessions<'s, 'f>(
+        &'s self,
+    ) -> S1Fut<'f, Result<Pin<Box<dyn Stream<Item = Result<Session>> + Send + Sync>>>>
     where
-        S: IoService + Clone,
+        's: 'f,
     {
-        trace!("Binding on {:?}", addr);
-        let listener = TcpListener::bind(addr)
-            .await
-            .map_err(|e| format!("Unable to bind {:?}: {}", addr, e))?;
-        let mut incoming = listener.incoming();
-        info!("Listening on {:?}", listener.local_addr());
-        while let Some(stream) = incoming.next().await {
-            let conn = if let Ok(ref stream) = stream {
-                ConnectionInfo::new(
+        let port = self.port.clone();
+
+        Box::pin(async move {
+            let addrs = port
+                .to_socket_addrs()
+                //.map_ok(|addrs| addrs.collect::<Vec<_>>())
+                .await?;
+
+            let listeners = addrs
+                .map(|address| {
+                    trace!("Binding on {:?}", address);
+                    TcpListener::bind(address)
+                        .map_err(move |e| format!("Unable to bind {:?}: {}", address, e))
+                })
+                .collect::<FuturesUnordered<_>>()
+                .try_collect::<Vec<_>>()
+                .await?;
+
+            let sessions = Accepting::new(listeners);
+
+            //let sessions = Sessions::on(port).await?;
+            Ok(Box::pin(sessions)
+                as Pin<
+                    Box<dyn Stream<Item = Result<Session>> + Send + Sync>,
+                >)
+        })
+    }
+}
+
+struct Accepting {
+    accepts: FuturesUnordered<S2Fut<'static, (Result<(TcpStream, SocketAddr)>, TcpListener)>>,
+}
+
+impl Accepting {
+    pub fn new(listeners: Vec<TcpListener>) -> Self {
+        let mut me = Self {
+            accepts: FuturesUnordered::default(),
+        };
+        for l in listeners {
+            me.accept(l)
+        }
+        me
+    }
+    fn accept(&mut self, listener: TcpListener) {
+        self.accepts.push(Box::pin(async move {
+            (listener.accept().await.map_err(|e| e.into()), listener)
+        }))
+    }
+}
+
+impl Stream for Accepting {
+    type Item = Result<Session>;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        match ready!(Pin::new(&mut self.as_mut().get_mut().accepts).poll_next(cx)) {
+            None => Poll::Ready(None),
+            Some((Err(e), listener)) => {
+                let res = Poll::Ready(Some(Err(format!(
+                    "Failed to accept on {:?}:{}",
+                    listener.local_addr(),
+                    e
+                )
+                .into())));
+                self.accept(listener);
+
+                res
+            }
+            Some((Ok((stream, _addr)), listener)) => {
+                self.accept(listener);
+
+                let conn = ConnectionInfo::new(
                     stream
                         .local_addr()
                         .map(|s| s.to_string())
@@ -114,48 +123,29 @@ impl<'a> TcpServer<'a> {
                         .peer_addr()
                         .map(|s| s.to_string())
                         .unwrap_or_default(),
-                )
-            } else {
-                ConnectionInfo::default()
-            };
-            let stream = match stream {
-                Ok(s) => {
-                    let s: Box<dyn Io> = Box::new(s);
-                    let s: Box<dyn MayBeTls> = Box::new(TlsCapable::plaintext(s));
-                    Ok(s)
-                }
-                Err(e) => (Err(e.into())),
-            };
-            let service = service.clone();
-            spawn_task_and_swallow_log_errors(
-                format!("TCP transmission {}", conn),
-                service.handle(stream, conn),
-            );
+                );
+
+                let mut session = Session::new(stream);
+                session.store.set::<ConnectionInfo>(conn);
+                Poll::Ready(Some(Ok(session)))
+            }
         }
-        Ok(())
     }
 }
 
-fn spawn_task_and_swallow_log_errors<F>(task_name: String, fut: F) -> task::JoinHandle<()>
-where
-    F: Future<Output = Result<()>> + Send + 'static,
-{
-    task::spawn(async move { log_errors(task_name, fut).await.unwrap_or_default() })
-}
+#[cfg(test)]
+mod tests {
+    use crate::builder::Builder;
 
-async fn log_errors<F, T, E>(task_name: String, fut: F) -> Option<T>
-where
-    F: Future<Output = std::result::Result<T, E>>,
-    E: std::fmt::Display,
-{
-    match fut.await {
-        Err(e) => {
-            error!("Error in {}: {}", task_name, e);
-            None
-        }
-        Ok(r) => {
-            info!("{} completed successfully.", task_name);
-            Some(r)
-        }
+    use super::*;
+
+    #[test]
+    fn use_samotop_server() {
+        let _ = TcpServer::<&str>::default();
+    }
+    #[test]
+    fn builder_builds_task() {
+        let mail = Builder::default() + TcpServer::on("localhost:25252");
+        let _fut = mail.build();
     }
 }

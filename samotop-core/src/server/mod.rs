@@ -1,27 +1,86 @@
+use crate::{
+    common::*,
+    io::Io,
+    store::{Component, MultiComponent, Store},
+};
+
+#[cfg(feature = "server")]
 mod tcp;
-#[cfg(unix)]
-mod unix;
+#[cfg(feature = "server")]
 pub use self::tcp::*;
-#[cfg(unix)]
+
+#[cfg(all(unix, feature = "server"))]
+mod unix;
+#[cfg(all(unix, feature = "server"))]
 pub use self::unix::*;
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+#[cfg(all(unix, feature = "server"))]
+mod io;
+#[cfg(all(unix, feature = "server"))]
+pub use self::io::*;
 
-    #[test]
-    fn use_dummy_service() {
-        let _ = TcpServer::default().serve(crate::common::Dummy);
+pub trait Server {
+    fn sessions<'s, 'f>(
+        &'s self,
+    ) -> S1Fut<'f, Result<Pin<Box<dyn Stream<Item = Result<Session>> + Send + Sync>>>>
+    where
+        's: 'f;
+}
+
+pub struct Session {
+    pub io: Box<dyn Io>,
+    pub store: Store,
+}
+impl Session {
+    pub fn new(io: impl Io + 'static) -> Self {
+        Self {
+            io: Box::new(io),
+            store: Store::default(),
+        }
     }
+}
 
-    #[test]
-    fn use_samotop_server() {
-        let _ = TcpServer::default();
+pub struct ServerService {}
+impl Component for ServerService {
+    type Target = Arc<dyn Server + Send + Sync>;
+}
+impl MultiComponent for ServerService {}
+
+#[cfg(all(unix, feature = "server"))]
+impl crate::store::ComposableComponent for ServerService {
+    fn compose<'a, I>(options: I) -> Self::Target
+    where
+        I: Iterator<Item = &'a Self::Target> + 'a,
+        Self::Target: Clone + 'a,
+    {
+        Arc::new(options.cloned().collect::<Vec<_>>())
     }
+}
 
-    #[test]
-    fn builder_builds_task() {
-        let mail = crate::mail::Builder::default().build();
-        let _srv = crate::server::TcpServer::on("localhost:25").serve(mail);
+#[cfg(all(unix, feature = "server"))]
+impl Server for Vec<<ServerService as Component>::Target> {
+    fn sessions<'s, 'f>(
+        &'s self,
+    ) -> S1Fut<'f, Result<Pin<Box<dyn Stream<Item = Result<Session>> + Send + Sync>>>>
+    where
+        's: 'f,
+    {
+        use futures_util::{
+            stream::{select_all, FuturesUnordered},
+            TryStreamExt,
+        };
+        Box::pin(async move {
+            let streams = FuturesUnordered::default();
+            for srv in self {
+                streams.push(srv.sessions())
+            }
+
+            let sessions = streams.try_collect::<Vec<_>>().await?;
+            let sessions = select_all(sessions);
+            Ok(Box::pin(sessions)
+                as Pin<
+                    Box<dyn Stream<Item = Result<Session>> + Send + Sync>,
+                >)
+        })
     }
 }

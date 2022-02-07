@@ -12,7 +12,7 @@ use samotop_core::{
     mail::{Configuration, MailSetup},
     smtp::{
         command::{MailBody, SmtpCommand},
-        ParserService, SessionService, SmtpContext, StartTls,
+        ParserService, SessionSetup, SmtpContext, StartTls,
     },
 };
 use serde::{Deserialize, Serialize};
@@ -27,8 +27,8 @@ impl MailSetup for SmtpParserPeg {
     }
 }
 
-impl SessionService for SmtpParserPeg {
-    fn prepare_session<'a, 'i, 's, 'f>(
+impl SessionSetup for SmtpParserPeg {
+    fn setup_session<'a, 'i, 's, 'f>(
         &'a self,
         _io: &'i mut Box<dyn MayBeTls>,
         state: &'s mut SmtpContext,
@@ -38,9 +38,9 @@ impl SessionService for SmtpParserPeg {
         'i: 'f,
         's: 'f,
     {
-        state.set::<ParserService<SmtpCommand>>(Box::new(SmtpParserPeg));
-        state.set::<ParserService<StartTls>>(Box::new(SmtpParserPeg));
-        state.set::<ParserService<MailBody<Vec<u8>>>>(Box::new(SmtpParserPeg));
+        state.store.set::<ParserService<SmtpCommand>>(Box::new(SmtpParserPeg));
+        state.store.set::<ParserService<StartTls>>(Box::new(SmtpParserPeg));
+        state.store.set::<ParserService<MailBody<Vec<u8>>>>(Box::new(SmtpParserPeg));
         Box::pin(ready(()))
     }
 }

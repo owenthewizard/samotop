@@ -1,22 +1,33 @@
-use crate::common::Identify;
+use crate::{
+    common::Identify,
+    store::{Component, SingleComponent},
+};
 use std::time::{Duration, SystemTime};
 
 /// Carries connection infromation (TCP, unix socket, ...) so that remaining code can abstract away from it as Io
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ConnectionInfo {
     pub id: String,
+    pub service_name: String,
     pub local_addr: String,
     pub peer_addr: String,
     pub established: SystemTime,
+    pub encrypted: bool,
 }
+impl Component for ConnectionInfo {
+    type Target = Self;
+}
+impl SingleComponent for ConnectionInfo {}
 
 impl ConnectionInfo {
     pub fn new(local_addr: String, peer_addr: String) -> Self {
         ConnectionInfo {
             id: Identify::now().to_string(),
+            service_name: String::default(),
             local_addr,
             peer_addr,
             established: SystemTime::now(),
+            encrypted: false,
         }
     }
     pub fn age(&self) -> Duration {

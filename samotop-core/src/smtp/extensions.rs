@@ -1,3 +1,4 @@
+use crate::store::{SingleComponent, Component};
 use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter, Result as FmtRes};
 
@@ -29,6 +30,10 @@ impl Display for Error {
 pub struct ExtensionSet {
     map: HashMap<String, String>,
 }
+impl Component for ExtensionSet {
+    type Target = Self;
+}
+impl SingleComponent for ExtensionSet {}
 
 impl ExtensionSet {
     pub fn new() -> Self {

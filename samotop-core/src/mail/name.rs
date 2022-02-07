@@ -1,13 +1,12 @@
-use super::{Configuration, MailSetup};
-use crate::common::{ready, Identify, S1Fut};
-use crate::io::tls::MayBeTls;
-use crate::smtp::{SessionService, SmtpContext};
+use crate::builder::{ServerContext, Setup};
+use crate::common::*;
+use crate::io::{ConnectionInfo, Handler, HandlerService};
 
 /// MailSetup that uses the given service name for a session.
 /// It can also attach the instance ID and session ID for better diagnostics.
 ///
 /// Using the default instance or setting name to empty string will reuse the incoming service name already set.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub struct Name {
     name: String,
@@ -38,20 +37,22 @@ impl Name {
         self
     }
 }
-impl SessionService for Name {
+impl Handler for Name {
     /// Use a given name as a service name in the session.
-    fn prepare_session<'a, 'i, 's, 'f>(
-        &'a self,
-        _io: &'i mut Box<dyn MayBeTls>,
-        state: &'s mut SmtpContext,
-    ) -> S1Fut<'f, ()>
+    fn handle<'s, 'a, 'f>(
+        &'s self,
+        session: &'a mut crate::server::Session,
+    ) -> crate::common::S2Fut<'f, Result<()>>
     where
-        'a: 'f,
-        'i: 'f,
         's: 'f,
+        'a: 'f,
     {
+        let conn = session
+            .store
+            .get_or_insert::<ConnectionInfo, _>(|| ConnectionInfo::default());
+
         let mut name = if self.name.is_empty() {
-            std::mem::take(&mut state.session.service_name)
+            std::mem::take(&mut conn.service_name)
         } else {
             self.name.clone()
         };
@@ -70,28 +71,27 @@ impl SessionService for Name {
         }
 
         if self.identify_session {
-            let session_id = if state.session.connection.id.is_empty() {
+            let session_id = if conn.id.is_empty() {
                 Identify::now().to_string()
             } else {
-                state.session.connection.id.clone()
+                std::mem::take(&mut conn.id)
             };
             name = if name.is_empty() {
                 session_id
             } else {
                 format!("{}.{}", session_id, name)
             };
-            state.session.connection.id = name.clone();
+            conn.id = name.clone();
         };
 
-        state.session.service_name = name;
+        conn.service_name = name;
 
-        Box::pin(ready(()))
+        Box::pin(ready(Ok(())))
     }
 }
-impl MailSetup for Name {
+impl Setup for Name {
     /// Add self as an ESMTP service so it can configure service name for each session
-    fn setup(mut self, config: &mut Configuration) {
-        self.instance_identity = config.id().to_string();
-        config.add_first_session_service(self)
+    fn setup(&self, builder: &mut ServerContext) {
+        builder.store.add::<HandlerService>(Arc::new(self.clone()))
     }
 }

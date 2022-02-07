@@ -1,6 +1,11 @@
-use super::tls::MayBeTls;
-use crate::{common::*, io::ConnectionInfo};
-use std::ops::Deref;
+use std::fmt::Debug;
+
+use crate::{
+    common::*,
+    io::ConnectionInfo,
+    server::Session,
+    store::{Component, ComposableComponent, MultiComponent},
+};
 
 /**
 An object implementing this trait handles TCP connections in a `Future`.
@@ -16,24 +21,55 @@ shortage by blocking on the `handle()` call.
 
 The `SmtpService` and `DummyService` implement this trait.
 */
-pub trait IoService {
-    fn handle(
-        &self,
-        io: Result<Box<dyn MayBeTls>>,
-        connection: ConnectionInfo,
-    ) -> S1Fut<'static, Result<()>>;
+pub trait Handler: Debug {
+    fn handle<'s, 'a, 'f>(&'s self, session: &'a mut Session) -> S2Fut<'f, Result<()>>
+    where
+        's: 'f,
+        'a: 'f;
+}
+pub struct HandlerService {}
+impl Component for HandlerService {
+    type Target = Arc<dyn Handler + Send + Sync>;
+}
+impl MultiComponent for HandlerService {}
+impl ComposableComponent for HandlerService {
+    fn compose<'a, I>(options: I) -> Self::Target
+    where
+        I: Iterator<Item = &'a Self::Target> + 'a,
+        Self::Target: Clone + 'a,
+    {
+        Arc::new(options.cloned().collect::<Vec<_>>())
+    }
 }
 
-impl<S: IoService + ?Sized, T: Deref<Target = S>> IoService for T
-where
-    S: Sync + Send,
-    T: Sync + Send,
-{
-    fn handle(
-        &self,
-        io: Result<Box<dyn MayBeTls>>,
-        connection: ConnectionInfo,
-    ) -> S1Fut<'static, Result<()>> {
-        S::handle(self.deref(), io, connection)
+impl Handler for Vec<<HandlerService as Component>::Target> {
+    fn handle<'s, 'a, 'f>(&'s self, session: &'a mut Session) -> S2Fut<'f, Result<()>>
+    where
+        's: 'f,
+        'a: 'f,
+    {
+        Box::pin(async move {
+            for h in self {
+                h.handle(session).await?;
+            }
+            FallBack.handle(session).await
+        })
+    }
+}
+
+impl Handler for FallBack {
+    fn handle<'s, 'a, 'f>(
+        &'s self,
+        session: &'a mut crate::server::Session,
+    ) -> S2Fut<'f, Result<()>>
+    where
+        's: 'f,
+        'a: 'f,
+    {
+        info!(
+            "Handled connection {:?}",
+            session.store.get_ref::<ConnectionInfo>()
+        );
+        Box::pin(ready(Ok(())))
     }
 }

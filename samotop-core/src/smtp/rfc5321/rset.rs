@@ -1,10 +1,10 @@
 use crate::{
-    common::S1Fut,
+    common::S2Fut,
     smtp::{command::SmtpRset, Action, Esmtp, SmtpContext},
 };
 
 impl Action<SmtpRset> for Esmtp {
-    fn apply<'a, 's, 'f>(&'a self, _cmd: SmtpRset, state: &'s mut SmtpContext) -> S1Fut<'f, ()>
+    fn apply<'a, 's, 'f>(&'a self, _cmd: SmtpRset, state: &'s mut SmtpContext) -> S2Fut<'f, ()>
     where
         'a: 'f,
         's: 'f,
@@ -21,13 +21,18 @@ mod tests {
     use super::*;
     use crate::{
         mail::Recipient,
-        smtp::{command::SmtpMail, SmtpPath},
+        smtp::{command::SmtpMail, SmtpPath, SmtpSession},
+        store::Store,
     };
 
     #[test]
     fn transaction_gets_reset() {
         async_std::task::block_on(async move {
-            let mut set = SmtpContext::default();
+            
+        let mut store = Store::default();
+        let mut smtp = SmtpSession::default();
+        let mut set = SmtpContext::new(&mut store, &mut smtp);
+
             set.session.transaction.id = "someid".to_owned();
             set.session.transaction.mail = Some(SmtpMail::Mail(SmtpPath::Null, vec![]));
             set.session.transaction.rcpts.push(Recipient::null());

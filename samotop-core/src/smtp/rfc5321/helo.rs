@@ -1,5 +1,5 @@
 use crate::{
-    common::S1Fut,
+    common::S2Fut,
     smtp::{
         command::{SmtpHelo, SmtpUnknownCommand},
         Action, Esmtp, SmtpContext,
@@ -7,7 +7,7 @@ use crate::{
 };
 
 impl Action<SmtpHelo> for Esmtp {
-    fn apply<'a, 's, 'f>(&'a self, cmd: SmtpHelo, state: &'s mut SmtpContext) -> S1Fut<'f, ()>
+    fn apply<'a, 's, 'f>(&'a self, cmd: SmtpHelo, state: &'s mut SmtpContext) -> S2Fut<'f, ()>
     where
         'a: 'f,
         's: 'f,
@@ -45,13 +45,18 @@ mod tests {
     use super::*;
     use crate::{
         mail::Recipient,
-        smtp::{command::SmtpMail, SmtpHost, SmtpPath},
+        smtp::{command::SmtpMail, SmtpHost, SmtpPath, SmtpSession},
+        store::Store,
     };
 
     #[test]
     fn transaction_gets_reset() {
         async_std::task::block_on(async move {
-            let mut set = SmtpContext::default();
+            
+        let mut store = Store::default();
+        let mut smtp = SmtpSession::default();
+        let mut set = SmtpContext::new(&mut store, &mut smtp);
+
             set.session.transaction.id = "someid".to_owned();
             set.session.transaction.mail = Some(SmtpMail::Mail(SmtpPath::Null, vec![]));
             set.session.transaction.rcpts.push(Recipient::null());
@@ -76,7 +81,10 @@ mod tests {
     #[test]
     fn helo_is_set() {
         async_std::task::block_on(async move {
-            let mut set = SmtpContext::default();
+            
+        let mut store = Store::default();
+        let mut smtp = SmtpSession::default();
+        let mut set = SmtpContext::new(&mut store, &mut smtp);
 
             Esmtp
                 .apply(
@@ -93,7 +101,11 @@ mod tests {
 
     #[test]
     fn is_sync_and_send() {
-        let mut set = SmtpContext::default();
+        
+        let mut store = Store::default();
+        let mut smtp = SmtpSession::default();
+        let mut set = SmtpContext::new(&mut store, &mut smtp);
+
         let res = Esmtp.apply(
             SmtpHelo {
                 verb: "EHLO".to_string(),

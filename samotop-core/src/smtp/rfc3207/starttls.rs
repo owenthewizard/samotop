@@ -1,11 +1,11 @@
 use super::StartTls;
-use crate::common::S1Fut;
+use crate::common::S2Fut;
 use crate::smtp::{extension, Action, SmtpContext};
 
 impl Action<StartTls> for StartTls {
     /// Applies given helo to the state
     /// It asserts the right HELO/EHLO variant
-    fn apply<'a, 's, 'f>(&'a self, _cmd: StartTls, state: &'s mut SmtpContext) -> S1Fut<'f, ()>
+    fn apply<'a, 's, 'f>(&'a self, _cmd: StartTls, state: &'s mut SmtpContext) -> S2Fut<'f, ()>
     where
         'a: 'f,
         's: 'f,

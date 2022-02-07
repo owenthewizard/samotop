@@ -1,10 +1,11 @@
 //! Reference implementation of a mail service
 //! simply delivering mail to server console log.
 use crate::{
+    builder::{ServerContext, Setup},
     common::*,
-    io::tls::MayBeTls,
+    io::{ConnectionInfo, Handler, HandlerService},
     mail::*,
-    smtp::{SessionService, SmtpContext, SmtpSession},
+    smtp::SmtpSession,
 };
 use std::fmt;
 
@@ -17,29 +18,28 @@ pub struct SessionLogger;
 
 pub use SessionLogger as DebugService;
 
-impl MailSetup for SessionLogger {
-    fn setup(self, config: &mut Configuration) {
-        config.add_last_session_service(self.clone());
-        config.add_last_guard(self.clone());
-        config.add_last_dispatch(self);
+impl Setup for SessionLogger {
+    fn setup(&self, ctx: &mut ServerContext) {
+        ctx.store.add::<HandlerService>(Arc::new(self.clone()));
     }
 }
-impl SessionService for SessionLogger {
-    fn prepare_session<'a, 'i, 's, 'f>(
-        &'a self,
-        _io: &'i mut Box<dyn MayBeTls>,
-        state: &'s mut SmtpContext,
-    ) -> S1Fut<'f, ()>
+impl Handler for SessionLogger {
+    fn handle<'s, 'a, 'f>(
+        &'s self,
+        session: &'a mut crate::server::Session,
+    ) -> S2Fut<'f, Result<()>>
     where
-        'a: 'f,
-        'i: 'f,
         's: 'f,
+        'a: 'f,
     {
-        info!(
-            "{}: Preparing {}",
-            state.session.service_name, state.session.connection
-        );
-        Box::pin(ready(()))
+        info!("Preparing {:?}", session.store.get_ref::<ConnectionInfo>());
+        session
+            .store
+            .add::<MailGuardService>(Arc::new(SessionLogger));
+        session
+            .store
+            .add::<MailDispatchService>(Arc::new(SessionLogger));
+        Box::pin(ready(Ok(())))
     }
 }
 
@@ -76,7 +76,7 @@ impl MailDispatch for SessionLogger {
     fn open_mail_body<'a, 's, 'f>(
         &'a self,
         session: &'s mut SmtpSession,
-    ) -> S1Fut<'f, DispatchResult>
+    ) -> S2Fut<'f, DispatchResult>
     where
         'a: 'f,
         's: 'f,
@@ -170,13 +170,11 @@ impl fmt::Debug for DebugSink {
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_setup() {
-        async_std::task::block_on(async move {
-            let mut sess = SmtpSession::default();
-            let sut = SessionLogger;
-            let tran = sut.start_mail(&mut sess).await;
-            assert_eq!(tran, StartMailResult::Accepted)
-        })
+    #[async_std::test]
+    async fn test_setup() {
+        let mut sess = SmtpSession::default();
+        let sut = SessionLogger;
+        let tran = sut.start_mail(&mut sess).await;
+        assert_eq!(tran, StartMailResult::Accepted)
     }
 }

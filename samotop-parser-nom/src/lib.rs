@@ -14,13 +14,13 @@ use rustyknife::{
     types::AddressLiteral,
     types::DomainPart,
 };
-use samotop_core::smtp::{command::*, *};
+use samotop_core::{smtp::{command::*, *}, io::Handler};
 pub use samotop_core::smtp::{ParseError, ParseResult, Parser};
 use samotop_core::{
     common::S1Fut,
     io::tls::MayBeTls,
-    mail::{Configuration, MailSetup},
-    smtp::{command::SmtpCommand, ParserService, SessionService, SmtpContext},
+    builder::{ServerContext,Setup},
+    smtp::{command::SmtpCommand, ParserService, SmtpContext},
 };
 use serde::{Deserialize, Serialize};
 use std::future::ready;
@@ -29,14 +29,14 @@ use std::net::IpAddr;
 #[derive(Clone, Copy, Debug, Default, Serialize, Deserialize)]
 pub struct SmtpParserNom;
 
-impl MailSetup for SmtpParserNom {
-    fn setup(self, config: &mut Configuration) {
-        config.add_last_session_service(SmtpParserNom)
+impl Setup for SmtpParserNom {
+    fn setup(self, ctx: &mut ServerContext) {
+        ctx.add_last_session_service(SmtpParserNom)
     }
 }
 
-impl SessionService for SmtpParserNom {
-    fn prepare_session<'a, 'i, 's, 'f>(
+impl Handler for SmtpParserNom {
+    fn setup_session<'a, 'i, 's, 'f>(
         &'a self,
         _io: &'i mut Box<dyn MayBeTls>,
         state: &'s mut SmtpContext,
@@ -46,7 +46,9 @@ impl SessionService for SmtpParserNom {
         'i: 'f,
         's: 'f,
     {
-        state.set::<ParserService<SmtpCommand>>(Box::new(SmtpParserNom));
+        state
+            .store
+            .set::<ParserService<SmtpCommand>>(Box::new(SmtpParserNom));
         Box::pin(ready(()))
     }
 }

@@ -1,65 +1,76 @@
 use crate::{
     common::*,
-    io::{tls::MayBeTls, ConnectionInfo, IoService},
+    io::{tls::MayBeTls, ConnectionInfo, Handler},
     mail::{
         AddRecipientResult, DispatchResult, MailDispatch, MailGuard, Recipient, StartMailResult,
     },
-    smtp::{Drive, Interpret, SessionService, SmtpContext, SmtpSession},
+    smtp::{Drive, SessionSetup, SmtpContext, SmtpSession, SessionSetupService},
+    store::{Component, SingleComponent, Store},
 };
 
 /// A short hand for all the mandatory mail services
-pub trait MailService: SessionService + MailGuard + MailDispatch {}
-impl<T> MailService for T where T: SessionService + MailGuard + MailDispatch {}
+pub trait MailService: SessionSetup + MailGuard + MailDispatch {}
+impl<T> MailService for T where T: SessionSetup + MailGuard + MailDispatch {}
+
+pub struct MailSvc {}
+impl Component for MailSvc {
+    type Target = Box<dyn MailService + Send + Sync + 'static>;
+}
+impl SingleComponent for MailSvc {}
 
 /// Service implements all the mandatory mail services
 /// + IoService so it can be used with `TcpServer` or `UnixServer`.
 ///
 /// Build it using the `Builder`
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Service {
-    session: Arc<dyn SessionService + Sync + Send>,
+    store: Store,
+    session: Arc<dyn SessionSetup + Sync + Send>,
     guard: Arc<dyn MailGuard + Sync + Send>,
     dispatch: Arc<dyn MailDispatch + Sync + Send>,
     driver: Arc<dyn Drive + Sync + Send>,
-    interpret: Arc<dyn Interpret + Sync + Send>,
 }
 
 impl Service {
     /// Compose the service from parts
-    pub fn new<T, I, E, G, D>(drive: T, interpret: I, session: E, guard: G, dispatch: D) -> Self
+    pub fn new<T, E, G, D>(store: Store, drive: T, session: E, guard: G, dispatch: D) -> Self
     where
         T: Drive + Sync + Send + 'static,
-        I: Interpret + Sync + Send + 'static,
-        E: SessionService + Sync + Send + 'static,
+        E: SessionSetup + Sync + Send + 'static,
         G: MailGuard + Sync + Send + 'static,
         D: MailDispatch + Sync + Send + 'static,
     {
         Self {
+            store,
             session: Arc::new(session),
             dispatch: Arc::new(dispatch),
             guard: Arc::new(guard),
             driver: Arc::new(drive),
-            interpret: Arc::new(interpret),
         }
     }
 }
-
-impl IoService for Service {
+impl Handler for Service {
     fn handle(
         &self,
         io: Result<Box<dyn MayBeTls>>,
         connection: ConnectionInfo,
     ) -> S1Fut<'static, Result<()>> {
-        let service = self.clone();
-        let driver = self.driver.clone();
-        let interpret = self.interpret.clone();
+        if let Some(setup) = self.store.get_or_compose::<SessionSetupService>() {
+            Box::pin(async move {
+                let store = Store::default();
+                setup.setup_session().await;
+                let driver = self.driver.clone();
+                // fetch and apply commands
+                driver.drive(&mut io?, connection, store).await?;
+                Ok(())
+            })
+        }
 
         trace!("New peer connection {}", connection);
-        let mut state = SmtpContext::new(service, connection);
 
         Box::pin(async move {
             // fetch and apply commands
-            driver.drive(&mut io?, &interpret, &mut state).await?;
+            driver.drive(&mut io?, connection, store).await?;
             Ok(())
         })
     }
@@ -100,8 +111,8 @@ impl MailGuard for Service {
     }
 }
 
-impl SessionService for Service {
-    fn prepare_session<'a, 'i, 's, 'f>(
+impl SessionSetup for Service {
+    fn setup_session<'a, 'i, 's, 'f>(
         &'a self,
         io: &'i mut Box<dyn MayBeTls>,
         state: &'s mut SmtpContext,
@@ -111,6 +122,6 @@ impl SessionService for Service {
         'i: 'f,
         's: 'f,
     {
-        self.session.prepare_session(io, state)
+        self.session.setup_session(io, state)
     }
 }

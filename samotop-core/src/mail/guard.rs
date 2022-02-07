@@ -2,8 +2,8 @@ use crate::{
     common::*,
     mail::Recipient,
     smtp::{SmtpPath, SmtpSession},
+    store::{Component, ComposableComponent, MultiComponent},
 };
-use std::ops::Deref;
 
 /**
 A mail guard opens the mail transaction after a MAIL command - `start_mail`.
@@ -29,33 +29,61 @@ pub trait MailGuard: fmt::Debug {
         'a: 'f,
         's: 'f;
 }
+pub struct MailGuardService {}
+impl Component for MailGuardService {
+    type Target = Arc<dyn MailGuard + Send + Sync>;
+}
+impl MultiComponent for MailGuardService {}
+impl ComposableComponent for MailGuardService {
+    fn compose<'a, I>(options: I) -> Self::Target
+    where
+        I: Iterator<Item = &'a Self::Target> + 'a,
+        Self::Target: Clone + 'a,
+    {
+        Arc::new(options.cloned().collect::<Vec<_>>())
+    }
+}
 
-impl<S: MailGuard + ?Sized, T: Deref<Target = S>> MailGuard for T
-where
-    T: fmt::Debug + Send + Sync,
-    S: Sync,
-{
+impl MailGuard for Vec<<MailGuardService as Component>::Target> {
     fn add_recipient<'a, 's, 'f>(
         &'a self,
         session: &'s mut SmtpSession,
-        rcpt: Recipient,
+        mut rcpt: Recipient,
     ) -> S2Fut<'f, AddRecipientResult>
     where
         'a: 'f,
         's: 'f,
     {
-        Box::pin(async move { S::add_recipient(Deref::deref(self), session, rcpt).await })
+        Box::pin(async move {
+            for guard in self.iter() {
+                trace!("add_recipient calling {:?}", guard);
+                match guard.add_recipient(session, rcpt).await {
+                    AddRecipientResult::Inconclusive(r) => rcpt = r,
+                    otherwise => return otherwise,
+                }
+            }
+            FallBack.add_recipient(session, rcpt).await
+        })
     }
     fn start_mail<'a, 's, 'f>(&'a self, session: &'s mut SmtpSession) -> S2Fut<'f, StartMailResult>
     where
         'a: 'f,
         's: 'f,
     {
-        Box::pin(async move { S::start_mail(Deref::deref(self), session).await })
+        Box::pin(async move {
+            for guard in self.iter() {
+                trace!("start_mail calling {:?}", guard);
+                match guard.start_mail(session).await {
+                    StartMailResult::Accepted => {}
+                    otherwise => return otherwise,
+                }
+            }
+            FallBack.start_mail(session).await
+        })
     }
 }
 
-impl MailGuard for Dummy {
+impl MailGuard for FallBack {
     /// Always inconclusive
     fn add_recipient<'a, 's, 'f>(
         &'a self,

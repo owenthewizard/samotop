@@ -1,10 +1,10 @@
 use super::Esmtp;
-use crate::common::S1Fut;
-use crate::mail::{DispatchError, MailDispatch};
+use crate::common::S2Fut;
+use crate::mail::{DispatchError, MailDispatchService};
 use crate::smtp::{command::SmtpData, Action, SmtpContext};
 
 impl Action<SmtpData> for Esmtp {
-    fn apply<'a, 's, 'f>(&'a self, _cmd: SmtpData, state: &'s mut SmtpContext) -> S1Fut<'f, ()>
+    fn apply<'a, 's, 'f>(&'a self, _cmd: SmtpData, state: &'s mut SmtpContext) -> S2Fut<'f, ()>
     where
         'a: 'f,
         's: 'f,
@@ -20,7 +20,12 @@ impl Action<SmtpData> for Esmtp {
                 return;
             }
 
-            match state.service().open_mail_body(&mut state.session).await {
+            match state
+                .store
+                .get_or_compose::<MailDispatchService>()
+                .open_mail_body(&mut state.session)
+                .await
+            {
                 Ok(()) if state.session.transaction.sink.is_none() => {
                     warn!(
                         "Send_mail returned OK message without sink for transaction {}",
@@ -50,13 +55,18 @@ mod tests {
     use super::*;
     use crate::{
         mail::Recipient,
-        smtp::{command::SmtpMail, DriverControl, SmtpPath},
+        smtp::{command::SmtpMail, DriverControl, SmtpPath, SmtpSession},
+        store::Store,
     };
 
     #[test]
     fn sink_gets_set() {
         async_std::task::block_on(async move {
-            let mut set = SmtpContext::default();
+            
+        let mut store = Store::default();
+        let mut smtp = SmtpSession::default();
+        let mut set = SmtpContext::new(&mut store, &mut smtp);
+
             set.session.peer_name = Some("xx.io".to_owned());
             set.session.transaction.id = "someid".to_owned();
             set.session.transaction.mail = Some(SmtpMail::Mail(SmtpPath::Null, vec![]));
@@ -81,7 +91,10 @@ mod tests {
     #[test]
     fn command_sequence_is_assured_missing_helo() {
         async_std::task::block_on(async move {
-            let mut set = SmtpContext::default();
+            
+        let mut store = Store::default();
+        let mut smtp = SmtpSession::default();
+        let mut set = SmtpContext::new(&mut store, &mut smtp);
 
             Esmtp.apply(SmtpData, &mut set).await;
             match set.session.pop_control() {
@@ -95,7 +108,11 @@ mod tests {
     #[test]
     fn command_sequence_is_assured_missing_mail() {
         async_std::task::block_on(async move {
-            let mut set = SmtpContext::default();
+            
+        let mut store = Store::default();
+        let mut smtp = SmtpSession::default();
+        let mut set = SmtpContext::new(&mut store, &mut smtp);
+
             set.session.peer_name = Some("xx.iu".to_owned());
 
             Esmtp.apply(SmtpData, &mut set).await;
@@ -109,7 +126,11 @@ mod tests {
     #[test]
     fn command_sequence_is_assured_missing_rcpt() {
         async_std::task::block_on(async move {
-            let mut set = SmtpContext::default();
+            
+        let mut store = Store::default();
+        let mut smtp = SmtpSession::default();
+        let mut set = SmtpContext::new(&mut store, &mut smtp);
+
             set.session.peer_name = Some("xx.iu".to_owned());
             set.session.transaction.mail = Some(SmtpMail::Mail(SmtpPath::Null, vec![]));
 

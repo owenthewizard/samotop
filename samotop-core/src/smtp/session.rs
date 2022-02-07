@@ -1,17 +1,18 @@
-use crate::io::ConnectionInfo;
 use crate::mail::{AddRecipientFailure, StartMailFailure, Transaction};
 use crate::smtp::*;
 
 #[derive(Debug)]
 pub struct SmtpSession {
-    /// Description of the underlying connection
-    pub connection: ConnectionInfo,
     /// ESMTP extensions enabled for this session
     pub extensions: ExtensionSet,
     /// The name of the service serving this session
     pub service_name: String,
     /// The name of the peer as introduced by the HELO command
     pub peer_name: Option<String>,
+    /// The address of the remote peer
+    pub peer_addr: String,
+    /// The address of the local endpoint
+    pub local_addr: String,
     /// Output to be processed by a driver - responses and IO controls
     pub output: Vec<DriverControl>,
     /// Input to be interpretted
@@ -25,10 +26,11 @@ pub struct SmtpSession {
 impl Default for SmtpSession {
     fn default() -> Self {
         Self {
-            connection: Default::default(),
             extensions: Default::default(),
             service_name: "samotop".to_string(),
             peer_name: Default::default(),
+            peer_addr: Default::default(),
+            local_addr: Default::default(),
             output: Default::default(),
             input: Default::default(),
             mode: Default::default(),
@@ -44,11 +46,8 @@ impl SmtpSession {
     /// Special mode where classic SMTP data are expected
     pub const DATA_MODE: &'static str = "DATA";
 
-    pub fn new(connection: ConnectionInfo) -> Self {
-        Self {
-            connection,
-            ..Default::default()
-        }
+    pub fn new() -> Self {
+        Self::default()
     }
     pub fn is_expecting_commands(&self) -> bool {
         self.mode.is_none() || self.transaction.sink.is_none()
@@ -113,9 +112,8 @@ impl SmtpSession {
             local: self.service_name.clone(),
             remote: self
                 .peer_name
-                .as_ref()
-                .unwrap_or(&self.connection.peer_addr)
-                .clone(),
+                .clone()
+                .unwrap_or_else(|| self.peer_addr.clone()),
             extensions: vec![],
         })
     }
@@ -125,10 +123,8 @@ impl SmtpSession {
             local: self.service_name.clone(),
             remote: self
                 .peer_name
-                .as_ref()
-                .unwrap_or(&self.connection.peer_addr)
-                .clone(),
-
+                .clone()
+                .unwrap_or_else(|| self.peer_addr.clone()),
             extensions: self.extensions.iter().map(String::from).collect(),
         })
     }
@@ -220,13 +216,14 @@ impl std::fmt::Display for SmtpSession {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
         write!(
             f,
-            "Client {:?} using service {} with extensions {} on {}. There are {} input bytes and {} output items pending.",
+            "Client {:?} ({:?}) using service {} with extensions {} on {:?}. There are {} input bytes and {} output items pending.",
             self.peer_name,
+            self.peer_addr,
             self.service_name,
             self.extensions
                 .iter()
                 .fold(String::new(), |s, r| s + format!("{}, ", r).as_ref()),
-            self.connection,
+            self.local_addr,
             self.input.len(),
             self.output.len()
         )

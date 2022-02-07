@@ -1,5 +1,6 @@
 pub mod command;
 mod context;
+#[cfg(feature = "driver")]
 mod driver;
 pub mod extension;
 mod extensions;
@@ -15,9 +16,9 @@ mod rfc3207;
 mod rfc5321;
 mod rfc821;
 mod session;
-mod session_service;
 
 pub use self::context::*;
+#[cfg(feature = "driver")]
 pub use self::driver::*;
 pub use self::extensions::*;
 pub use self::host::*;
@@ -33,4 +34,3 @@ pub use self::rfc5321::*;
 pub use self::rfc5321::*;
 pub use self::rfc821::*;
 pub use self::session::*;
-pub use self::session_service::*;

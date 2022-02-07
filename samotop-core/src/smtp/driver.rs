@@ -1,121 +1,105 @@
-#[cfg(feature = "driver")]
-use crate::common::io::*;
-use crate::common::*;
-use crate::io::tls::MayBeTls;
-
+use crate::builder::{ServerContext, Setup};
+use crate::common::{io::Write, *};
+use crate::io::{ConnectionInfo, Handler, HandlerService};
+use crate::server::Session;
 use crate::smtp::*;
+use async_std::io::WriteExt;
+use async_std::io::BufReader;
 
-pub trait Drive: fmt::Debug {
-    fn drive<'a, 'i, 'x, 's, 'f>(
-        &'a self,
-        io: &'i mut Box<dyn MayBeTls>,
-        interpretter: &'x (dyn Interpret + Send + Sync),
-        state: &'s mut SmtpContext,
-    ) -> S1Fut<'f, std::result::Result<(), DriverError>>
-    where
-        'a: 'f,
-        'i: 'f,
-        'x: 'f,
-        's: 'f;
+#[derive(Debug)]
+#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
+pub struct SmtpDriver;
+
+impl Setup for SmtpDriver {
+    fn setup(&self, ctx: &mut ServerContext) {
+        ctx.store.add::<HandlerService>(Arc::new(SmtpDriver))
+    }
 }
 
 #[cfg(feature = "driver")]
-#[derive(Debug)]
-pub struct SmtpDriver;
-
-#[cfg(feature = "driver")]
-impl Drive for SmtpDriver {
-    fn drive<'a, 'i, 'x, 's, 'f>(
-        &'a self,
-        bare_io: &'i mut Box<dyn MayBeTls>,
-        interpretter: &'x (dyn Interpret + Send + Sync),
-        state: &'s mut SmtpContext,
-    ) -> S1Fut<'f, std::result::Result<(), DriverError>>
+impl Handler for SmtpDriver {
+    fn handle<'s, 'a, 'f>(
+        &'s self,
+        session: &'a mut crate::server::Session,
+    ) -> S2Fut<'f, Result<()>>
     where
-        'a: 'f,
-        'i: 'f,
-        'x: 'f,
         's: 'f,
+        'a: 'f,
     {
         Box::pin(async move {
-            state.service().prepare_session(bare_io, state).await;
-            let mut io = async_std::io::BufReader::new(bare_io);
+            let Session { io, store } = session;
+            let conn = store.get_ref::<ConnectionInfo>();
+            let mut smtp = SmtpSession::new();
+            smtp.peer_addr = conn.map(|c| c.peer_addr.clone()).unwrap_or_default();
+            smtp.local_addr = conn.map(|c| c.local_addr.clone()).unwrap_or_default();
+            smtp.service_name = conn.map(|c| c.service_name.clone()).unwrap_or_default();
+
+            let interpretter = store.get_or_compose::<InterptetService>();
+            let mut io = BufReader::new(io);
+
             // fetch and apply commands
             loop {
                 // write all pending responses
-                while let Some(response) = state.session.pop_control() {
+                while let Some(response) = smtp.pop_control() {
                     trace!("Processing driver control {:?}", response);
-                    use async_std::io::prelude::WriteExt;
                     match response {
                         DriverControl::Response(bytes) => {
                             let writer = io.get_mut();
-                            let write = writer
-                                .write_all(bytes.as_ref())
-                                .await
-                                .map_err(DriverError::WriteFailed);
-                            let flush = writer.flush().await.map_err(DriverError::WriteFailed);
-                            match write.and(flush) {
-                                Ok(()) => {}
-                                Err(e) => {
-                                    return Err(e);
-                                }
-                            }
+                            let write = writer.write_all(bytes.as_ref()).await;
+                            writer.flush().await.and(write)?;
                         }
                         DriverControl::Shutdown => {
                             // CHECKME: why?
-                            state.session.input.extend_from_slice(io.buffer());
+                            smtp.input.extend_from_slice(io.buffer());
                             // TODO: replace with close() after https://github.com/async-rs/async-std/issues/977
-                            match poll_fn(move |cx| Pin::new(io.get_mut()).poll_close(cx)).await {
-                                Ok(()) => {
-                                    trace!("Shutdown completed");
-                                    return Ok(());
-                                }
-                                Err(e) => {
-                                    return Err(DriverError::CloseFailed(e));
-                                }
-                            }
+                            poll_fn(move |cx| Pin::new(io.get_mut()).poll_close(cx)).await?;
+                            trace!("Shutdown completed");
+                            return Ok(());
                         }
                         DriverControl::StartTls => {
-                            Pin::new(io.get_mut()).encrypt();
+                            use crate::io::tls::TlsProviderExt;
+                            if let Some(tls) = store.get_ref::<TlsService>() {
+                                tls.upgrade_to_tls_in_place(io.get_mut(), String::default());
+                            } else {
+                                return Err(format!("no TLS").into());
+                            }
                         }
                     }
                 }
-
-                match interpretter.interpret(state).await {
+                let mut context = SmtpContext::new(store, &mut smtp);
+                match interpretter.interpret(&mut context).await {
                     Ok(None) => {
                         // Action taken, but no input consumed (i.e. session setup / shut down)
                     }
                     Ok(Some(consumed)) => {
                         assert_ne!(consumed, 0, "If consumed is 0, infinite loop is likely.");
                         assert!(
-                            consumed <= state.session.input.len(),
+                            consumed <= smtp.input.len(),
                             "The interpreter consumed more than a buffer? How?"
                         );
                         // TODO: handle buffer more efficiently, now allocating all the time
-                        state.session.input = state.session.input.split_off(consumed);
+                        smtp.input = smtp.input.split_off(consumed);
                     }
                     Err(ParseError::Incomplete) => {
                         use async_std::io::prelude::BufReadExt;
                         // TODO: take care of large chunks without LF
-                        match io.read_until(b'\n', &mut state.session.input).await {
+                        match io.read_until(b'\n', &mut smtp.input).await {
                             Err(e) if e.kind() == std::io::ErrorKind::TimedOut => {
                                 warn!("session read timeout");
-                                state.session.say_shutdown_timeout();
+                                smtp.say_shutdown_timeout();
                             }
                             Err(e) => return Err(e.into()),
                             Ok(0) => {
-                                if state.session.input.is_empty() {
+                                if smtp.input.is_empty() {
                                     // client went silent, we're done!
-                                    state.session.shutdown();
+                                    smtp.shutdown();
                                 } else {
                                     error!(
                                         "Incomplete and finished: {:?}",
-                                        String::from_utf8_lossy(state.session.input.as_slice())
+                                        String::from_utf8_lossy(smtp.input.as_slice())
                                     );
                                     // client did not finish the command and left.
-                                    state
-                                        .session
-                                        .say_shutdown_processing_err("Incomplete command".into());
+                                    smtp.say_shutdown_processing_err("Incomplete command".into());
                                 };
                             }
                             Ok(_) => { /* good, interpret again */ }
@@ -124,49 +108,28 @@ impl Drive for SmtpDriver {
                     Err(e) => {
                         warn!(
                             "Invalid command {:?} - {}",
-                            String::from_utf8_lossy(state.session.input.as_slice()),
+                            String::from_utf8_lossy(smtp.input.as_slice()),
                             e
                         );
 
                         // remove one line from the buffer
-                        let split = state
-                            .session
+                        let split = smtp
                             .input
                             .iter()
                             .position(|b| *b == b'\n')
                             .map(|p| p + 1)
-                            .unwrap_or(state.session.input.len());
-                        state.session.input = state.session.input.split_off(split);
+                            .unwrap_or(smtp.input.len());
+                        smtp.input = smtp.input.split_off(split);
 
                         if split == 0 {
                             warn!("Parsing failed on empty input, this will fail again, stopping the session");
-                            state.session.say_shutdown_service_err()
+                            smtp.say_shutdown_service_err()
                         } else {
-                            state.session.say_invalid_syntax();
+                            smtp.say_invalid_syntax();
                         }
                     }
                 };
             }
         })
-    }
-}
-
-#[derive(Debug)]
-pub enum DriverError {
-    IoClosed,
-    WriteFailed(io::Error),
-    CloseFailed(io::Error),
-    ParsingFailed(io::Error),
-    IoFailed(io::Error),
-}
-impl fmt::Display for DriverError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?}", self)
-    }
-}
-impl std::error::Error for DriverError {}
-impl From<std::io::Error> for DriverError {
-    fn from(e: std::io::Error) -> Self {
-        DriverError::IoFailed(e)
     }
 }
