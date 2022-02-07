@@ -4,11 +4,12 @@ use crate::builder::{ServerContext, Setup};
 use crate::common::ready;
 use crate::io::tls::TlsProvider;
 use crate::io::{ConnectionInfo, Handler, HandlerService};
-use crate::smtp::{extension, Interpretter};
+use crate::smtp::Interpretter;
 use crate::store::{Component, SingleComponent};
 
-use super::{InterptetService, SmtpSession};
+use super::{ExtensionSet, InterptetService, SmtpSession};
 
+mod extensions;
 mod starttls;
 
 /// An implementation of ESMTP STARTTLS - RFC 3207 - SMTP Service Extension for Secure SMTP over Transport Layer Security
@@ -56,7 +57,7 @@ impl Handler for StartTls {
                     .store
                     .get_or_compose::<SmtpSession>()
                     .extensions
-                    .enable(&extension::STARTTLS);
+                    .enable(&ExtensionSet::STARTTLS);
             } else {
                 warn!("No TLS provider")
             }

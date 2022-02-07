@@ -1,5 +1,6 @@
 mod body;
 mod data;
+mod extensions;
 mod helo;
 mod invalid;
 mod mail;

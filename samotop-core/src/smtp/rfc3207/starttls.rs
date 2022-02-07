@@ -1,6 +1,6 @@
 use super::StartTls;
 use crate::common::S2Fut;
-use crate::smtp::{extension, Action, SmtpContext};
+use crate::smtp::{Action, ExtensionSet, SmtpContext};
 
 impl Action<StartTls> for StartTls {
     /// Applies given helo to the state
@@ -15,7 +15,7 @@ impl Action<StartTls> for StartTls {
                 state.session.say_command_sequence_fail()
             } else {
                 // you cannot STARTTLS twice so we only advertise it before first use
-                if state.session.extensions.disable(&extension::STARTTLS) {
+                if state.session.extensions.disable(&ExtensionSet::STARTTLS) {
                     state.session.reset();
                     state.session.say_start_tls()
                 } else {

@@ -112,71 +112,84 @@ impl Display for Flag {
 
 #[cfg(test)]
 mod extension_set {
-    use super::super::extension::*;
     use super::*;
 
     #[test]
     fn enable_extension() {
         let mut sut = ExtensionSet::new();
         // extension is not enabled yet so enable returns false
-        assert!(!sut.enable(&STARTTLS));
+        assert!(!sut.enable(&ExtensionSet::STARTTLS));
         // extension is already enabled so enable returns true
-        assert!(sut.enable(&STARTTLS));
+        assert!(sut.enable(&ExtensionSet::STARTTLS));
     }
     #[test]
     fn disable_extension() {
         let mut sut = ExtensionSet::new();
-        sut.enable(&STARTTLS);
+        sut.enable(&ExtensionSet::STARTTLS);
         // extension is enabled so disable returns true
-        assert!(sut.disable(&STARTTLS));
+        assert!(sut.disable(&ExtensionSet::STARTTLS));
         // extension is not enabled anymore so disable returns false
-        assert!(!sut.disable(&STARTTLS));
+        assert!(!sut.disable(&ExtensionSet::STARTTLS));
     }
     #[test]
     fn get_extension() {
         let mut sut = ExtensionSet::new();
         // extension is disabled so gives None
-        assert_eq!(sut.get(&STARTTLS).unwrap(), None);
-        sut.enable(&STARTTLS);
+        assert_eq!(sut.get(&ExtensionSet::STARTTLS).unwrap(), None);
+        sut.enable(&ExtensionSet::STARTTLS);
         // extension is enabled so gives Some
-        assert_eq!(sut.get(&STARTTLS).unwrap(), Some(STARTTLS));
+        assert_eq!(
+            sut.get(&ExtensionSet::STARTTLS).unwrap(),
+            Some(ExtensionSet::STARTTLS)
+        );
     }
     #[test]
     fn check_extension() {
         let mut sut = ExtensionSet::new();
         // extension is disabled so gives None
-        assert!(!sut.is_enabled(&STARTTLS));
-        sut.enable(&STARTTLS);
+        assert!(!sut.is_enabled(&ExtensionSet::STARTTLS));
+        sut.enable(&ExtensionSet::STARTTLS);
         // extension is enabled so gives Some
-        assert!(sut.is_enabled(&STARTTLS));
+        assert!(sut.is_enabled(&ExtensionSet::STARTTLS));
     }
 }
 
 #[cfg(test)]
 mod flag_parsing {
-    use super::super::extension::*;
     use super::*;
 
     #[test]
     fn parse_starttls() {
-        assert_eq!(STARTTLS.parse("STARTTLS").unwrap().unwrap(), STARTTLS);
+        assert_eq!(
+            ExtensionSet::STARTTLS.parse("STARTTLS").unwrap().unwrap(),
+            ExtensionSet::STARTTLS
+        );
     }
     #[test]
     fn parse_incomplete() {
-        assert_eq!(STARTTLS.parse("STARTT").unwrap_err(), Error::Incomplete);
+        assert_eq!(
+            ExtensionSet::STARTTLS.parse("STARTT").unwrap_err(),
+            Error::Incomplete
+        );
     }
     #[test]
     fn parse_invalid() {
-        assert_eq!(STARTTLS.parse("STARTTLS ").unwrap_err(), Error::Invalid(8));
-        assert_eq!(STARTTLS.parse("STARTTLS\t").unwrap_err(), Error::Invalid(8));
         assert_eq!(
-            STARTTLS.parse("STARTTLS param").unwrap_err(),
+            ExtensionSet::STARTTLS.parse("STARTTLS ").unwrap_err(),
+            Error::Invalid(8)
+        );
+        assert_eq!(
+            ExtensionSet::STARTTLS.parse("STARTTLS\t").unwrap_err(),
+            Error::Invalid(8)
+        );
+        assert_eq!(
+            ExtensionSet::STARTTLS.parse("STARTTLS param").unwrap_err(),
             Error::Invalid(8)
         );
     }
     #[test]
     fn parse_mismatch() {
-        assert_eq!(STARTTLS.parse("OTHER").unwrap(), None);
-        assert_eq!(STARTTLS.parse("STARTTLSx").unwrap(), None);
+        assert_eq!(ExtensionSet::STARTTLS.parse("OTHER").unwrap(), None);
+        assert_eq!(ExtensionSet::STARTTLS.parse("STARTTLSx").unwrap(), None);
     }
 }

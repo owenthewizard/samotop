@@ -68,7 +68,7 @@ mod store_tests {
         let dump = Regex::new("[0-9]+")
             .expect("regex")
             .replace_all(&dump, "--redaced--");
-        insta::assert_display_snapshot!(dump, @"connection id --redaced-- from peer Unknown to local Unknown established --redaced--.--redaced--s ago");
+        insta::assert_display_snapshot!(dump, @"connection from peer Unknown to local Unknown established --redaced--.--redaced--s ago");
     }
 
     #[test]

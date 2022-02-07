@@ -2,10 +2,10 @@ pub mod command;
 mod context;
 #[cfg(feature = "driver")]
 mod driver;
-pub mod extension;
 mod extensions;
 mod host;
 mod interpretter;
+mod name;
 mod parser;
 mod path;
 #[cfg(feature = "prudence")]
@@ -22,6 +22,7 @@ pub use self::context::*;
 pub use self::driver::*;
 pub use self::extensions::*;
 pub use self::host::*;
+pub use self::name::*;
 pub use self::interpretter::*;
 pub use self::parser::*;
 pub use self::path::*;
