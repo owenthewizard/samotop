@@ -17,11 +17,15 @@ categories = ["email", "network-programming", "parser-implementations"]
 gitlab = { repository = "BrightOpen/Samotop", branch = "develop" }
 maintenance = { status = "actively-developed" }
 
+[features]
+serialize = ["serde/derive"]
+
 [dependencies.samotop-core]
 version = "0.14.0"
 path = "../samotop-core"
+default-features = false
 
 [dependencies]
 log = "0.4"
 peg = "0.7"
-serde = "1"
+serde = { version = "1", default-features = false, optional = true }

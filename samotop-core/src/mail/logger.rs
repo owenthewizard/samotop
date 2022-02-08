@@ -1,9 +1,9 @@
 //! Reference implementation of a mail service
 //! simply delivering mail to server console log.
 use crate::{
-    builder::{ServerContext, Setup},
+    config::{ServerContext, Setup},
     common::*,
-    io::{ConnectionInfo, Handler, HandlerService},
+    io::{ConnectionInfo, Handler, HandlerService, Session},
     mail::*,
     smtp::SmtpSession,
 };
@@ -24,10 +24,7 @@ impl Setup for SessionLogger {
     }
 }
 impl Handler for SessionLogger {
-    fn handle<'s, 'a, 'f>(
-        &'s self,
-        session: &'a mut crate::server::Session,
-    ) -> S2Fut<'f, Result<()>>
+    fn handle<'s, 'a, 'f>(&'s self, session: &'a mut Session) -> S2Fut<'f, Result<()>>
     where
         's: 'f,
         'a: 'f,

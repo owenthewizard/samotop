@@ -2,7 +2,7 @@ use crate::{
     common::*,
     mail::Recipient,
     smtp::{SmtpPath, SmtpSession},
-    store::{Component, ComposableComponent, MultiComponent},
+    config::{Component, ComposableComponent, MultiComponent},
 };
 
 /**

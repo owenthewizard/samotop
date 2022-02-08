@@ -47,7 +47,7 @@ mod tests {
     use super::*;
     use crate::{
         smtp::{command::SmtpMail, SmtpPath, SmtpSession},
-        store::Store,
+        config::Store,
     };
 
     #[test]

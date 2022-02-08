@@ -12,9 +12,9 @@ mod unknown;
 
 pub(crate) use self::body::apply_mail_body;
 pub(crate) use self::helo::apply_helo;
-use crate::builder::{ServerContext, Setup};
+use crate::config::{ServerContext, Setup};
 use crate::common::*;
-use crate::io::{ConnectionInfo, Handler, HandlerService};
+use crate::io::{ConnectionInfo, Handler, HandlerService, Session};
 use crate::smtp::command::*;
 use crate::smtp::*;
 
@@ -33,10 +33,7 @@ impl Setup for Esmtp {
 }
 
 impl Handler for Esmtp {
-    fn handle<'s, 'a, 'f>(
-        &'s self,
-        session: &'a mut crate::server::Session,
-    ) -> S2Fut<'f, Result<()>>
+    fn handle<'s, 'a, 'f>(&'s self, session: &'a mut Session) -> S2Fut<'f, Result<()>>
     where
         's: 'f,
         'a: 'f,

@@ -1,4 +1,4 @@
-use crate::{smtp::SmtpSession, store::Store};
+use crate::{smtp::SmtpSession, config::Store};
 
 #[derive(Debug)]
 pub struct SmtpContext<'a> {

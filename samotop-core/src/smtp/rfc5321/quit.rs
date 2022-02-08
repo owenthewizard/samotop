@@ -23,7 +23,7 @@ mod tests {
     use crate::{
         mail::Recipient,
         smtp::{command::SmtpMail, SmtpPath, SmtpSession},
-        store::Store,
+        config::Store,
     };
 
     #[test]

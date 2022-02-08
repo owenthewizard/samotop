@@ -1,7 +1,7 @@
 use crate::{
     common::*,
     smtp::SmtpSession,
-    store::{Component, ComposableComponent, MultiComponent},
+    config::{Component, ComposableComponent, MultiComponent},
 };
 
 /**

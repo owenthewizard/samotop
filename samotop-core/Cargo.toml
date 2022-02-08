@@ -18,9 +18,8 @@ maintenance = { status = "actively-developed" }
 
 [features]
 server = ["futures-util/alloc", "async-std"]
-driver = ["async-std/std"]
-prudence = ["smol-timeout","async-std"]
-serialize = ["serde"]
+prudence = ["async-std"]
+serialize = ["serde/derive"]
 
 [dependencies]
 futures-io = "0.3"
@@ -35,3 +34,4 @@ tracing = { version = "0.1", default-features = false }
 insta = { version = "1.7" }
 regex = "1.5"
 async-std = { version = "1.9", features = ["attributes"] }
+futures-util = { version = "0.3" }

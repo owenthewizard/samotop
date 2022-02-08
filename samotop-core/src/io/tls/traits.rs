@@ -1,7 +1,7 @@
 use crate::{
     common::*,
     io::Io,
-    store::{Component, SingleComponent},
+    config::{Component, SingleComponent},
 };
 use std::ops::DerefMut;
 

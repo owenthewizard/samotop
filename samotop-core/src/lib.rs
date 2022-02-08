@@ -3,12 +3,10 @@
 #[macro_use]
 extern crate tracing;
 
-pub mod builder;
+pub mod config;
 pub mod io;
 pub mod mail;
-pub mod server;
 pub mod smtp;
-pub mod store;
 
 pub mod common {
     pub type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
@@ -19,9 +17,6 @@ pub mod common {
         };
         pub use std::io::{Error, ErrorKind, Result};
     }
-    //pub use async_std::io;
-    //pub use async_std::io::prelude::{ReadExt, WriteExt};
-    //pub use async_std::io::{Read, Write};
     pub use futures_core::ready;
     pub use futures_core::Stream;
     use std::any::TypeId;

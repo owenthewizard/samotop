@@ -1,8 +1,10 @@
-use crate::builder::{ServerContext, Setup};
-use crate::common::{io::Write, *};
-use crate::io::{ConnectionInfo, Handler, HandlerService};
-use crate::server::Session;
-use crate::smtp::*;
+use crate::{
+    common::{io::Write, *},
+    config::{ServerContext, Setup},
+    io::{ConnectionInfo, Handler, HandlerService, Session},
+    smtp::*,
+};
+use async_std::io::prelude::BufReadExt;
 use async_std::io::BufReader;
 use async_std::io::WriteExt;
 
@@ -16,12 +18,8 @@ impl Setup for SmtpDriver {
     }
 }
 
-#[cfg(feature = "driver")]
 impl Handler for SmtpDriver {
-    fn handle<'s, 'a, 'f>(
-        &'s self,
-        session: &'a mut crate::server::Session,
-    ) -> S2Fut<'f, Result<()>>
+    fn handle<'s, 'a, 'f>(&'s self, session: &'a mut Session) -> S2Fut<'f, Result<()>>
     where
         's: 'f,
         'a: 'f,
@@ -83,12 +81,14 @@ impl Handler for SmtpDriver {
                         smtp.input = smtp.input.split_off(consumed);
                     }
                     Err(ParseError::Incomplete) => {
-                        use async_std::io::prelude::BufReadExt;
                         // TODO: take care of large chunks without LF
                         match io.read_until(b'\n', &mut smtp.input).await {
                             Err(e) if e.kind() == std::io::ErrorKind::TimedOut => {
-                                warn!("session read timeout");
+                                warn!("session read timeout, prudence does this");
                                 smtp.say_shutdown_timeout();
+                            }
+                            Err(e) if e.kind() == std::io::ErrorKind::ConnectionRefused => {
+                                smtp.say_shutdown_processing_err("prudence does this".to_owned());
                             }
                             Err(e) => return Err(e.into()),
                             Ok(0) => {

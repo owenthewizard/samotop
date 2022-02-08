@@ -1,7 +1,7 @@
 use super::ServerService;
 use super::{Server, Session};
-use crate::builder::ServerContext;
-use crate::builder::Setup;
+use crate::config::ServerContext;
+use crate::config::Setup;
 use crate::common::*;
 use crate::io::*;
 use async_std::os::unix::net::UnixStream;
@@ -12,6 +12,7 @@ use futures_util::{TryFutureExt, TryStreamExt};
 
 /// `UnixServer` takes care of accepting Unix socket connections and passing them to an `IoService` to `handle()`.
 #[derive(Default, Debug, Clone)]
+#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub struct UnixServer<T = SocketAddr> {
     port: T,
 }

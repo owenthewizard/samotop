@@ -16,17 +16,13 @@ use rustyknife::{
 };
 pub use samotop_core::smtp::{ParseError, ParseResult, Parser};
 use samotop_core::{
-    builder::{ServerContext, Setup},
-    io::HandlerService,
-    smtp::{command::SmtpCommand, ParserService, SmtpContext},
-};
-use samotop_core::{
-    io::Handler,
-    smtp::{command::*, *},
+    config::{ServerContext, Setup},
+    common::*,
+    io::{Handler, HandlerService, Session},
+    smtp::{command::*, ParserService, SmtpContext, *},
 };
 use serde::{Deserialize, Serialize};
 use std::net::IpAddr;
-use std::{future::ready, sync::Arc};
 
 #[derive(Clone, Copy, Debug, Default, Serialize, Deserialize)]
 pub struct SmtpParserNom;
@@ -40,7 +36,7 @@ impl Setup for SmtpParserNom {
 impl Handler for SmtpParserNom {
     fn handle<'s, 'a, 'f>(
         &'s self,
-        session: &'a mut samotop_core::server::Session,
+        session: &'a mut Session,
     ) -> samotop_core::common::S2Fut<'f, samotop_core::common::Result<()>>
     where
         's: 'f,

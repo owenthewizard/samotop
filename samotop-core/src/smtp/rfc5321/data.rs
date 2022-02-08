@@ -56,7 +56,7 @@ mod tests {
     use crate::{
         mail::Recipient,
         smtp::{command::SmtpMail, DriverControl, SmtpPath, SmtpSession},
-        store::Store,
+        config::Store,
     };
 
     #[test]

@@ -3,8 +3,8 @@ use std::fmt::Debug;
 use crate::{
     common::*,
     io::ConnectionInfo,
-    server::Session,
-    store::{Component, ComposableComponent, MultiComponent},
+    io::Session,
+    config::{Component, ComposableComponent, MultiComponent},
 };
 
 /**
@@ -58,10 +58,7 @@ impl Handler for Vec<<HandlerService as Component>::Target> {
 }
 
 impl Handler for FallBack {
-    fn handle<'s, 'a, 'f>(
-        &'s self,
-        session: &'a mut crate::server::Session,
-    ) -> S2Fut<'f, Result<()>>
+    fn handle<'s, 'a, 'f>(&'s self, session: &'a mut Session) -> S2Fut<'f, Result<()>>
     where
         's: 'f,
         'a: 'f,

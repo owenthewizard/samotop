@@ -1,4 +1,4 @@
-use crate::store::{Component, SingleComponent};
+use crate::config::{Component, SingleComponent};
 use std::time::{Duration, SystemTime};
 
 /// Carries connection infromation (TCP, unix socket, ...) so that remaining code can abstract away from it as Io

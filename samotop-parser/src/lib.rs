@@ -5,20 +5,20 @@ mod smtp;
 
 pub use self::data::*;
 pub use self::smtp::*;
-use samotop_core::builder::ServerContext;
-use samotop_core::builder::Setup;
-use samotop_core::io::Handler;
-use samotop_core::io::HandlerService;
-use samotop_core::smtp::{
-    command::{MailBody, SmtpCommand},
-    ParserService, StartTls,
-};
+use samotop_core::io::Session;
 pub use samotop_core::smtp::{ParseError, ParseResult, Parser};
-use serde::{Deserialize, Serialize};
-use std::future::ready;
-use std::sync::Arc;
+use samotop_core::{
+    config::{ServerContext, Setup},
+    common::*,
+    io::{Handler, HandlerService},
+    smtp::{
+        command::{MailBody, SmtpCommand},
+        ParserService, StartTls,
+    },
+};
 
-#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Default, )]
+#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub struct SmtpParserPeg;
 
 impl Setup for SmtpParserPeg {
@@ -28,10 +28,7 @@ impl Setup for SmtpParserPeg {
 }
 
 impl Handler for SmtpParserPeg {
-    fn handle<'s, 'a, 'f>(
-        &'s self,
-        session: &'a mut samotop_core::server::Session,
-    ) -> samotop_core::common::S2Fut<'f, samotop_core::common::Result<()>>
+    fn handle<'s, 'a, 'f>(&'s self, session: &'a mut Session) -> S2Fut<'f, Result<()>>
     where
         's: 'f,
         'a: 'f,

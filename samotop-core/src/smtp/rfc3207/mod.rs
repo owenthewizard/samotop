@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
-use crate::builder::{ServerContext, Setup};
-use crate::common::ready;
+use crate::config::{ServerContext, Setup};
+use crate::common::*;
 use crate::io::tls::TlsProvider;
-use crate::io::{ConnectionInfo, Handler, HandlerService};
+use crate::io::{ConnectionInfo, Handler, HandlerService, Session};
 use crate::smtp::Interpretter;
-use crate::store::{Component, SingleComponent};
+use crate::config::{Component, SingleComponent};
 
 use super::{ExtensionSet, InterptetService, SmtpSession};
 
@@ -32,10 +32,7 @@ impl Component for TlsService {
 impl SingleComponent for TlsService {}
 
 impl Handler for StartTls {
-    fn handle<'s, 'a, 'f>(
-        &'s self,
-        session: &'a mut crate::server::Session,
-    ) -> crate::common::S2Fut<'f, crate::common::Result<()>>
+    fn handle<'s, 'a, 'f>(&'s self, session: &'a mut Session) -> S2Fut<'f, Result<()>>
     where
         's: 'f,
         'a: 'f,

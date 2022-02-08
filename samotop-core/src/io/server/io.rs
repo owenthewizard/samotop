@@ -1,7 +1,6 @@
 use super::{Server, Session};
 use crate::{common::io, common::*, io::ConnectionInfo};
-use futures_core::Stream;
-use futures_util::stream::once;
+use async_std::stream::once;
 
 pub struct StdIo;
 
@@ -20,14 +19,10 @@ impl Server for StdIo {
         let mut session = Session::new(stream);
         session.store.set::<ConnectionInfo>(conn);
 
-        let stream = once(ready(Ok(session)));
+        let stream = Box::pin(ready(Ok(Box::pin(once(Ok(session)))
+            as Pin<Box<dyn Stream<Item = Result<Session>> + Send + Sync>>)));
 
-        Box::pin(async move {
-            Ok(Box::pin(stream)
-                as Pin<
-                    Box<dyn Stream<Item = Result<Session>> + Send + Sync>,
-                >)
-        })
+        stream
     }
 }
 

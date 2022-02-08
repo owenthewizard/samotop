@@ -1,6 +1,6 @@
-use crate::builder::{ServerContext, Setup};
+use crate::config::{ServerContext, Setup};
 use crate::common::*;
-use crate::io::{Handler, HandlerService};
+use crate::io::{Handler, HandlerService, Session};
 use crate::smtp::SmtpSession;
 
 /// MailSetup that uses the given service name for a session.
@@ -40,10 +40,7 @@ impl Name {
 }
 impl Handler for Name {
     /// Use a given name as a service name in the session.
-    fn handle<'s, 'a, 'f>(
-        &'s self,
-        session: &'a mut crate::server::Session,
-    ) -> crate::common::S2Fut<'f, Result<()>>
+    fn handle<'s, 'a, 'f>(&'s self, session: &'a mut Session) -> S2Fut<'f, Result<()>>
     where
         's: 'f,
         'a: 'f,

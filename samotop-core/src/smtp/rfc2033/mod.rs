@@ -2,9 +2,9 @@ mod body;
 mod helo;
 
 use crate::{
-    builder::{ServerContext, Setup},
+    config::{ServerContext, Setup},
     common::*,
-    io::{Handler, HandlerService},
+    io::{Handler, HandlerService, Session},
     smtp::{
         command::{MailBody, SmtpCommand},
         *,
@@ -25,10 +25,7 @@ impl Setup for Lmtp {
 }
 
 impl Handler for Lmtp {
-    fn handle<'s, 'a, 'f>(
-        &'s self,
-        session: &'a mut crate::server::Session,
-    ) -> S2Fut<'f, Result<()>>
+    fn handle<'s, 'a, 'f>(&'s self, session: &'a mut Session) -> S2Fut<'f, Result<()>>
     where
         's: 'f,
         'a: 'f,

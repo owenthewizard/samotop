@@ -1,6 +1,6 @@
 use super::ServerService;
 use super::{Server, Session};
-use crate::builder::{ServerContext, Setup};
+use crate::config::{ServerContext, Setup};
 use crate::common::*;
 use crate::io::*;
 use async_std::net::{TcpListener, TcpStream, ToSocketAddrs};
@@ -61,7 +61,7 @@ where
                 .collect::<FuturesUnordered<_>>()
                 .try_collect::<Vec<_>>()
                 .await?;
-
+                
             let sessions = Accepting::new(listeners);
 
             //let sessions = Sessions::on(port).await?;
@@ -135,7 +135,7 @@ impl Stream for Accepting {
 
 #[cfg(test)]
 mod tests {
-    use crate::builder::Builder;
+    use crate::config::Builder;
 
     use super::*;
 

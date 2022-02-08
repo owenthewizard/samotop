@@ -1,6 +1,6 @@
 use crate::mail::{AddRecipientFailure, StartMailFailure, Transaction};
 use crate::smtp::*;
-use crate::store::{Component, ComposableComponent, SingleComponent};
+use crate::config::{Component, ComposableComponent, SingleComponent};
 
 #[derive(Debug, Default)]
 pub struct SmtpSession {

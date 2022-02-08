@@ -1,5 +1,5 @@
 use crate::{
-    builder::{ServerContext, Setup},
+    config::{ServerContext, Setup},
     common::*,
     mail::{DispatchResult, MailDispatch, MailDispatchService},
     smtp::SmtpSession,

@@ -1,6 +1,6 @@
 pub mod command;
 mod context;
-#[cfg(feature = "driver")]
+#[cfg(feature = "server")]
 mod driver;
 mod extensions;
 mod host;
@@ -18,7 +18,7 @@ mod rfc821;
 mod session;
 
 pub use self::context::*;
-#[cfg(feature = "driver")]
+#[cfg(feature = "server")]
 pub use self::driver::*;
 pub use self::extensions::*;
 pub use self::host::*;

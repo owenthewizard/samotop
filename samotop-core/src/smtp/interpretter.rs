@@ -1,7 +1,7 @@
 use crate::{
     common::*,
     smtp::{ParseError, Parser, SmtpContext},
-    store::{Component, ComposableComponent, MultiComponent, SingleComponent},
+    config::{Component, ComposableComponent, MultiComponent, SingleComponent},
 };
 use std::{
     fmt::{self, Debug},
@@ -220,7 +220,7 @@ mod tests {
     use crate::common::FallBack;
     use crate::smtp::command::{SmtpInvalidCommand, SmtpUnknownCommand};
     use crate::smtp::SmtpSession;
-    use crate::store::Store;
+    use crate::config::Store;
 
     #[test]
     fn interpretter_session_setup_test() {

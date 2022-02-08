@@ -2,7 +2,7 @@ use crate::common::*;
 use crate::io::tls::MayBeTls;
 use crate::mail::SvcBunch;
 use crate::smtp::SmtpContext;
-use crate::store::{Component, ComposableComponent, MultiComponent};
+use crate::config::{Component, ComposableComponent, MultiComponent};
 use std::ops::Deref;
 
 /**

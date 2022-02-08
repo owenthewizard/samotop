@@ -1,5 +1,5 @@
+use crate::config::Store;
 use crate::common::*;
-use crate::store::Store;
 use std::ops::{Add, AddAssign};
 
 /**
@@ -8,7 +8,7 @@ Can set up the given mail services.
 ```
 # use samotop_core::common::*;
 # use samotop_core::mail::*;
-# use samotop_core::builder::*;
+# use samotop_core::config::*;
 /// This mail setup replaces dispatch service with default. No mail will be sent.
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
@@ -86,44 +86,5 @@ impl Builder {
             setup.setup(&mut context)
         }
         context
-    }
-}
-
-#[cfg(feature = "runner")]
-impl ServerContext {
-    pub async fn run(self) -> Result<()> {
-        use crate::io::HandlerService;
-        use crate::server::ServerService;
-        use futures_util::FutureExt;
-        use futures_util::StreamExt;
-
-        let server = self.store.get_or_compose::<ServerService>();
-        let handler = self.store.get_or_compose::<HandlerService>();
-
-        server
-            .sessions()
-            .await?
-            .for_each_concurrent(1000, move |session| match session {
-                Ok(mut session) => {
-                    let handler = handler.clone();
-                    Box::pin(async move {
-                        handler
-                            .handle(&mut session)
-                            .map(|result| {
-                                if let Err(e) = result {
-                                    warn!("Session failed: {}", e);
-                                }
-                            })
-                            .await
-                    })
-                }
-                Err(e) => {
-                    warn!("Session not accepted: {}", e);
-                    Box::pin(ready(())) as S3Fut<()>
-                }
-            })
-            .await;
-
-        Ok(())
     }
 }
