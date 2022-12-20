@@ -117,6 +117,7 @@ use async_std::fs::File;
 use async_std::io::ReadExt;
 use async_std::task;
 use async_tls::TlsAcceptor;
+use clap::Parser;
 use rustls::ServerConfig;
 use samotop::io::tls::RustlsProvider;
 use samotop::mail::spf::Spf;
@@ -125,7 +126,6 @@ use samotop::server::TcpServer;
 use samotop::smtp::{Esmtp, EsmtpStartTls, Prudence, SmtpParser};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
-use structopt::StructOpt;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
@@ -160,9 +160,7 @@ pub struct Setup {
 
 impl Setup {
     pub fn from_args() -> Setup {
-        Setup {
-            opt: Opt::from_args(),
-        }
+        Setup { opt: Opt::parse() }
     }
 
     pub fn prudence(&self) -> Prudence {
@@ -270,8 +268,8 @@ impl Setup {
     }
 }
 
-#[derive(StructOpt, Debug)]
-#[structopt(name = "samotop")]
+#[derive(Parser, Debug)]
+#[command(name = "samotop", version)]
 struct Opt {
     /// SMTP server address:port,
     /// such as 127.0.0.1:25 or localhost:12345.
@@ -279,42 +277,42 @@ struct Opt {
     /// the server will start on all given ports.
     /// If no ports are given, the default is to
     /// start on localhost:25.
-    #[structopt(short = "p", long = "port", name = "port")]
+    #[arg(short = 'p', long = "port", name = "port")]
     ports: Vec<String>,
 
     /// Disable TLS suport.
     /// It is enabled by default to reduce accidents and remind operators of misconfiguration.
-    #[structopt(long = "no-tls")]
+    #[arg(long = "no-tls", name = "no-tls")]
     no_tls: bool,
 
     /// Use this identity file for TLS. Disabled with --no-tls.
     /// If a relative path is given, it will be relative to base-dir.
-    #[structopt(
-        short = "i",
+    #[arg(
+        short = 'i',
         long = "identity-file",
         name = "identity file path",
-        required_unless = "no-tls"
+        required_unless_present = "no-tls"
     )]
     identity_file: Option<String>,
 
     /// Use this cert file for TLS. Disabled with --no-tls.
     /// If a relative path is given, it will be relative to base-dir.
-    #[structopt(
-        short = "c",
+    #[arg(
+        short = 'c',
         long = "cert-file",
         name = "cert file path",
-        required_unless = "no-tls"
+        required_unless_present = "no-tls"
     )]
     cert_file: Option<String>,
 
     /// Use the given name in SMTP greetings, or if absent, use hostname.
-    #[structopt(short = "n", long = "name", name = "SMTP service name")]
+    #[arg(short = 'n', long = "name", name = "SMTP service name")]
     name: Option<String>,
 
     /// Where to store incoming mail?
     /// If a relative path is given, it will be relative to base-dir.
-    #[structopt(
-        short = "m",
+    #[arg(
+        short = 'm',
         long = "mail-dir",
         name = "mail dir path",
         default_value = "inmail"
@@ -322,8 +320,8 @@ struct Opt {
     mail_dir: PathBuf,
 
     /// What is the base dir for other relative paths?
-    #[structopt(
-        short = "b",
+    #[arg(
+        short = 'b',
         long = "base-dir",
         name = "base dir path",
         default_value = "."
@@ -332,11 +330,11 @@ struct Opt {
 
     /// Should we enforce prudent banner deleay?
     /// Delay is in miliseconds.
-    #[structopt(long = "banner_delay", name = "delay")]
+    #[arg(long = "banner_delay", name = "delay")]
     prudent_banner_delay: Option<u64>,
 
     /// Should we enforce prudent command timeout?
     /// Timeout is in miliseconds.
-    #[structopt(long = "command_timeout", name = "timeout")]
+    #[arg(long = "command_timeout", name = "timeout")]
     prudent_command_timeout: Option<u64>,
 }

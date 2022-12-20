@@ -126,7 +126,7 @@ impl<'a> UnixServer<'a> {
                     let s: Box<dyn MayBeTls> = Box::new(TlsCapable::plaintext(s));
                     Ok(s)
                 }
-                Err(e) => (Err(e.into())),
+                Err(e) => Err(e.into()),
             };
             let service = service.clone();
             spawn_task_and_swallow_log_errors(

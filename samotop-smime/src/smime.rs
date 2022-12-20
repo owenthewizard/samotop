@@ -232,7 +232,8 @@ impl<'a> io::Write for SMime<'a> {
         }
 
         trace!("close poll copy...");
-        trace!("close poll copy => {:?}", ready!(this.copy.poll(cx))?);
+        ready!(this.copy.poll(cx))?;
+        trace!("close poll copy");
 
         Poll::Ready(Ok(()))
     }

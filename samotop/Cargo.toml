@@ -79,6 +79,6 @@ path = "../samotop-delivery"
 optional = true
 
 [dev-dependencies]
-env_logger = "0.9"
+env_logger = "0.10.0"
 insta = { version = "1.7" }
 async-std = { version = "1.9", features = ["attributes"] }

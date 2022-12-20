@@ -11,7 +11,7 @@ pub struct LmtpDispatch<C: Connector> {
 impl<C: Connector> LmtpDispatch<C> {
     pub fn new(address: String, connector: C) -> Result<Self> {
         let variant = LmtpDispatch {
-            client: SmtpClient::new(&address)?.lmtp(true),
+            client: SmtpClient::new(address)?.lmtp(true),
             connector,
         };
         Ok(variant)
