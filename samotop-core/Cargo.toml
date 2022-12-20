@@ -31,5 +31,5 @@ log = "0.4"
 
 [dev-dependencies]
 insta = { version = "1.7" }
-regex = "1.5"
+regex = "1.5.5"
 async-std = "1.9"

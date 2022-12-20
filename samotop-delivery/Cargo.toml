@@ -36,18 +36,18 @@ thiserror = "1.0"
 potential = "2.2"
 bytes = "1.0"
 memchr = "2.3"
+is-terminal = "0.4.1"
+clap = { version = "4.0.29", features = ["derive"] }
 
 [dependencies.samotop-core]
 version = "0.13.0"
 path = "../samotop-core"
 
 [dev-dependencies]
-env_logger = "0.9"
+env_logger = "0.10.0"
 glob = "0.3"
 #criterion = "0.3"
 async-attributes = "1.1"
-structopt = "0.3"
-
 #[[bench]]
 #name = "transport_smtp"
 #harness = false
