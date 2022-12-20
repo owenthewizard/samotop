@@ -67,7 +67,7 @@ impl HeloCommand {
 }
 
 /// STARTTLS command
-#[derive(PartialEq, Clone, Debug, Copy)]
+#[derive(PartialEq, Eq, Clone, Debug, Copy)]
 #[cfg_attr(
     feature = "serde-impls",
     derive(serde_derive::Serialize, serde_derive::Deserialize)
@@ -81,7 +81,7 @@ impl Display for StarttlsCommand {
 }
 
 /// MAIL command
-#[derive(PartialEq, Clone, Debug)]
+#[derive(PartialEq, Eq, Clone, Debug)]
 #[cfg_attr(
     feature = "serde-impls",
     derive(serde_derive::Serialize, serde_derive::Deserialize)
@@ -113,7 +113,7 @@ impl MailCommand {
 }
 
 /// RCPT command
-#[derive(PartialEq, Clone, Debug)]
+#[derive(PartialEq, Eq, Clone, Debug)]
 #[cfg_attr(
     feature = "serde-impls",
     derive(serde_derive::Serialize, serde_derive::Deserialize)
@@ -144,7 +144,7 @@ impl RcptCommand {
 }
 
 /// DATA command
-#[derive(PartialEq, Clone, Debug, Copy)]
+#[derive(PartialEq, Eq, Clone, Debug, Copy)]
 #[cfg_attr(
     feature = "serde-impls",
     derive(serde_derive::Serialize, serde_derive::Deserialize)
@@ -158,7 +158,7 @@ impl Display for DataCommand {
 }
 
 /// QUIT command
-#[derive(PartialEq, Clone, Debug, Copy)]
+#[derive(PartialEq, Eq, Clone, Debug, Copy)]
 #[cfg_attr(
     feature = "serde-impls",
     derive(serde_derive::Serialize, serde_derive::Deserialize)
@@ -172,7 +172,7 @@ impl Display for QuitCommand {
 }
 
 /// NOOP command
-#[derive(PartialEq, Clone, Debug, Copy)]
+#[derive(PartialEq, Eq, Clone, Debug, Copy)]
 #[cfg_attr(
     feature = "serde-impls",
     derive(serde_derive::Serialize, serde_derive::Deserialize)
@@ -186,7 +186,7 @@ impl Display for NoopCommand {
 }
 
 /// HELP command
-#[derive(PartialEq, Clone, Debug)]
+#[derive(PartialEq, Eq, Clone, Debug)]
 #[cfg_attr(
     feature = "serde-impls",
     derive(serde_derive::Serialize, serde_derive::Deserialize)
@@ -213,7 +213,7 @@ impl HelpCommand {
 }
 
 /// VRFY command
-#[derive(PartialEq, Clone, Debug)]
+#[derive(PartialEq, Eq, Clone, Debug)]
 #[cfg_attr(
     feature = "serde-impls",
     derive(serde_derive::Serialize, serde_derive::Deserialize)
@@ -236,7 +236,7 @@ impl VrfyCommand {
 }
 
 /// EXPN command
-#[derive(PartialEq, Clone, Debug)]
+#[derive(PartialEq, Eq, Clone, Debug)]
 #[cfg_attr(
     feature = "serde-impls",
     derive(serde_derive::Serialize, serde_derive::Deserialize)
@@ -259,7 +259,7 @@ impl ExpnCommand {
 }
 
 /// RSET command
-#[derive(PartialEq, Clone, Debug, Copy)]
+#[derive(PartialEq, Eq, Clone, Debug, Copy)]
 #[cfg_attr(
     feature = "serde-impls",
     derive(serde_derive::Serialize, serde_derive::Deserialize)
@@ -273,7 +273,7 @@ impl Display for RsetCommand {
 }
 
 /// AUTH command
-#[derive(PartialEq, Clone, Debug)]
+#[derive(PartialEq, Eq, Clone, Debug)]
 #[cfg_attr(
     feature = "serde-impls",
     derive(serde_derive::Serialize, serde_derive::Deserialize)
@@ -309,7 +309,7 @@ impl AuthCommand {
 }
 
 /// AUTH command challenge response
-#[derive(PartialEq, Clone, Debug)]
+#[derive(PartialEq, Eq, Clone, Debug)]
 #[cfg_attr(
     feature = "serde-impls",
     derive(serde_derive::Serialize, serde_derive::Deserialize)
@@ -342,7 +342,7 @@ impl AuthResponse {
             .ok_or(Error::ResponseParsing("Could not read auth challenge"))?;
         debug!("auth encoded challenge: {}", encoded_challenge);
 
-        let decoded_challenge = String::from_utf8(base64::decode(&encoded_challenge)?)?;
+        let decoded_challenge = String::from_utf8(base64::decode(encoded_challenge)?)?;
         debug!("auth decoded challenge: {}", decoded_challenge);
         let response = authentication.respond(decoded_challenge.as_ref())?;
 

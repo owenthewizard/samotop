@@ -129,18 +129,15 @@ impl<'s, S: io::Read + io::Write> SmtpProto<'s, S> {
     /// Sends STARTTLS, and confirms success message. Does not switch protocols!
     /// Do that through the self.stream_mut() or self.into_inner()
     pub async fn execute_starttls(&mut self, timeout: Duration) -> SmtpResult {
-        let response = self.execute_command(StarttlsCommand, [220], timeout).await;
-        response
+        self.execute_command(StarttlsCommand, [220], timeout).await
     }
     /// Sends the rset command
     pub async fn execute_rset(&mut self, timeout: Duration) -> SmtpResult {
-        let response = self.execute_command(RsetCommand, [250], timeout).await;
-        response
+        self.execute_command(RsetCommand, [250], timeout).await
     }
     /// Sends the quit command
     pub async fn execute_quit(&mut self, timeout: Duration) -> SmtpResult {
-        let response = self.execute_command(QuitCommand, [221], timeout).await;
-        response
+        self.execute_command(QuitCommand, [221], timeout).await
     }
     /// Sends an AUTH command with the given mechanism, and handles challenge if needed
     pub async fn authenticate<A: Authentication>(

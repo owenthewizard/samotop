@@ -6,3 +6,10 @@ target/
 /*.log
 tmp/
 *.pending-snap
+*.vsidx
+read.lock
+.wsuo
+ProjectSettings.json
+slnx.sqlite
+VSWorkspaceState.json
+write.lock
