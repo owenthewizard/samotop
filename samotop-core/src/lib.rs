@@ -64,7 +64,7 @@ pub mod common {
         type Output = T;
 
         fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<T> {
-            (&mut self.f)(cx)
+            (self.f)(cx)
         }
     }
 

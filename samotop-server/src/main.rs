@@ -185,7 +185,7 @@ impl Setup {
 
         let key = {
             let id_path = self.absolute_path(
-                &opt.identity_file
+                opt.identity_file
                     .as_ref()
                     .expect("identity-file must be set unless --no-tls"),
             );
@@ -205,7 +205,7 @@ impl Setup {
 
         let certs = {
             let cert_path = self.absolute_path(
-                &opt.cert_file
+                opt.cert_file
                     .as_ref()
                     .expect("cert-file must be set unless --no-tls"),
             );
