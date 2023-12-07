@@ -1,8 +1,17 @@
+# Unmaintained
+
+I haven't touched this in a long time. I had fun, learned a lot!
+
+[Stalwart mailserver](https://github.com/stalwartlabs/mail-server/tree/main)
+seems to have done what I wanted to achieve so I'm happy and content to rest the case.
+
+
+# Samotop
+
 ![samotop]
 
 [samotop]: SaMoToP.svg
 
-# Samotop
 An SMTP [server](samotop-server/README.md) and [library](samotop/README.md) implemented in Rust.
 
 
