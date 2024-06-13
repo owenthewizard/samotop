@@ -22,4 +22,4 @@ version = "0.13.0"
 path = "../samotop-core"
 
 [dependencies]
-async-tls =  "0.11"
+async-tls =  "0.12"
